@@ -29,3 +29,5 @@ XlsxWriter==3.2.0
 # Utilidades
 validators==0.34.0
 Pillow==9.5.0
+
+gspread
