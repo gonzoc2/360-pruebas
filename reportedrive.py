@@ -394,6 +394,7 @@ else:
     st.subheader("🔍 Filtro por Cuentas")
 
     cue_pro = df_provisiones['Cuenta_Nombre_A'].dropna().unique().tolist()
+    st.write(df_provisiones)
     cue_default = [
         "COMBUSTIBLE / DIESEL", "RENTA DE REMOLQUES", "DAÑOS", "DIF DE KILOMETRAJE",
         "LIMPIEZA DE UNIDADES", "REPARACIONES A EQUIPO DE TRANSPORTE", "RENTA DE CAMION",
@@ -602,6 +603,7 @@ else:
             st.cache_data.clear()
             st.cache_resource.clear()
             st.rerun()
+
 
 
 
