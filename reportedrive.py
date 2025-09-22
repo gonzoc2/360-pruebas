@@ -511,7 +511,7 @@ else:
                    if calendar.weekday(anio, mes, dia) == jueves)
     num_jueves = contar_jueves(mes_seleccionado, año_seleccionado)
     st.write(f'Numero de jueves en el mes: {num_jueves}')
-    if num_jueves == 5:
+    if num_jueves == 4:
         factor_nomina = st.checkbox('Confirmar aumento de nomina', key='aumento_nomina', value=True)
         if factor_nomina:
             cambio_nomina = 1.14
@@ -603,6 +603,7 @@ else:
             st.cache_data.clear()
             st.cache_resource.clear()
             st.rerun()
+
 
 
 
