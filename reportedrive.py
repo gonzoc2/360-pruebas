@@ -345,7 +345,7 @@ else:
     # ================================
     # 📦 CONFIGURACIÓN GENERAL
     # ================================
-    proyectos_default = [0, 1001, 1003, 2001, 2003, 3002, 3201, 5001, 7806, 7901, 8002, 8003, 8004]
+    proyectos_default = df_provisiones['Proyecto_A'].unique().tolist()
 
     # ================================
     # 🔍 FILTRO POR CATEGORÍAS
@@ -603,6 +603,7 @@ else:
             st.cache_data.clear()
             st.cache_resource.clear()
             st.rerun()
+
 
 
 
