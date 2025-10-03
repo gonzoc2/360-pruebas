@@ -3915,6 +3915,7 @@ if selected == "PorProyectos":
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]
+    mes_seleccionado = st.selectbox("Selecciona un mes", meses)
 
 
 
