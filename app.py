@@ -3910,8 +3910,10 @@ else:
     
 if selected == "PorProyectos":
     st.title("Análisis por proyectos")
-    meses_seleccionado = filtro_meses(col1, df_2025)
-    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
+ meses = [
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
 
 
 
