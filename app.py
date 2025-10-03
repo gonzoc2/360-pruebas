@@ -3917,6 +3917,11 @@ if selected == "PorProyectos":
     ]
     mes_seleccionado = st.selectbox("Selecciona un mes", meses)
 
+    proyectos = [
+        "Chalco", "Arrayanes", "Flex dedicado", "Flex spot", "Manejo de desechos", "Central Otros",
+        "Continental", "Manzanillo", "Internacional FWD", "WH", "CRAFT", "HELA"
+    ]
+    mes_seleccionado = st.selectbox("Selecciona un proyecto", proyectos)
 
 
 
