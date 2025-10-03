@@ -3908,6 +3908,41 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
+def Proyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion, categoria, titulo):
+    st.write(titulo)
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A']
+    df_agrid = df_agrid[df_agrid[clasificacion] == categoria]
+    df_agrid = df_agrid.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
+    df_agrid.rename(columns={"Neto_A": f"{tipo_com}"}, inplace=True)
+    df_actual = df_2025[df_2025['Mes_A'].isin(meses_seleccionado)]
+    df_actual = df_actual[df_actual['Proyecto_A'].isin(proyecto_codigo)]
+    df_actual = df_actual[df_actual[clasificacion] == categoria]
+    df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
+    df_actual.rename(columns={"Neto_A": "YTD"}, inplace=True)
+    df_compara = pd.merge(df_agrid, df_actual, on=columnas, how="outer").fillna(0)
+    df_compara["Variación % "] = np.where(
+        df_compara[f"{tipo_com}"] != 0,
+        ((df_compara["YTD"] / df_compara[f"{tipo_com}"]) -1 )* 100  ,
+        0
+    )
+    
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'YTD', f"{tipo_com}", "Variación % "]
+    df_tabla = df_compara[columnas].copy()
+    
+    df_last = df_tabla.groupby("Categoria_A").sum().reset_index()
+    df_last["Variación % "] = np.where(
+        df_last[f"{tipo_com}"] != 0,
+        ((df_last["YTD"] / df_last[f"{tipo_com}"]) - 1) * 100,
+        0
+    )
+    df_des = df_tabla.copy()
+    df_tabla = pd.concat([df_tabla, df_last], ignore_index=True)
+
+    # Asegurar valores numéricos para formateo
+    df_tabla["YTD"] = pd.to_numeric(df_tabla["YTD"], errors="coerce")
+    df_tabla[tipo_com] = pd.to_numeric(df_tabla[tipo_com], errors="coerce")
+    df_tabla["Variación % "] = pd.to_numeric(df_tabla["Variación % "], errors="coerce")
+
 
 
 
