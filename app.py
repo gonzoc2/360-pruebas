@@ -97,7 +97,7 @@ def filtro_pro(col):
 
 def filtro_meses(col, df_2025):
     meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-    if selected == "Análisis":
+    if selected == "Análisis" or selected == "Proyectos":
         meses_seleccionado = col.selectbox("Selecciona un mes", meses)
         meses_seleccionado = [meses_seleccionado]
     elif selected == "Mes Corregido" or selected == "Proyeccion":
@@ -3907,6 +3907,7 @@ else:
             )
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
+
 
 
 
