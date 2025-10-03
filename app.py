@@ -3907,14 +3907,9 @@ else:
             )
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
-
- elif selected == "PorProyecto":
-        col1, col2 = st.columns(2)
-        meses_seleccionado = filtro_meses(col1, df_2025)
-        proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-
     
     
+
 
 
 
