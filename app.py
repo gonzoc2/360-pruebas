@@ -3910,11 +3910,9 @@ else:
     
 if selected == "PorProyectos":
     st.title("Análisis por proyectos")
-      col1, col2 = st.columns(2)
     meses_seleccionado = filtro_meses(col1, df_2025)
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-    codi_ceco , nombre_ceco = filtro_ceco(st)
-    df_2025["CeCo_A"] = df_2025["CeCo_A"].astype(str)
+
 
 
 
