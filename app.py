@@ -3907,18 +3907,6 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-options = ["Resumen", "Estado de resultados", "Comparativa", "Análisis"]
-st.write(f"Has seleccionado: **{selected}**")
-st.write(f"Mes seleccionado: **{st.session_state.selected_month}**")
-if selected == "Resumen":
-    st.write("Contenido de Resumen")
-elif selected == "Estado de resultados":
-    st.write("Contenido de Estado de resultados")
-elif selected == "Comparativa":
-    st.write("Contenido de Comparativa")
-elif selected == "Análisis":
-    st.write("Contenido de Análisis")
-
 
 
 
