@@ -3922,12 +3922,9 @@ if selected == "PorProyectos":
     col1, _ = st.columns(2)  # Puedes usar col1, col2 si necesitas dos columnas
 
     # --- Selección de proyecto ---
-    proyecto_nombre = col1.selectbox("Selecciona un proyecto", opciones)
-
-    if proyecto_nombre == "ESGARI":
-        proyecto_codigo = proyectos["proyectos"].astype(str).tolist()
-    else:
+    proyecto_nombre = col.selectbox("Selecciona un proyecto", list(nombre_a_codigo.keys()))
         proyecto_codigo = [nombre_a_codigo[proyecto_nombre]]
+
 
 
 
