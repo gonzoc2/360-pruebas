@@ -3908,14 +3908,17 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
     
-    if selected == "Por proyectos":
+if selected == "Por proyectos":
     st.title("Análisis por proyectos")
     meses = [
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]
-     mes_seleccionado = st.selectbox("Selecciona un mes", meses)
-st.success(f"Mes seleccionado: {mes_seleccionado}")
+    mes_seleccionado = st.selectbox("Selecciona un mes", meses)
+    st.write(f"Mes seleccionado: {mes_seleccionado}")
+
+
+
 
 
 
