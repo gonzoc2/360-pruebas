@@ -3910,6 +3910,7 @@ else:
     
 if selected == "PorProyectos":
     st.title("Análisis por proyectos")
+    col1, col2 = st.columns(2)
 
     # --- Selección de mes ---
     meses = [
@@ -3917,6 +3918,10 @@ if selected == "PorProyectos":
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]
     mes_seleccionado = st.selectbox("Selecciona un mes", meses)
+    opciones = list(nombre_a_codigo.keys())
+proyecto_nombre = col2.selectbox("Selecciona un proyecto", opciones)
+proyecto_codigo = [nombre_a_codigo[proyecto_nombre]]
+
 
 
 
