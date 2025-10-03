@@ -3910,17 +3910,26 @@ else:
     
 if selected == "PorProyectos":
     st.title("Análisis por proyectos")
+
+    # --- Selección de mes ---
     meses = [
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]
     mes_seleccionado = st.selectbox("Selecciona un mes", meses)
-proyecto_nombre = col.selectbox("Selecciona un proyecto", opciones)
-if proyecto_nombre == "ESGARI":
-    proyecto_codigo = proyectos["proyectos"].astype(str).tolist()
-else:
-    # Caso normal: obtenemos el código según el nombre elegido
-    proyecto_codigo = [nombre_a_codigo[proyecto_nombre]]
+
+    # --- Layout con columnas ---
+    col1, _ = st.columns(2)  # Puedes usar col1, col2 si necesitas dos columnas
+
+    # --- Selección de proyecto ---
+    proyecto_nombre = col1.selectbox("Selecciona un proyecto", opciones)
+
+    if proyecto_nombre == "ESGARI":
+        proyecto_codigo = proyectos["proyectos"].astype(str).tolist()
+    else:
+        proyecto_codigo = [nombre_a_codigo[proyecto_nombre]]
+
+
 
 
 
