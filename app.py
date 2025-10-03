@@ -3910,17 +3910,12 @@ else:
     
 if selected == "PorProyectos":
     st.title("Análisis por proyectos")
-    col1, col2 = st.columns(2)
+      col1, col2 = st.columns(2)
+    meses_seleccionado = filtro_meses(col1, df_2025)
+    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
+    codi_ceco , nombre_ceco = filtro_ceco(st)
+    df_2025["CeCo_A"] = df_2025["CeCo_A"].astype(str)
 
-    # --- Selección de mes ---
-    meses = [
-        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-    ]
-    mes_seleccionado = st.selectbox("Selecciona un mes", meses)
-    opciones = list(nombre_a_codigo.keys())
-proyecto_nombre = col2.selectbox("Selecciona un proyecto", opciones)
-proyecto_codigo = [nombre_a_codigo[proyecto_nombre]]
 
 
 
