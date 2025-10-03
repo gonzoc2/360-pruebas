@@ -3908,16 +3908,14 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-def PorProyectos(df_2025, proyecto_codigo, meses_seleccionado, clasificacion, categoria):
-col1, col2 = st.columns(2)
-    meses_seleccionado = filtro_meses(col1, df_2025)
-    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-st.write(f"Meses seleccionados: {meses_seleccionado}")
-    st.write(f"Código del proyecto: {proyecto_codigo}")
-    st.write(f"Nombre del proyecto: {proyecto_nombre}")
+ elif selected == "PorProyecto":
+        col1, col2 = st.columns(2)
+        meses_seleccionado = filtro_meses(col1, df_2025)
+        proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
     
     
+
 
 
 
