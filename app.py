@@ -3907,8 +3907,8 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-paginas = ["Resumen", "Estado de resultados", "Comparativa", "Análisis"]
-selected = st.selectbox("Selecciona una página", paginas)
+options = ["Resumen", "Estado de resultados", "Comparativa", "Análisis"]
+selected = st.selectbox("Selecciona una página", options)
 st.write(f"Has seleccionado: **{selected}**")
 st.write(f"Mes seleccionado: **{st.session_state.selected_month}**")
 if selected == "Resumen":
@@ -3919,6 +3919,7 @@ elif selected == "Comparativa":
     st.write("Contenido de Comparativa")
 elif selected == "Análisis":
     st.write("Contenido de Análisis")
+
 
 
 
