@@ -3958,8 +3958,13 @@ if selected == "PorProyectos":
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
 
     # --- Selección de proyecto ---
+if isinstance(nombre_a_codigo, dict) and nombre_a_codigo:
     proyecto_nombre = col2.selectbox("Selecciona un proyecto", list(nombre_a_codigo.keys()))
-    proyecto_codigo = [nombre_a_codigo[proyecto_nombre]]
+    proyecto_codigo = [nombre_a_codigo.get(proyecto_nombre)]
+    else:
+    st.error("No hay proyectos disponibles o 'nombre_a_codigo' no está definido correctamente.")
+    proyecto_nombre = None
+    proyecto_codigo = []
 
     # --- Parámetros fijos o temporales ---
     tipo_com = "Presupuesto"  # Nombre para la columna comparativa
@@ -3983,6 +3988,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
