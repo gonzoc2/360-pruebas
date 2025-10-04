@@ -3913,16 +3913,20 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A']
 
+    # Mostrar columnas disponibles para depuración
     st.write("Columnas disponibles en df_agrid:")
-st.write(df_agrid.columns.tolist())
-
+    st.write(df_agrid.columns.tolist())
 
     # --- Filtrar clasificacion y categoria en df_agrid ---
-    df_agrid = df_agrid[df_agrid['Clasificacion_A'] == categoria]
+    if clasificacion_nombre not in df_agrid.columns:
+        st.error(f"La columna '{clasificacion_nombre}' no existe en df_agrid.")
+        st.stop()
+
+    df_agrid = df_agrid[df_agrid[clasificacion_nombre] == categoria]
 
     # ✅ Mostrar listado de categorías sumadas (únicas)
     categorias_sumadas = df_agrid["Categoria_A"].unique()
-    st.info(f"Categorías incluidas en esta clasificación (**{'Clasificacion_A'} = {categoria}**):")
+    st.info(f"Categorías incluidas en esta clasificación (**{clasificacion_nombre} = {categoria}**):")
     st.write(categorias_sumadas)
 
     # --- Agrupar y renombrar df_agrid ---
@@ -3930,9 +3934,11 @@ st.write(df_agrid.columns.tolist())
     df_agrid.rename(columns={"Neto_A": f"{tipo_com}"}, inplace=True)
 
     # --- Filtrar df_actual ---
-    df_actual = df_2025[df_2025['Mes_A'].isin(meses_seleccionado)]
-    df_actual = df_actual[df_actual['Proyecto_A'].isin(proyecto_codigo)]
-    df_actual = df_actual[df_actual['Clasificacion_A'] == categoria]
+    df_actual = df_2025[
+        (df_2025['Mes_A'].isin(meses_seleccionado)) &
+        (df_2025['Proyecto_A'].isin(proyecto_codigo)) &
+        (df_2025[clasificacion_nombre] == categoria)
+    ]
 
     df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
     df_actual.rename(columns={"Neto_A": "YTD"}, inplace=True)
@@ -3947,8 +3953,11 @@ st.write(df_agrid.columns.tolist())
 
     # Mostrar tabla resultante
     st.dataframe(df_compara)
-  
 
+
+# ============================
+# EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
+# ============================
 if selected == "PorProyectos":
     st.title("📊 Análisis por proyectos")
 
@@ -3967,7 +3976,7 @@ if selected == "PorProyectos":
 
     # Parámetros fijos
     tipo_com = "Presupuesto"
-    clasificacion_nombre = "Clasificación_A"
+    clasificacion_nombre = "Clasificacion_A"  # OJO: sin tilde, igual que en tus columnas reales
     categoria = "Gastos Fijos"
     titulo = f"Comparativa para el proyecto {proyecto_nombre}"
 
@@ -3979,7 +3988,7 @@ if selected == "PorProyectos":
             df_2025=df_2025,
             proyecto_codigo=proyecto_codigo,
             meses_seleccionado=meses_seleccionado,
-            clasificacion_nombre='Clasificacion_A',
+            clasificacion_nombre=clasificacion_nombre,
             categoria=categoria,
             titulo=titulo
         )
@@ -3988,6 +3997,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
