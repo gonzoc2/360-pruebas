@@ -3958,8 +3958,7 @@ if selected == "PorProyectos":
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
 
     # --- Selección de proyecto ---
-    opciones = list(nombre_a_codigo.keys())
-    proyecto_nombre = col2.selectbox("Selecciona un proyecto", opciones)
+    proyecto_nombre = col2.selectbox("Selecciona un proyecto", list(nombre_a_codigo.keys()))
     proyecto_codigo = [nombre_a_codigo[proyecto_nombre]]
 
     # --- Parámetros fijos o temporales ---
@@ -3984,6 +3983,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
