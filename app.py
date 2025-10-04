@@ -3913,6 +3913,10 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A']
 
+    st.write("Columnas disponibles en df_agrid:")
+st.write(df_agrid.columns.tolist())
+
+
     # --- Filtrar clasificacion y categoria en df_agrid ---
     df_agrid = df_agrid[df_agrid[clasificacion] == categoria]
 
@@ -3984,6 +3988,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
