@@ -3908,7 +3908,7 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion, categoria, titulo):
+def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion_nombre, categoria, titulo):
     st.write(titulo)
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A']
@@ -3918,11 +3918,11 @@ st.write(df_agrid.columns.tolist())
 
 
     # --- Filtrar clasificacion y categoria en df_agrid ---
-    df_agrid = df_agrid[df_agrid[clasificacion] == categoria]
+    df_agrid = df_agrid[df_agrid['Clasificacion_A'] == categoria]
 
     # ✅ Mostrar listado de categorías sumadas (únicas)
     categorias_sumadas = df_agrid["Categoria_A"].unique()
-    st.info(f"Categorías incluidas en esta clasificación (**{clasificacion} = {categoria}**):")
+    st.info(f"Categorías incluidas en esta clasificación (**{'Clasificacion_A'} = {categoria}**):")
     st.write(categorias_sumadas)
 
     # --- Agrupar y renombrar df_agrid ---
@@ -3932,7 +3932,7 @@ st.write(df_agrid.columns.tolist())
     # --- Filtrar df_actual ---
     df_actual = df_2025[df_2025['Mes_A'].isin(meses_seleccionado)]
     df_actual = df_actual[df_actual['Proyecto_A'].isin(proyecto_codigo)]
-    df_actual = df_actual[df_actual[clasificacion] == categoria]
+    df_actual = df_actual[df_actual['Clasificacion_A'] == categoria]
 
     df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
     df_actual.rename(columns={"Neto_A": "YTD"}, inplace=True)
@@ -3967,7 +3967,7 @@ if selected == "PorProyectos":
 
     # Parámetros fijos
     tipo_com = "Presupuesto"
-    clasificacion = "Clasificación_A"
+    clasificacion_nombre = "Clasificación_A"
     categoria = "Gastos Fijos"
     titulo = f"Comparativa para el proyecto {proyecto_nombre}"
 
@@ -3979,7 +3979,7 @@ if selected == "PorProyectos":
             df_2025=df_2025,
             proyecto_codigo=proyecto_codigo,
             meses_seleccionado=meses_seleccionado,
-            clasificacion=clasificacion,
+            clasificacion_nombre='Clasificacion_A',
             categoria=categoria,
             titulo=titulo
         )
@@ -3988,6 +3988,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
