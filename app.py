@@ -3909,75 +3909,34 @@ else:
         st.plotly_chart(fig, use_container_width=True)
     
 
-def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion, categoria, titulo):
-    st.write(titulo)
-
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A']
-
-    # --- Filtrar clasificacion y categoria en df_agrid ---
-    df_agrid = df_agrid[df_agrid[clasificacion] == categoria]
-
-    # ✅ Mostrar listado de categorías sumadas (únicas)
-    categorias_sumadas = df_agrid["Categoria_A"].unique()
-    st.info(f"Categorías incluidas en esta clasificación (**{clasificacion} = {categoria}**):")
-    st.write(categorias_sumadas)
-
-    # --- Agrupar y renombrar df_agrid ---
-    df_agrid = df_agrid.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
-    df_agrid.rename(columns={"Neto_A": f"{tipo_com}"}, inplace=True)
-
-    # --- Filtrar df_actual ---
-    df_actual = df_2025[df_2025['Mes_A'].isin(meses_seleccionado)]
-    df_actual = df_actual[df_actual['Proyecto_A'].isin(proyecto_codigo)]
-    df_actual = df_actual[df_actual[clasificacion] == categoria]
-
-    df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
-    df_actual.rename(columns={"Neto_A": "YTD"}, inplace=True)
-
-    # --- Comparación ---
-    df_compara = pd.merge(df_agrid, df_actual, on=columnas, how="outer").fillna(0)
-    df_compara["Variación % "] = np.where(
-        df_compara[f"{tipo_com}"] != 0,
-        ((df_compara["YTD"] / df_compara[f"{tipo_com}"]) - 1) * 100,
-        0
-    )
-
-    # Mostrar tabla resultante
-    st.dataframe(df_compara)
 if selected == "PorProyectos":
     st.title("📊 Análisis por proyectos")
 
-    # --- Columnas para filtros ---
+    # Columnas para filtros
     col1, col2 = st.columns(2)
 
-    # --- Selección de meses ---
+    # Selección de meses
     meses = [
         "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
         "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
 
-    # --- Selección de proyecto ---
-    if nombre_a_codigo and isinstance(nombre_a_codigo, dict):
-        proyecto_nombre = col2.selectbox("Selecciona un proyecto", list(nombre_a_codigo.keys()))
-        proyecto_codigo = [nombre_a_codigo.get(proyecto_nombre)]
-    else:
-        st.error("No hay proyectos disponibles.")
-        proyecto_nombre = None
-        proyecto_codigo = []
+    # ✅ Usa la función para seleccionar el proyecto
+    proyecto_nombre, proyecto_codigo = filtro_pro(col2)
 
-    # --- Parámetros fijos o temporales ---
-    tipo_com = "Presupuesto"  # Nombre para la columna comparativa
-    clasificacion = "Clasificación_A"  # Reemplaza con el nombre real de tu columna de clasificación
-    categoria = "Gastos Fijos"         # Puedes cambiarlo por otro filtro dinámico si deseas
+    # Parámetros fijos
+    tipo_com = "Presupuesto"
+    clasificacion = "Clasificación_A"
+    categoria = "Gastos Fijos"
     titulo = f"Comparativa para el proyecto {proyecto_nombre}"
 
-    # --- Mostrar tabla ---
+    # Mostrar tabla
     if meses_seleccionado:
         tabla_PorProyectos(
             tipo_com=tipo_com,
-            df_agrid=df_ppt,           # presupuesto u origen comparativo
-            df_2025=df_2025,           # datos actuales
+            df_agrid=df_ppt,
+            df_2025=df_2025,
             proyecto_codigo=proyecto_codigo,
             meses_seleccionado=meses_seleccionado,
             clasificacion=clasificacion,
@@ -3987,7 +3946,9 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
+
     
+
 
 
 
