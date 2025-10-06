@@ -3910,6 +3910,7 @@ else:
 
 
 
+
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, titulo):
     st.subheader(titulo)
 
@@ -3958,36 +3959,33 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     # --- 🔹 Ordenar para presentación ---
     df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
 
-    # --- 🔹 Mostrar la clasificación y desplegar categorías y cuentas ---
+    # --- 🔹 Mostrar clasificación, categorías y cuentas sin anidar expanders ---
     clasificaciones = df_compara['Clasificacion_A'].unique()
     for clasificacion in clasificaciones:
-        # Asegúrate de que la clasificación sea una cadena de texto válida para el expander
         clasificacion_str = str(clasificacion) if clasificacion is not None else 'Desconocida'
-        try:
-            with st.expander(f"Clasificación: {clasificacion_str} ->"):
-                # Filtrar por clasificación
-                df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
-                for categoria in df_clasificacion['Categoria_A'].unique():
-                    # Asegúrate de que la categoría sea una cadena de texto válida
-                    categoria_str = str(categoria) if categoria is not None else 'Desconocida'
-                    try:
-                        with st.expander(f"Categoría: {categoria_str} ->"):
-                            # Filtrar por categoría dentro de la clasificación
-                            df_categoria = df_clasificacion[df_clasificacion['Categoria_A'] == categoria]
-                            for cuenta in df_categoria['Cuenta_Nombre_A'].unique():
-                                # Asegúrate de que la cuenta sea una cadena de texto válida
-                                cuenta_str = str(cuenta) if cuenta is not None else 'Desconocida'
-                                try:
-                                    with st.expander(f"Cuenta: {cuenta_str}"):
-                                        # Filtrar por cuenta dentro de la categoría
-                                        df_cuenta = df_categoria[df_categoria['Cuenta_Nombre_A'] == cuenta]
-                                        st.dataframe(df_cuenta[['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', tipo_com, 'REAL', 'LY', 'Var % vs Presupuesto', 'Var % vs LY']], use_container_width=True)
-                                except Exception as e:
-                                    st.error(f"Error al mostrar la cuenta {cuenta_str}: {e}")
-                    except Exception as e:
-                        st.error(f"Error al mostrar la categoría {categoria_str}: {e}")
-        except Exception as e:
-            st.error(f"Error al mostrar la clasificación {clasificacion_str}: {e}")
+        
+        # Mostrar la clasificación como un título, sin usar expander aquí
+        st.markdown(f"### Clasificación: {clasificacion_str} ->")
+        
+        # Filtrar por clasificación
+        df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
+        
+        # Utilizar un selectbox para que el usuario seleccione una categoría dentro de la clasificación
+        categorias = df_clasificacion['Categoria_A'].unique()
+        categoria_seleccionada = st.selectbox(f"Selecciona una Categoría en {clasificacion_str}:", categorias)
+
+        # Filtrar por categoría seleccionada
+        df_categoria = df_clasificacion[df_clasificacion['Categoria_A'] == categoria_seleccionada]
+
+        # Mostrar las cuentas asociadas a la categoría seleccionada
+        cuentas = df_categoria['Cuenta_Nombre_A'].unique()
+        cuenta_seleccionada = st.selectbox(f"Selecciona una Cuenta en {categoria_seleccionada}:", cuentas)
+
+        # Filtrar por cuenta seleccionada
+        df_cuenta = df_categoria[df_categoria['Cuenta_Nombre_A'] == cuenta_seleccionada]
+        
+        # Mostrar la tabla de la cuenta seleccionada
+        st.dataframe(df_cuenta[['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', tipo_com, 'REAL', 'LY', 'Var % vs Presupuesto', 'Var % vs LY']], use_container_width=True)
 
     # --- 🔹 Totales ---
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -4005,6 +4003,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     • Variación vs Presupuesto: {var_pres:,.2f}%  
     • Variación vs LY: {var_ly:,.2f}%
     """)
+    
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
 # ============================
@@ -4036,6 +4035,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
