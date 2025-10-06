@@ -3914,7 +3914,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
     # --- Filtrar por la clasificación solicitada ---
-    df_filtrado = df_agrid[df_agrid['Clasificacion_A'] == clasificacion_a]
+    df_filtrado = df_agrid.copy()
 
     # ✅ Mostrar listado de categorías incluidas
     categorias_sumadas = df_filtrado['Categoria_A'].unique()
@@ -3996,6 +3996,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
