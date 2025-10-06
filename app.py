@@ -3976,8 +3976,8 @@ if selected == "PorProyectos":
 
     # Selección de meses
     meses = [
-        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
 
@@ -4014,6 +4014,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
