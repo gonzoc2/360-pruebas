@@ -3914,7 +3914,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
     # --- Filtrar por la clasificación solicitada ---
-    df_filtrado = df_agrid[df_agrid['Clasificacion_A'] == clasificacion_a]
+    df_filtrado = df_agrid.copy()
 
     # ✅ Mostrar listado de categorías incluidas
     categorias_sumadas = df_filtrado['Categoria_A'].unique()
@@ -3928,8 +3928,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
     # --- Filtrar df_actual ---
     df_actual = df_2025[
         (df_2025['Mes_A'].isin(meses_seleccionado)) &
-        (df_2025['Proyecto_A'].isin(proyecto_codigo)) &
-        (df_2025['Clasificacion_A'] == clasificacion_a)
+        (df_2025['Proyecto_A'].isin(proyecto_codigo))
     ]
 
     df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
@@ -3996,6 +3995,7 @@ clasificaciones = [
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
