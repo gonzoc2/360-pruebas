@@ -3909,112 +3909,96 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
-st.write("tabla por proyectos")
+    st.write("tabla por proyectos")
 
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A']
 
-columnas = ['Cuenta_Nombre_A', 'Categoria_A']
+    # Mostrar columnas disponibles para depuración
+    st.write("Columnas disponibles en df_agrid:")
+    st.write(df_agrid.columns.tolist())
 
+    # --- Validar existencia de la columna ---
+    if 'Clasificacion_A' not in df_agrid.columns:
+        st.error("La columna 'Clasificacion_A' no existe en df_agrid.")
+        st.stop()
 
-# Mostrar columnas disponibles para depuración
-st.write("Columnas disponibles en df_agrid:")
-st.write(df_agrid.columns.tolist())
+    # --- Filtrar por la clasificación solicitada ---
+    df_filtrado = df_agrid[df_agrid['Clasificacion_A'] == clasificacion_a]
 
+    # ✅ Mostrar listado de categorías incluidas
+    categorias_sumadas = df_filtrado['Categoria_A'].unique()
+    st.info(f"Categorías incluidas en esta clasificación (Clasificacion_A = {clasificacion_a}):")
+    st.write(categorias_sumadas)
 
-# --- Validar existencia de la columna ---
-if 'Clasificacion_A' not in df_agrid.columns:
-st.error("La columna 'Clasificacion_A' no existe en df_agrid.")
-st.stop()
+    # --- Agrupar y renombrar df_agrid ---
+    df_filtrado = df_filtrado.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
+    df_filtrado.rename(columns={"Neto_A": f"{tipo_com}"}, inplace=True)
 
+    # --- Filtrar df_actual ---
+    df_actual = df_2025[
+        (df_2025['Mes_A'].isin(meses_seleccionado)) &
+        (df_2025['Proyecto_A'].isin(proyecto_codigo)) &
+        (df_2025['Clasificacion_A'] == clasificacion_a)
+    ]
 
-# --- Filtrar por la clasificación solicitada ---
-df_filtrado = df_agrid[df_agrid['Clasificacion_A'] == clasificacion_a]
+    df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
+    df_actual.rename(columns={"Neto_A": "YTD"}, inplace=True)
 
+    # --- Comparación ---
+    df_compara = pd.merge(df_filtrado, df_actual, on=columnas, how="outer").fillna(0)
+    df_compara["Variación %"] = np.where(
+        df_compara[f"{tipo_com}"] != 0,
+        ((df_compara["YTD"] / df_compara[f"{tipo_com}"]) - 1) * 100,
+        0
+    )
 
-# ✅ Mostrar listado de categorías incluidas
-categorias_sumadas = df_filtrado['Categoria_A'].unique()
-st.info(f"Categorías incluidas en esta clasificación (Clasificacion_A = {clasificacion_a}):")
-st.write(categorias_sumadas)
-
-
-# --- Agrupar y renombrar df_agrid ---
-df_filtrado = df_filtrado.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
-df_filtrado.rename(columns={"Neto_A": f"{tipo_com}"}, inplace=True)
-
-
-# --- Filtrar df_actual ---
-df_actual = df_2025[
-(df_2025['Mes_A'].isin(meses_seleccionado)) &
-(df_2025['Proyecto_A'].isin(proyecto_codigo)) &
-(df_2025['Clasificacion_A'] == clasificacion_a)
-]
-
-
-df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
-df_actual.rename(columns={"Neto_A": "YTD"}, inplace=True)
-
-
-# --- Comparación ---
-df_compara = pd.merge(df_filtrado, df_actual, on=columnas, how="outer").fillna(0)
-df_compara["Variación %"] = np.where(
-df_compara[f"{tipo_com}"] != 0,
-((df_compara["YTD"] / df_compara[f"{tipo_com}"]) - 1) * 100,
-0
-)
-
-
-# Mostrar tabla resultante
-st.dataframe(df_compara)
-
-
+    # Mostrar tabla resultante
+    st.dataframe(df_compara)
 
 
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
 # ============================
 def ejecutar_por_proyectos(selected, df_ppt, df_2025, filtro_pro):
-if selected == "PorProyectos":
-st.title("📊 Análisis por proyectos")
+    if selected == "PorProyectos":
+        st.title("📊 Análisis por proyectos")
 
+        # Columnas para filtros
+        col1, col2 = st.columns(2)
 
-# Columnas para filtros
-col1, col2 = st.columns(2)
+        # Selección de meses
+        meses = [
+            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        ]
+        meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
 
+        # ✅ Usa la función para seleccionar el proyecto
+        proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
-# Selección de meses
-meses = [
-"Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-"Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-]
-meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
+        # Parámetros fijos
+        tipo_com = "Presupuesto"
+        clasificacion_a = "COSS"  # Ejemplo, reemplazar según caso
+        categoria_a = "INGRESO"    # Ejemplo, reemplazar según caso
+        titulo = f"Comparativa para el proyecto {proyecto_nombre}"
 
-
-# ✅ Usa la función para seleccionar el proyecto
-proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-
-
-# Parámetros fijos
-tipo_com = "Presupuesto"
-clasificacion_a = "COSS" # Ejemplo, reemplazar según caso
-categoria_a = "INGRESO" # Ejemplo, reemplazar según caso
-titulo = f"Comparativa para el proyecto {proyecto_nombre}"
-
-
-# Mostrar tabla
-if meses_seleccionado:
-tabla_PorProyectos(
-tipo_com=tipo_com,
-df_agrid=df_ppt,
-df_2025=df_2025,
-proyecto_codigo=proyecto_codigo,
-meses_seleccionado=meses_seleccionado,
-clasificacion_a=clasificacion_a,
-categoria_a=categoria_a,
-titulo=titulo
-)
-else:
-st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
+        # Mostrar tabla
+        if meses_seleccionado:
+            tabla_PorProyectos(
+                tipo_com=tipo_com,
+                df_agrid=df_ppt,
+                df_2025=df_2025,
+                proyecto_codigo=proyecto_codigo,
+                meses_seleccionado=meses_seleccionado,
+                clasificacion_a=clasificacion_a,
+                categoria_a=categoria_a,
+                titulo=titulo
+            )
+        else:
+            st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
