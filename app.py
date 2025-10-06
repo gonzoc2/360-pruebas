@@ -3911,7 +3911,7 @@ else:
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
     st.write("tabla por proyectos")
 
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A']
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
     # Mostrar columnas disponibles para depuración
     st.write("Columnas disponibles en df_agrid:")
@@ -3997,6 +3997,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
