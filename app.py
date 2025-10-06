@@ -3957,15 +3957,16 @@ if selected == "PorProyectos":
 
     # Selección de meses
     meses = [
-            "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-            "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-        ]
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
 
-# ✅ Usa la función para seleccionar el proyecto
+    # ✅ Usa la función para seleccionar el proyecto
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
-clasificaciones = [
+    # Lista de clasificaciones a mostrar
+    clasificaciones = [
         "COSS",
         "G.ADMN",
         "GASTOS FINANCIEROS",
@@ -3974,22 +3975,29 @@ clasificaciones = [
         "OTROS INGRESOS"
     ]
 
-for clasificacion_a in clasificaciones:
-    titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
-    tabla_PorProyectos(
-        tipo_com="Presupuesto",
-        df_agrid=df_ppt,
-        df_2025=df_2025,
-        proyecto_codigo=proyecto_codigo,
-        meses_seleccionado=meses_seleccionado,
-        clasificacion_a=clasificacion_a,
-        categoria_a="INGRESO",
-        titulo=titulo
-    )
+    # --- Mostrar tablas ---
+    if meses_seleccionado:
+        st.write("📅 Meses seleccionados:", meses_seleccionado)
+        st.write("🏗️ Proyecto seleccionado:", proyecto_nombre)
+
+        for clasificacion_a in clasificaciones:
+            titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
+
+            tabla_PorProyectos(
+                tipo_com="Presupuesto",
+                df_agrid=df_ppt,
+                df_2025=df_2025,
+                proyecto_codigo=proyecto_codigo,
+                meses_seleccionado=meses_seleccionado,
+                clasificacion_a=clasificacion_a,
+                categoria_a="INGRESO",
+                titulo=titulo
+            )
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
