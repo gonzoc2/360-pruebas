@@ -3959,7 +3959,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
             if (params.value === 0 || params.value === null) return "0%";
             const val = params.value.toFixed(2) + " %";
             return (params.value >= 0)
-                ? '<span style="color:yellow;">' + val + '</span>'
+                ? '<span style="color:black;">' + val + '</span>'
                 : '<span style="color:red;">' + val + '</span>';
         }
     """)
@@ -4026,6 +4026,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
