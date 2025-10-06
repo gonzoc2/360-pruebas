@@ -3916,84 +3916,68 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
-    # --- 🔹 Filtrar y agrupar ---
-    def filtrar(df, label):
-        dff = df[
-            (df['Mes_A'].isin(meses_seleccionado)) &
-            (df['Proyecto_A'].isin(proyecto_codigo))
-        ].copy()
-        if dff.empty:
-            st.info(f"Sin datos en {label}")
-        return dff.groupby(columnas, as_index=False)['Neto_A'].sum() if not dff.empty else pd.DataFrame(columns=columnas + ['Neto_A'])
+    # --- 🔹 Filtrar PRESUPUESTO (df_agrid) ---
+    df_pres = df_agrid[
+        (df_agrid['Mes_A'].isin(meses_seleccionado)) &
+        (df_agrid['Proyecto_A'].isin(proyecto_codigo))
+    ].copy()
+    df_pres = df_pres.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_pres.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
 
-    df_pres = filtrar(df_agrid, "Presupuesto").rename(columns={'Neto_A': f'{tipo_com}'})
-    df_real = filtrar(df_2025, "Real").rename(columns={'Neto_A': 'YTD'})
-    df_ly = filtrar(df_ly, "LY").rename(columns={'Neto_A': 'LY'})
+    # --- 🔹 Filtrar REALES (df_2025) ---
+    df_real = df_2025[
+        (df_2025['Mes_A'].isin(meses_seleccionado)) &
+        (df_2025['Proyecto_A'].isin(proyecto_codigo))
+    ].copy()
+    df_real = df_real.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_real.rename(columns={'Neto_A': 'REAL'}, inplace=True)
+
+    # --- 🔹 Filtrar LY (df_ly) ---
+    df_ly_f = df_ly[
+        (df_ly['Mes_A'].isin(meses_seleccionado)) &
+        (df_ly['Proyecto_A'].isin(proyecto_codigo))
+    ].copy()
+    df_ly_f = df_ly_f.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_ly_f.rename(columns={'Neto_A': 'LY'}, inplace=True)
 
     # --- 🔹 Unir todo ---
     df_compara = pd.merge(df_pres, df_real, on=columnas, how='outer').fillna(0)
-    df_compara = pd.merge(df_compara, df_ly, on=columnas, how='outer').fillna(0)
+    df_compara = pd.merge(df_compara, df_ly_f, on=columnas, how='outer').fillna(0)
 
     # --- 🔹 Calcular variaciones ---
-    df_compara['Variación %'] = np.where(
+    df_compara['Var % vs Presupuesto'] = np.where(
+        df_compara[f'{tipo_com}'] != 0,
+        ((df_compara['REAL'] / df_compara[f'{tipo_com}']) - 1) * 100,
+        0
+    )
+    df_compara['Var % vs LY'] = np.where(
         df_compara['LY'] != 0,
-        ((df_compara['YTD'] / df_compara['LY']) - 1) * 100,
+        ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
         0
     )
 
-    # --- 🔹 Preparar tabla para AgGrid ---
-    df_display = df_compara[[
-        'Clasificacion_A', 'Cuenta_Nombre_A', f'{tipo_com}', 'YTD', 'LY', 'Variación %'
-    ]].copy()
+    # --- 🔹 Ordenar para presentación ---
+    df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
 
-    # --- 🔹 Formatos ---
-    currency_formatter = JsCode("""
-        function(params) {
-            if (params.value === 0 || params.value === null) return "$0";
-            return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(params.value);
-        }
+    # --- 🔹 Mostrar tabla ---
+    st.dataframe(df_compara, use_container_width=True)
+
+    # --- 🔹 Totales ---
+    total_pres = df_compara[f'{tipo_com}'].sum()
+    total_real = df_compara['REAL'].sum()
+    total_ly = df_compara['LY'].sum()
+
+    var_pres = ((total_real / total_pres) - 1) * 100 if total_pres != 0 else 0
+    var_ly = ((total_real / total_ly) - 1) * 100 if total_ly != 0 else 0
+
+    st.markdown(f"""
+    ### **Totales Generales**  
+    • Presupuesto: ${total_pres:,.2f}  
+    • Real: ${total_real:,.2f}  
+    • LY: ${total_ly:,.2f}  
+    • Variación vs Presupuesto: {var_pres:,.2f}%  
+    • Variación vs LY: {var_ly:,.2f}%
     """)
-
-    percent_formatter = JsCode("""
-        function(params) {
-            if (params.value === 0 || params.value === null) return "0%";
-            const val = params.value.toFixed(2) + " %";
-            return (params.value >= 0)
-                ? '<span style="color:black;">' + val + '</span>'
-                : '<span style="color:red;">' + val + '</span>';
-        }
-    """)
-
-    # --- 🔹 Configurar AgGrid ---
-    gb = GridOptionsBuilder.from_dataframe(df_display)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
-    gb.configure_column('Clasificacion_A', headerName='Group', rowGroup=True, hide=True)
-    gb.configure_column('Cuenta_Nombre_A', headerName='Cuenta_Nombre_A', pinned='left', minWidth=220)
-    gb.configure_column(f'{tipo_com}', headerName='Presupuesto', type=["numericColumn"], valueFormatter=currency_formatter)
-    gb.configure_column('YTD', headerName='last(YTD)', type=["numericColumn"], valueFormatter=currency_formatter)
-    gb.configure_column('LY', headerName='last(LY)', type=["numericColumn"], valueFormatter=currency_formatter)
-    gb.configure_column('Variación %', headerName='last(Variación %)', type=["numericColumn"], cellRenderer=percent_formatter)
-
-    gb.configure_grid_options(
-        groupDisplayType="groupRows",
-        suppressAggFuncInHeader=True,
-        enableRangeSelection=True,
-        domLayout='normal'
-    )
-
-    grid_options = gb.build()
-
-    # --- 🔹 Mostrar en Streamlit ---
-    AgGrid(
-        df_display,
-        gridOptions=grid_options,
-        enable_enterprise_modules=True,
-        update_mode=GridUpdateMode.NO_UPDATE,
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=True,
-        theme='balham',  # <-- igual que tu captura (oscuro)
-        height=450,
-    )
 
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
@@ -4010,7 +3994,7 @@ if selected == "PorProyectos":
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
     if meses_seleccionado:
-        titulo = f"📊 Consolidado general — Proyecto {proyecto_nombre}"
+        titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
         tabla_PorProyectos(
             tipo_com="Presupuesto",
             df_agrid=df_ppt,
@@ -4026,6 +4010,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
