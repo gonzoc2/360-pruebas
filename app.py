@@ -3959,44 +3959,45 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
 # ============================
-    if selected == "PorProyectos":
-        st.title("📊 Análisis por proyectos")
+if selected == "PorProyectos":
+    st.title("📊 Análisis por proyectos")
 
-        # Columnas para filtros
-        col1, col2 = st.columns(2)
+    # Columnas para filtros
+    col1, col2 = st.columns(2)
 
-        # Selección de meses
-        meses = [
+    # Selección de meses
+    meses = [
             "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
             "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
         ]
-        meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
+    meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
 
-        # ✅ Usa la función para seleccionar el proyecto
-        proyecto_codigo, proyecto_nombre = filtro_pro(col2)
+# ✅ Usa la función para seleccionar el proyecto
+    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
-        # Parámetros fijos
-        tipo_com = "Presupuesto"
-        clasificacion_a = "COSS"  # Ejemplo, reemplazar según caso
-        categoria_a = "INGRESO"    # Ejemplo, reemplazar según caso
-        titulo = f"Comparativa para el proyecto {proyecto_nombre}"
+    # Parámetros fijos
+    tipo_com = "Presupuesto"
+    clasificacion_a = "COSS"  # Ejemplo, reemplazar según caso
+    categoria_a = "INGRESO"    # Ejemplo, reemplazar según caso
+    titulo = f"Comparativa para el proyecto {proyecto_nombre}"
 
         # Mostrar tabla
-        if meses_seleccionado:
-            tabla_PorProyectos(
-                tipo_com=tipo_com,
-                df_agrid=df_ppt,
-                df_2025=df_2025,
-                proyecto_codigo=proyecto_codigo,
-                meses_seleccionado=meses_seleccionado,
-                clasificacion_a=clasificacion_a,
-                categoria_a=categoria_a,
-                titulo=titulo
-            )
-        else:
-            st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
+    if meses_seleccionado:
+        tabla_PorProyectos(
+            tipo_com=tipo_com,
+            df_agrid=df_ppt,
+            df_2025=df_2025,
+            proyecto_codigo=proyecto_codigo,
+            meses_seleccionado=meses_seleccionado,
+            clasificacion_a=clasificacion_a,
+            categoria_a=categoria_a,
+            titulo=titulo
+        )
+    else:
+        st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
