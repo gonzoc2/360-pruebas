@@ -3908,8 +3908,6 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-from st_aggrid import AgGrid, GridOptionsBuilder
-from st_aggrid.shared import GridUpdateMode, DataReturnMode, JsCode
 
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, titulo):
     st.subheader(titulo)
@@ -3959,8 +3957,21 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     # --- 🔹 Ordenar para presentación ---
     df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
 
-    # --- 🔹 Mostrar tabla ---
-    st.dataframe(df_compara, use_container_width=True)
+    # --- 🔹 Mostrar la clasificación y desplegar categorías y cuentas ---
+    clasificaciones = df_compara['Clasificacion_A'].unique()
+    for clasificacion in clasificaciones:
+        with st.expander(f"Clasificación: {clasificacion} ->"):
+            # Filtrar por clasificación
+            df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
+            for categoria in df_clasificacion['Categoria_A'].unique():
+                with st.expander(f"Categoría: {categoria} ->"):
+                    # Filtrar por categoría dentro de la clasificación
+                    df_categoria = df_clasificacion[df_clasificacion['Categoria_A'] == categoria]
+                    for cuenta in df_categoria['Cuenta_Nombre_A'].unique():
+                        with st.expander(f"Cuenta: {cuenta}"):
+                            # Filtrar por cuenta dentro de la categoría
+                            df_cuenta = df_categoria[df_categoria['Cuenta_Nombre_A'] == cuenta]
+                            st.dataframe(df_cuenta[['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', tipo_com, 'REAL', 'LY', 'Var % vs Presupuesto', 'Var % vs LY']], use_container_width=True)
 
     # --- 🔹 Totales ---
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -4010,6 +4021,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
