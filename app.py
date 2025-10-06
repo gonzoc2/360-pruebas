@@ -3909,6 +3909,7 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
 
+
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, titulo):
     st.subheader(titulo)
 
@@ -3960,18 +3961,33 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     # --- 🔹 Mostrar la clasificación y desplegar categorías y cuentas ---
     clasificaciones = df_compara['Clasificacion_A'].unique()
     for clasificacion in clasificaciones:
-        with st.expander(f"Clasificación: {clasificacion} ->"):
-            # Filtrar por clasificación
-            df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
-            for categoria in df_clasificacion['Categoria_A'].unique():
-                with st.expander(f"Categoría: {categoria} ->"):
-                    # Filtrar por categoría dentro de la clasificación
-                    df_categoria = df_clasificacion[df_clasificacion['Categoria_A'] == categoria]
-                    for cuenta in df_categoria['Cuenta_Nombre_A'].unique():
-                        with st.expander(f"Cuenta: {cuenta}"):
-                            # Filtrar por cuenta dentro de la categoría
-                            df_cuenta = df_categoria[df_categoria['Cuenta_Nombre_A'] == cuenta]
-                            st.dataframe(df_cuenta[['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', tipo_com, 'REAL', 'LY', 'Var % vs Presupuesto', 'Var % vs LY']], use_container_width=True)
+        # Asegúrate de que la clasificación sea una cadena de texto válida para el expander
+        clasificacion_str = str(clasificacion) if clasificacion is not None else 'Desconocida'
+        try:
+            with st.expander(f"Clasificación: {clasificacion_str} ->"):
+                # Filtrar por clasificación
+                df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
+                for categoria in df_clasificacion['Categoria_A'].unique():
+                    # Asegúrate de que la categoría sea una cadena de texto válida
+                    categoria_str = str(categoria) if categoria is not None else 'Desconocida'
+                    try:
+                        with st.expander(f"Categoría: {categoria_str} ->"):
+                            # Filtrar por categoría dentro de la clasificación
+                            df_categoria = df_clasificacion[df_clasificacion['Categoria_A'] == categoria]
+                            for cuenta in df_categoria['Cuenta_Nombre_A'].unique():
+                                # Asegúrate de que la cuenta sea una cadena de texto válida
+                                cuenta_str = str(cuenta) if cuenta is not None else 'Desconocida'
+                                try:
+                                    with st.expander(f"Cuenta: {cuenta_str}"):
+                                        # Filtrar por cuenta dentro de la categoría
+                                        df_cuenta = df_categoria[df_categoria['Cuenta_Nombre_A'] == cuenta]
+                                        st.dataframe(df_cuenta[['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', tipo_com, 'REAL', 'LY', 'Var % vs Presupuesto', 'Var % vs LY']], use_container_width=True)
+                                except Exception as e:
+                                    st.error(f"Error al mostrar la cuenta {cuenta_str}: {e}")
+                    except Exception as e:
+                        st.error(f"Error al mostrar la categoría {categoria_str}: {e}")
+        except Exception as e:
+            st.error(f"Error al mostrar la clasificación {clasificacion_str}: {e}")
 
     # --- 🔹 Totales ---
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -3989,7 +4005,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     • Variación vs Presupuesto: {var_pres:,.2f}%  
     • Variación vs LY: {var_ly:,.2f}%
     """)
-
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
 # ============================
@@ -4021,6 +4036,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
