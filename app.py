@@ -4000,48 +4000,47 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
 if selected == "PorProyectos":
     st.title("📊 Análisis por proyectos")
 
-    # Columnas para filtros
     col1, col2 = st.columns(2)
-
-    # Selección de meses
     meses = [
-        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
+        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
     ]
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
-
-    # ✅ Usa la función para seleccionar el proyecto
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
-    # Lista de clasificaciones a mostrar
-    clasificaciones = [
-        "INGRESO",
-        "COSS",
-        "G.ADMN",
-        "GASTOS FINANCIEROS"
-    ]
-
-    # --- Mostrar tablas ---
     if meses_seleccionado:
-        
-        for clasificacion_a in clasificaciones:
-            titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
-            tabla_PorProyectos(
-                tipo_com="Presupuesto",
-                df_agrid=df_ppt,
-                df_2025=df_2025,
-                df_ly=df_ly,  # ✅ nuevo parámetro
-                proyecto_codigo=proyecto_codigo,
-                meses_seleccionado=meses_seleccionado,
-                clasificacion_a=clasificacion_a,
-                categoria_a="INGRESO",
-                titulo=titulo
-            )
+        clasificaciones = sorted(df_ppt['Clasificacion_A'].dropna().unique())
+        clasificacion_a = st.selectbox("📂 Clasificación", clasificaciones)
+
+        categorias = sorted(df_ppt[df_ppt['Clasificacion_A'] == clasificacion_a]['Categoria_A'].dropna().unique())
+        categoria_a = st.selectbox("🧾 Categoría", categorias)
+
+        cuentas = sorted(df_ppt[
+            (df_ppt['Clasificacion_A'] == clasificacion_a) &
+            (df_ppt['Categoria_A'] == categoria_a)
+        ]['Cuenta_Nombre_A'].dropna().unique())
+        cuenta_a = st.selectbox("🏦 Cuenta", cuentas)
+
+        titulo = f"📊 Comparativa — {clasificacion_a} ({categoria_a})"
+
+        tabla_PorProyectos(
+            tipo_com="Presupuesto",
+            df_agrid=df_ppt,
+            df_2025=df_2025,
+            df_ly=df_ly,  # ✅ agregado
+            proyecto_codigo=proyecto_codigo,
+            meses_seleccionado=meses_seleccionado,
+            clasificacion_a=clasificacion_a,
+            categoria_a=categoria_a,
+            cuenta_a=cuenta_a,
+            titulo=titulo
+        )
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
 
     
+
 
 
 
