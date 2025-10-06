@@ -3974,27 +3974,23 @@ clasificaciones = [
         "OTROS INGRESOS"
     ]
 
-    # Parámetros fijos
-    tipo_com = "Presupuesto"
-    categoria_a = "INGRESO"  # Puede usarse luego si se requiere filtrado adicional
-    titulo = f"Comparativa para el proyecto {proyecto_nombre} ({clasificacion_a})"
-
-        # Mostrar tabla
-    if meses_seleccionado:
-        tabla_PorProyectos(
-            tipo_com=tipo_com,
-            df_agrid=df_ppt,
-            df_2025=df_2025,
-            proyecto_codigo=proyecto_codigo,
-            meses_seleccionado=meses_seleccionado,
-            clasificacion_a=clasificacion_a,
-            categoria_a=categoria_a,
-            titulo=titulo
-        )
+for clasificacion_a in clasificaciones:
+    titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
+    tabla_PorProyectos(
+        tipo_com="Presupuesto",
+        df_agrid=df_ppt,
+        df_2025=df_2025,
+        proyecto_codigo=proyecto_codigo,
+        meses_seleccionado=meses_seleccionado,
+        clasificacion_a=clasificacion_a,
+        categoria_a="INGRESO",
+        titulo=titulo
+    )
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
