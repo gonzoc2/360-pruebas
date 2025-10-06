@@ -4002,8 +4002,8 @@ if selected == "PorProyectos":
 
     col1, col2 = st.columns(2)
     meses = [
-        "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-        "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
@@ -4040,6 +4040,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
