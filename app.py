@@ -4011,11 +4011,10 @@ if selected == "PorProyectos":
 
     # Lista de clasificaciones a mostrar
     clasificaciones = [
+        "INGRESOS"
         "COSS",
         "G.ADMN",
         "GASTOS FINANCIEROS",
-        "INGRESO",
-        "OTROS INGRESOS"
     ]
 
     # --- Mostrar tablas ---
@@ -4038,6 +4037,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
