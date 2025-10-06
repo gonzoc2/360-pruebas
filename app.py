@@ -3908,7 +3908,7 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
+def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
     st.subheader(titulo)
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
@@ -3921,7 +3921,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
     ].copy()
 
     if df_filtrado.empty:
-        st.warning(f"⚠️ No hay datos de PRESUPUESTO para {clasificacion_a} en los meses seleccionados.")
+        st.warning(f"⚠️ No hay datos de PRESUPUESTO para {clasificacion_a}.")
     else:
         df_filtrado = df_filtrado.groupby(columnas, as_index=False)['Neto_A'].sum()
         df_filtrado.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
@@ -3934,35 +3934,60 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
     ].copy()
 
     if df_actual.empty:
-        st.warning(f"⚠️ No hay datos REALES para {clasificacion_a} en los meses seleccionados.")
+        st.warning(f"⚠️ No hay datos REALES para {clasificacion_a}.")
     else:
         df_actual = df_actual.groupby(columnas, as_index=False)['Neto_A'].sum()
         df_actual.rename(columns={'Neto_A': 'REAL'}, inplace=True)
 
-    # --- 🔹 Comparación ---
-    if not df_filtrado.empty or not df_actual.empty:
-        df_compara = pd.merge(df_filtrado, df_actual, on=columnas, how='outer').fillna(0)
-        df_compara['Variación %'] = np.where(
-            df_compara[f'{tipo_com}'] != 0,
-            ((df_compara['REAL'] / df_compara[f'{tipo_com}']) - 1) * 100,
-            0
-        )
+    # --- 🔹 Filtrar LY (df_ly) ---
+    df_lastyear = df_ly[
+        (df_ly['Mes_A'].isin(meses_seleccionado)) &
+        (df_ly['Proyecto_A'].isin(proyecto_codigo)) &
+        (df_ly['Clasificacion_A'] == clasificacion_a)
+    ].copy()
 
-        # --- 🔹 Totales ---
-        total_pres = df_compara[f'{tipo_com}'].sum()
-        total_real = df_compara['REAL'].sum()
-        variacion_total = ((total_real / total_pres) - 1) * 100 if total_pres != 0 else 0
-
-        st.dataframe(df_compara)
-
-        st.markdown(f"""
-        **Totales ({clasificacion_a}):**
-        - Presupuesto: ${total_pres:,.2f}  
-        - Real: ${total_real:,.2f}  
-        - Variación: {variacion_total:,.2f}%
-        """)
+    if df_lastyear.empty:
+        st.info(f"ℹ️ No hay datos LY (Año Anterior) para {clasificacion_a}.")
     else:
-        st.info(f"Sin información disponible para {clasificacion_a}.")
+        df_lastyear = df_lastyear.groupby(columnas, as_index=False)['Neto_A'].sum()
+        df_lastyear.rename(columns={'Neto_A': 'LY'}, inplace=True)
+
+    # --- 🔹 Unir todo ---
+    df_compara = pd.merge(df_filtrado, df_actual, on=columnas, how='outer').fillna(0)
+    df_compara = pd.merge(df_compara, df_lastyear, on=columnas, how='outer').fillna(0)
+
+    # --- 🔹 Calcular variaciones ---
+    df_compara['Var % vs Presupuesto'] = np.where(
+        df_compara[f'{tipo_com}'] != 0,
+        ((df_compara['REAL'] / df_compara[f'{tipo_com}']) - 1) * 100,
+        0
+    )
+    df_compara['Var % vs LY'] = np.where(
+        df_compara['LY'] != 0,
+        ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
+        0
+    )
+
+    # --- 🔹 Mostrar tabla ---
+    st.dataframe(df_compara, use_container_width=True)
+
+    # --- 🔹 Totales ---
+    total_pres = df_compara[f'{tipo_com}'].sum()
+    total_real = df_compara['REAL'].sum()
+    total_ly = df_compara['LY'].sum()
+
+    var_pres = ((total_real / total_pres) - 1) * 100 if total_pres != 0 else 0
+    var_ly = ((total_real / total_ly) - 1) * 100 if total_ly != 0 else 0
+
+    st.markdown(f"""
+    **Totales ({clasificacion_a}):**  
+    • Presupuesto: ${total_pres:,.2f}  
+    • Real: ${total_real:,.2f}  
+    • LY: ${total_ly:,.2f}  
+    • Variación vs Presupuesto: {var_pres:,.2f}%  
+    • Variación vs LY: {var_ly:,.2f}%
+    """)
+
 
 
 # ============================
@@ -3998,22 +4023,24 @@ if selected == "PorProyectos":
     if meses_seleccionado:
         
         for clasificacion_a in clasificaciones:
-            titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
+    titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
+    tabla_PorProyectos(
+        tipo_com="Presupuesto",
+        df_agrid=df_ppt,
+        df_2025=df_2025,
+        df_ly=df_ly,  # ✅ nuevo parámetro
+        proyecto_codigo=proyecto_codigo,
+        meses_seleccionado=meses_seleccionado,
+        clasificacion_a=clasificacion_a,
+        categoria_a="INGRESO",
+        titulo=titulo
+    )
 
-            tabla_PorProyectos(
-                tipo_com="Presupuesto",
-                df_agrid=df_ppt,
-                df_2025=df_2025,
-                proyecto_codigo=proyecto_codigo,
-                meses_seleccionado=meses_seleccionado,
-                clasificacion_a=clasificacion_a,
-                categoria_a="INGRESO",
-                titulo=titulo
-            )
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
