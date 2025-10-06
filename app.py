@@ -3908,53 +3908,38 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
+def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, titulo):
     st.subheader(titulo)
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
     # --- 🔹 Filtrar PRESUPUESTO (df_agrid) ---
-    df_filtrado = df_agrid[
+    df_pres = df_agrid[
         (df_agrid['Mes_A'].isin(meses_seleccionado)) &
-        (df_agrid['Proyecto_A'].isin(proyecto_codigo)) &
-        (df_agrid['Clasificacion_A'] == clasificacion_a)
+        (df_agrid['Proyecto_A'].isin(proyecto_codigo))
     ].copy()
-
-    if df_filtrado.empty:
-        st.warning(f"⚠️ No hay datos de PRESUPUESTO para {clasificacion_a}.")
-    else:
-        df_filtrado = df_filtrado.groupby(columnas, as_index=False)['Neto_A'].sum()
-        df_filtrado.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
+    df_pres = df_pres.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_pres.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
 
     # --- 🔹 Filtrar REALES (df_2025) ---
-    df_actual = df_2025[
+    df_real = df_2025[
         (df_2025['Mes_A'].isin(meses_seleccionado)) &
-        (df_2025['Proyecto_A'].isin(proyecto_codigo)) &
-        (df_2025['Clasificacion_A'] == clasificacion_a)
+        (df_2025['Proyecto_A'].isin(proyecto_codigo))
     ].copy()
-
-    if df_actual.empty:
-        st.warning(f"⚠️ No hay datos REALES para {clasificacion_a}.")
-    else:
-        df_actual = df_actual.groupby(columnas, as_index=False)['Neto_A'].sum()
-        df_actual.rename(columns={'Neto_A': 'REAL'}, inplace=True)
+    df_real = df_real.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_real.rename(columns={'Neto_A': 'REAL'}, inplace=True)
 
     # --- 🔹 Filtrar LY (df_ly) ---
-    df_lastyear = df_ly[
+    df_ly_f = df_ly[
         (df_ly['Mes_A'].isin(meses_seleccionado)) &
-        (df_ly['Proyecto_A'].isin(proyecto_codigo)) &
-        (df_ly['Clasificacion_A'] == clasificacion_a)
+        (df_ly['Proyecto_A'].isin(proyecto_codigo))
     ].copy()
-
-    if df_lastyear.empty:
-        st.info(f"ℹ️ No hay datos LY (Año Anterior) para {clasificacion_a}.")
-    else:
-        df_lastyear = df_lastyear.groupby(columnas, as_index=False)['Neto_A'].sum()
-        df_lastyear.rename(columns={'Neto_A': 'LY'}, inplace=True)
+    df_ly_f = df_ly_f.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_ly_f.rename(columns={'Neto_A': 'LY'}, inplace=True)
 
     # --- 🔹 Unir todo ---
-    df_compara = pd.merge(df_filtrado, df_actual, on=columnas, how='outer').fillna(0)
-    df_compara = pd.merge(df_compara, df_lastyear, on=columnas, how='outer').fillna(0)
+    df_compara = pd.merge(df_pres, df_real, on=columnas, how='outer').fillna(0)
+    df_compara = pd.merge(df_compara, df_ly_f, on=columnas, how='outer').fillna(0)
 
     # --- 🔹 Calcular variaciones ---
     df_compara['Var % vs Presupuesto'] = np.where(
@@ -3968,6 +3953,9 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
         0
     )
 
+    # --- 🔹 Ordenar para presentación ---
+    df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
+
     # --- 🔹 Mostrar tabla ---
     st.dataframe(df_compara, use_container_width=True)
 
@@ -3980,7 +3968,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     var_ly = ((total_real / total_ly) - 1) * 100 if total_ly != 0 else 0
 
     st.markdown(f"""
-    **Totales ({clasificacion_a}):**  
+    ### **Totales Generales**  
     • Presupuesto: ${total_pres:,.2f}  
     • Real: ${total_real:,.2f}  
     • LY: ${total_ly:,.2f}  
@@ -3988,56 +3976,37 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     • Variación vs LY: {var_ly:,.2f}%
     """)
 
-
-
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
 # ============================
 if selected == "PorProyectos":
     st.title("📊 Análisis por proyectos")
 
-    # Columnas para filtros
     col1, col2 = st.columns(2)
-
-    # Selección de meses
     meses = [
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
-
-    # ✅ Usa la función para seleccionar el proyecto
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
-    # Lista de clasificaciones a mostrar
-    clasificaciones = [
-        "INGRESO",
-        "COSS",
-        "G.ADMN",
-        "GASTOS FINANCIEROS"
-    ]
-
-    # --- Mostrar tablas ---
     if meses_seleccionado:
-        
-        for clasificacion_a in clasificaciones:
-            titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
-            tabla_PorProyectos(
-                tipo_com="Presupuesto",
-                df_agrid=df_ppt,
-                df_2025=df_2025,
-                df_ly=df_ly,  # ✅ nuevo parámetro
-                proyecto_codigo=proyecto_codigo,
-                meses_seleccionado=meses_seleccionado,
-                clasificacion_a=clasificacion_a,
-                categoria_a="INGRESO",
-                titulo=titulo
-            )
+        titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
+        tabla_PorProyectos(
+            tipo_com="Presupuesto",
+            df_agrid=df_ppt,
+            df_2025=df_2025,
+            df_ly=df_ly,
+            proyecto_codigo=proyecto_codigo,
+            meses_seleccionado=meses_seleccionado,
+            titulo=titulo
+        )
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
 
     
+
 
 
 
