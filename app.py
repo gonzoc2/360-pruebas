@@ -4014,7 +4014,6 @@ if selected == "PorProyectos":
         "COSS",
         "G.ADMN",
         "GASTOS FINANCIEROS",
-        "IMPUESTOS",
         "INGRESO",
         "OTROS INGRESOS"
     ]
@@ -4039,6 +4038,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
