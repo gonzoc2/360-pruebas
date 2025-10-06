@@ -3977,9 +3977,7 @@ if selected == "PorProyectos":
 
     # --- Mostrar tablas ---
     if meses_seleccionado:
-        st.write("📅 Meses seleccionados:", meses_seleccionado)
-        st.write("🏗️ Proyecto seleccionado:", proyecto_nombre)
-
+        
         for clasificacion_a in clasificaciones:
             titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
 
@@ -3997,6 +3995,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
