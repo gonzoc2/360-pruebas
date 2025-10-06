@@ -4023,23 +4023,23 @@ if selected == "PorProyectos":
     if meses_seleccionado:
         
         for clasificacion_a in clasificaciones:
-    titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
-    tabla_PorProyectos(
-        tipo_com="Presupuesto",
-        df_agrid=df_ppt,
-        df_2025=df_2025,
-        df_ly=df_ly,  # ✅ nuevo parámetro
-        proyecto_codigo=proyecto_codigo,
-        meses_seleccionado=meses_seleccionado,
-        clasificacion_a=clasificacion_a,
-        categoria_a="INGRESO",
-        titulo=titulo
-    )
-
+            titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
+            tabla_PorProyectos(
+                tipo_com="Presupuesto",
+                df_agrid=df_ppt,
+                df_2025=df_2025,
+                df_ly=df_ly,  # ✅ nuevo parámetro
+                proyecto_codigo=proyecto_codigo,
+                meses_seleccionado=meses_seleccionado,
+                clasificacion_a=clasificacion_a,
+                categoria_a="INGRESO",
+                titulo=titulo
+            )
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
