@@ -3959,7 +3959,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
 # ============================
-def ejecutar_por_proyectos(selected, df_ppt, df_2025, filtro_pro):
     if selected == "PorProyectos":
         st.title("📊 Análisis por proyectos")
 
@@ -3998,6 +3997,7 @@ def ejecutar_por_proyectos(selected, df_ppt, df_2025, filtro_pro):
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
