@@ -3913,15 +3913,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
-    # Mostrar columnas disponibles para depuración
-    st.write("Columnas disponibles en df_agrid:")
-    st.write(df_agrid.columns.tolist())
-
-    # --- Validar existencia de la columna ---
-    if 'Clasificacion_A' not in df_agrid.columns:
-        st.error("La columna 'Clasificacion_A' no existe en df_agrid.")
-        st.stop()
-
     # --- Filtrar por la clasificación solicitada ---
     df_filtrado = df_agrid[df_agrid['Clasificacion_A'] == clasificacion_a]
 
@@ -3997,6 +3988,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
