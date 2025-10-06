@@ -3991,7 +3991,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
         update_mode=GridUpdateMode.NO_UPDATE,
         data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
         fit_columns_on_grid_load=True,
-        theme='balham-dark',  # <-- igual que tu captura (oscuro)
+        theme='streamlit',  # <-- igual que tu captura (oscuro)
         height=450,
     )
 
@@ -4026,6 +4026,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
