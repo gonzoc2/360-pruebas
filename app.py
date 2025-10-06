@@ -3965,7 +3965,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
         clasificacion_str = str(clasificacion) if clasificacion is not None else 'Desconocida'
         
         # Mostrar la clasificación como un título, sin usar expander aquí
-        st.markdown(f"### Clasificación: {clasificacion_str} ->")
+        st.markdown(f"### {clasificacion_str}")
         
         # Filtrar por clasificación
         df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
@@ -4035,6 +4035,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
