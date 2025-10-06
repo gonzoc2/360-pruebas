@@ -3908,91 +3908,87 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, cuenta_a, titulo):
+def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
     st.subheader(titulo)
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
-    # --- 🔹 Filtrar DataFrames ---
-    def filtrar_df(df, label):
-        dff = df[
-            (df['Mes_A'].isin(meses_seleccionado)) &
-            (df['Proyecto_A'].isin(proyecto_codigo)) &
-            (df['Clasificacion_A'] == clasificacion_a)
-        ].copy()
-        if categoria_a:
-            dff = dff[dff['Categoria_A'] == categoria_a]
-        if cuenta_a:
-            dff = dff[dff['Cuenta_Nombre_A'] == cuenta_a]
-        if dff.empty:
-            st.info(f"Sin datos en {label} para {clasificacion_a}")
-        return dff.groupby(columnas, as_index=False)['Neto_A'].sum() if not dff.empty else pd.DataFrame(columns=columnas + ['Neto_A'])
+    # --- 🔹 Filtrar PRESUPUESTO (df_agrid) ---
+    df_filtrado = df_agrid[
+        (df_agrid['Mes_A'].isin(meses_seleccionado)) &
+        (df_agrid['Proyecto_A'].isin(proyecto_codigo)) &
+        (df_agrid['Clasificacion_A'] == clasificacion_a)
+    ].copy()
 
-    df_pres = filtrar_df(df_agrid, "Presupuesto").rename(columns={'Neto_A': f'{tipo_com}'})
-    df_real = filtrar_df(df_2025, "Real").rename(columns={'Neto_A': 'YTD'})
-    df_ly = filtrar_df(df_ly, "LY").rename(columns={'Neto_A': 'LY'})
+    if df_filtrado.empty:
+        st.warning(f"⚠️ No hay datos de PRESUPUESTO para {clasificacion_a}.")
+    else:
+        df_filtrado = df_filtrado.groupby(columnas, as_index=False)['Neto_A'].sum()
+        df_filtrado.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
 
-    # --- 🔹 Merge y cálculo de variaciones ---
-    df_compara = pd.merge(df_pres, df_real, on=columnas, how='outer').fillna(0)
-    df_compara = pd.merge(df_compara, df_ly, on=columnas, how='outer').fillna(0)
+    # --- 🔹 Filtrar REALES (df_2025) ---
+    df_actual = df_2025[
+        (df_2025['Mes_A'].isin(meses_seleccionado)) &
+        (df_2025['Proyecto_A'].isin(proyecto_codigo)) &
+        (df_2025['Clasificacion_A'] == clasificacion_a)
+    ].copy()
 
-    df_compara['Variación %'] = np.where(
+    if df_actual.empty:
+        st.warning(f"⚠️ No hay datos REALES para {clasificacion_a}.")
+    else:
+        df_actual = df_actual.groupby(columnas, as_index=False)['Neto_A'].sum()
+        df_actual.rename(columns={'Neto_A': 'REAL'}, inplace=True)
+
+    # --- 🔹 Filtrar LY (df_ly) ---
+    df_lastyear = df_ly[
+        (df_ly['Mes_A'].isin(meses_seleccionado)) &
+        (df_ly['Proyecto_A'].isin(proyecto_codigo)) &
+        (df_ly['Clasificacion_A'] == clasificacion_a)
+    ].copy()
+
+    if df_lastyear.empty:
+        st.info(f"ℹ️ No hay datos LY (Año Anterior) para {clasificacion_a}.")
+    else:
+        df_lastyear = df_lastyear.groupby(columnas, as_index=False)['Neto_A'].sum()
+        df_lastyear.rename(columns={'Neto_A': 'LY'}, inplace=True)
+
+    # --- 🔹 Unir todo ---
+    df_compara = pd.merge(df_filtrado, df_actual, on=columnas, how='outer').fillna(0)
+    df_compara = pd.merge(df_compara, df_lastyear, on=columnas, how='outer').fillna(0)
+
+    # --- 🔹 Calcular variaciones ---
+    df_compara['Var % vs Presupuesto'] = np.where(
+        df_compara[f'{tipo_com}'] != 0,
+        ((df_compara['REAL'] / df_compara[f'{tipo_com}']) - 1) * 100,
+        0
+    )
+    df_compara['Var % vs LY'] = np.where(
         df_compara['LY'] != 0,
-        ((df_compara['YTD'] / df_compara['LY']) - 1) * 100,
+        ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
         0
     )
 
-    # --- 🔹 Formateo visual AgGrid ---
-    df_display = df_compara[[
-        'Clasificacion_A', 'Cuenta_Nombre_A', f'{tipo_com}', 'YTD', 'LY', 'Variación %'
-    ]].copy()
+    # --- 🔹 Mostrar tabla ---
+    st.dataframe(df_compara, use_container_width=True)
 
-    # Formato de moneda (JS)
-    currency_formatter = JsCode("""
-        function(params) {
-            if (params.value === 0 || params.value === null) return "$0";
-            return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(params.value);
-        }
+    # --- 🔹 Totales ---
+    total_pres = df_compara[f'{tipo_com}'].sum()
+    total_real = df_compara['REAL'].sum()
+    total_ly = df_compara['LY'].sum()
+
+    var_pres = ((total_real / total_pres) - 1) * 100 if total_pres != 0 else 0
+    var_ly = ((total_real / total_ly) - 1) * 100 if total_ly != 0 else 0
+
+    st.markdown(f"""
+    **Totales ({clasificacion_a}):**  
+    • Presupuesto: ${total_pres:,.2f}  
+    • Real: ${total_real:,.2f}  
+    • LY: ${total_ly:,.2f}  
+    • Variación vs Presupuesto: {var_pres:,.2f}%  
+    • Variación vs LY: {var_ly:,.2f}%
     """)
 
-    percent_formatter = JsCode("""
-        function(params) {
-            if (params.value === 0 || params.value === null) return "0%";
-            const val = params.value.toFixed(2) + " %";
-            return (params.value >= 0)
-                ? '<span style="color:limegreen;">' + val + '</span>'
-                : '<span style="color:red;">' + val + '</span>';
-        }
-    """)
 
-    gb = GridOptionsBuilder.from_dataframe(df_display)
-    gb.configure_default_column(resizable=True, sortable=True, filter=True)
-    gb.configure_column('Clasificacion_A', headerName='Group', rowGroup=True, hide=True)
-    gb.configure_column(f'{tipo_com}', headerName='Presupuesto', type=["numericColumn"], valueFormatter=currency_formatter)
-    gb.configure_column('YTD', headerName='last(YTD)', type=["numericColumn"], valueFormatter=currency_formatter)
-    gb.configure_column('LY', headerName='last(LY)', type=["numericColumn"], valueFormatter=currency_formatter)
-    gb.configure_column('Variación %', headerName='last(Variación %)', type=["numericColumn"], cellRenderer=percent_formatter)
-
-    gb.configure_grid_options(
-        groupDisplayType="groupRows",
-        suppressAggFuncInHeader=True,
-        enableRangeSelection=True,
-        domLayout='normal'
-    )
-
-    grid_options = gb.build()
-
-    st.markdown(f"### 📊 {clasificacion_a}")
-    AgGrid(
-        df_display,
-        gridOptions=grid_options,
-        enable_enterprise_modules=True,
-        update_mode=GridUpdateMode.NO_UPDATE,
-        data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-        fit_columns_on_grid_load=True,
-        theme='alpine',  # Puedes usar 'balham-dark' para el modo oscuro
-        height=350,
-    )
 
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
@@ -4000,46 +3996,49 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
 if selected == "PorProyectos":
     st.title("📊 Análisis por proyectos")
 
+    # Columnas para filtros
     col1, col2 = st.columns(2)
+
+    # Selección de meses
     meses = [
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
     meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
+
+    # ✅ Usa la función para seleccionar el proyecto
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
+    # Lista de clasificaciones a mostrar
+    clasificaciones = [
+        "INGRESO",
+        "COSS",
+        "G.ADMN",
+        "GASTOS FINANCIEROS"
+    ]
+
+    # --- Mostrar tablas ---
     if meses_seleccionado:
-        clasificaciones = sorted(df_ppt['Clasificacion_A'].dropna().unique())
-        clasificacion_a = st.selectbox("📂 Clasificación", clasificaciones)
-
-        categorias = sorted(df_ppt[df_ppt['Clasificacion_A'] == clasificacion_a]['Categoria_A'].dropna().unique())
-        categoria_a = st.selectbox("🧾 Categoría", categorias)
-
-        cuentas = sorted(df_ppt[
-            (df_ppt['Clasificacion_A'] == clasificacion_a) &
-            (df_ppt['Categoria_A'] == categoria_a)
-        ]['Cuenta_Nombre_A'].dropna().unique())
-        cuenta_a = st.selectbox("🏦 Cuenta", cuentas)
-
-        titulo = f"📊 Comparativa — {clasificacion_a} ({categoria_a})"
-
-        tabla_PorProyectos(
-            tipo_com="Presupuesto",
-            df_agrid=df_ppt,
-            df_2025=df_2025,
-            df_ly=df_ly,  # ✅ agregado
-            proyecto_codigo=proyecto_codigo,
-            meses_seleccionado=meses_seleccionado,
-            clasificacion_a=clasificacion_a,
-            categoria_a=categoria_a,
-            cuenta_a=cuenta_a,
-            titulo=titulo
-        )
+        
+        for clasificacion_a in clasificaciones:
+            titulo = f"📊 Comparativa: {clasificacion_a} — Proyecto {proyecto_nombre}"
+            tabla_PorProyectos(
+                tipo_com="Presupuesto",
+                df_agrid=df_ppt,
+                df_2025=df_2025,
+                df_ly=df_ly,  # ✅ nuevo parámetro
+                proyecto_codigo=proyecto_codigo,
+                meses_seleccionado=meses_seleccionado,
+                clasificacion_a=clasificacion_a,
+                categoria_a="INGRESO",
+                titulo=titulo
+            )
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
 
     
+
 
 
 
