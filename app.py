@@ -3908,7 +3908,7 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion_nombre, categoria, titulo):
+def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, Clasificacion_A, Categoria_A, titulo):
     st.write(titulo)
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A']
@@ -3918,15 +3918,15 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
     st.write(df_agrid.columns.tolist())
 
     # --- Filtrar clasificacion y categoria en df_agrid ---
-    if clasificacion_nombre not in df_agrid.columns:
-        st.error(f"La columna '{clasificacion_nombre}' no existe en df_agrid.")
+    if Clasificacion_A not in df_agrid.columns:
+        st.error(f"La columna '{Clasificacion_A}' no existe en df_agrid.")
         st.stop()
 
-    df_agrid = df_agrid[df_agrid[clasificacion_nombre] == categoria]
+    df_agrid = df_agrid[df_agrid[Clasificacion_A] == Categoria_A]
 
     # ✅ Mostrar listado de categorías sumadas (únicas)
     categorias_sumadas = df_agrid["Categoria_A"].unique()
-    st.info(f"Categorías incluidas en esta clasificación (**{clasificacion_nombre} = {categoria}**):")
+    st.info(f"Categorías incluidas en esta clasificación (**{Clasificacion_A} = {Categoria_A}**):")
     st.write(categorias_sumadas)
 
     # --- Agrupar y renombrar df_agrid ---
@@ -3937,7 +3937,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_selec
     df_actual = df_2025[
         (df_2025['Mes_A'].isin(meses_seleccionado)) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo)) &
-        (df_2025[clasificacion_nombre] == categoria)
+        (df_2025[Clasificacion_A] == Categoria_A)
     ]
 
     df_actual = df_actual.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
@@ -3977,7 +3977,6 @@ if selected == "PorProyectos":
     # Parámetros fijos
     tipo_com = "Presupuesto"
     clasificacion_nombre = "Clasificacion_A"  # OJO: sin tilde, igual que en tus columnas reales
-    categoria = "Gastos Fijos"
     titulo = f"Comparativa para el proyecto {proyecto_nombre}"
 
     # Mostrar tabla
@@ -3988,8 +3987,8 @@ if selected == "PorProyectos":
             df_2025=df_2025,
             proyecto_codigo=proyecto_codigo,
             meses_seleccionado=meses_seleccionado,
-            clasificacion_nombre=clasificacion_nombre,
-            categoria=categoria,
+            Clasificacion_A=Clasificacion_A,
+            Categoria=Categoria,
             titulo=titulo
         )
     else:
@@ -3997,6 +3996,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
