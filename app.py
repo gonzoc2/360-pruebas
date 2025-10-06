@@ -3974,7 +3974,6 @@ clasificaciones = [
         "INGRESO",
         "OTROS INGRESOS"
     ]
-    clasificacion_a = col3.selectbox("📂 Clasificación", clasificaciones, index=0)
 
     # Parámetros fijos
     tipo_com = "Presupuesto"
@@ -3997,6 +3996,7 @@ clasificaciones = [
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
