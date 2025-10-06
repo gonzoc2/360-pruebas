@@ -3966,11 +3966,20 @@ if selected == "PorProyectos":
 # ✅ Usa la función para seleccionar el proyecto
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
+clasificaciones = [
+        "COSS",
+        "G.ADMN",
+        "GASTOS FINANCIEROS",
+        "IMPUESTOS",
+        "INGRESO",
+        "OTROS INGRESOS"
+    ]
+    clasificacion_a = col3.selectbox("📂 Clasificación", clasificaciones, index=0)
+
     # Parámetros fijos
     tipo_com = "Presupuesto"
-    clasificacion_a = "COSS"  # Ejemplo, reemplazar según caso
-    categoria_a = "INGRESO"    # Ejemplo, reemplazar según caso
-    titulo = f"Comparativa para el proyecto {proyecto_nombre}"
+    categoria_a = "INGRESO"  # Puede usarse luego si se requiere filtrado adicional
+    titulo = f"Comparativa para el proyecto {proyecto_nombre} ({clasificacion_a})"
 
         # Mostrar tabla
     if meses_seleccionado:
@@ -3988,6 +3997,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
