@@ -3909,7 +3909,7 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
-st.write(tabla por proyectos)
+st.write("tabla por proyectos")
 
 
 columnas = ['Cuenta_Nombre_A', 'Categoria_A']
@@ -4015,6 +4015,7 @@ else:
 st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
