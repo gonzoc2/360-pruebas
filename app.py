@@ -3909,27 +3909,23 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, clasificacion_a, categoria_a, titulo):
-    st.write(titulo)
+    st.write("tabla por proyectos")
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
-    # --- Filtrar presupuesto (df_agrid) ---
-    df_filtrado = df_agrid[
-        (df_agrid['Mes_A'].isin(meses_seleccionado)) &
-        (df_agrid['Proyecto_A'].isin(proyecto_codigo)) &
-        (df_agrid['Clasificacion_A'] == clasificacion_a)
-    ]
+    # --- Filtrar por la clasificación solicitada ---
+    df_filtrado = df_agrid[df_agrid['Clasificacion_A'] == clasificacion_a]
 
     # ✅ Mostrar listado de categorías incluidas
     categorias_sumadas = df_filtrado['Categoria_A'].unique()
-    st.info(f"Categorías incluidas (Clasificacion_A = {clasificacion_a}) para los meses seleccionados:")
+    st.info(f"Categorías incluidas en esta clasificación (Clasificacion_A = {clasificacion_a}):")
     st.write(categorias_sumadas)
 
-    # --- Agrupar presupuesto ---
+    # --- Agrupar y renombrar df_agrid ---
     df_filtrado = df_filtrado.groupby(columnas, as_index=False).agg({"Neto_A": "sum"})
     df_filtrado.rename(columns={"Neto_A": f"{tipo_com}"}, inplace=True)
 
-    # --- Filtrar reales (df_2025) ---
+    # --- Filtrar df_actual ---
     df_actual = df_2025[
         (df_2025['Mes_A'].isin(meses_seleccionado)) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo)) &
@@ -4000,6 +3996,7 @@ if selected == "PorProyectos":
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
