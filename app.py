@@ -3969,23 +3969,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
         
         # Filtrar por clasificación
         df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
-        
-        # Utilizar un selectbox para que el usuario seleccione una categoría dentro de la clasificación
-        categorias = df_clasificacion['Categoria_A'].unique()
-        categoria_seleccionada = st.selectbox(f"Selecciona una Categoría en {clasificacion_str}:", categorias)
-
-        # Filtrar por categoría seleccionada
-        df_categoria = df_clasificacion[df_clasificacion['Categoria_A'] == categoria_seleccionada]
-
-        # Mostrar las cuentas asociadas a la categoría seleccionada
-        cuentas = df_categoria['Cuenta_Nombre_A'].unique()
-        cuenta_seleccionada = st.selectbox(f"Selecciona una Cuenta en {categoria_seleccionada}:", cuentas)
-
-        # Filtrar por cuenta seleccionada
-        df_cuenta = df_categoria[df_categoria['Cuenta_Nombre_A'] == cuenta_seleccionada]
-        
-        # Mostrar la tabla de la cuenta seleccionada
-        st.dataframe(df_cuenta[['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', tipo_com, 'REAL', 'LY', 'Var % vs Presupuesto', 'Var % vs LY']], use_container_width=True)
 
     # --- 🔹 Totales ---
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -4035,6 +4018,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
