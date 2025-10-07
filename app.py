@@ -3909,8 +3909,6 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
 
-
-
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, titulo):
     st.subheader(titulo)
 
@@ -3969,6 +3967,9 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
         
         # Filtrar por clasificación
         df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
+        
+        # Mostrar la tabla filtrada para esa clasificación
+        st.dataframe(df_clasificacion)
 
     # --- 🔹 Totales ---
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -4018,6 +4019,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
