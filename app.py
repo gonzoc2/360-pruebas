@@ -3925,46 +3925,46 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
-    # --- 🔹 Agregar último mes disponible ---
-    ultimo_mes_agrid = df_agrid['Mes_A'].max()
-    ultimo_mes_2025 = df_2025['Mes_A'].max()
-    ultimo_mes_ly = df_ly['Mes_A'].max()
-    ultimo_mes = max(ultimo_mes_agrid, ultimo_mes_2025, ultimo_mes_ly)
+    # --- 🔹 Diccionario para meses abreviados en español ---
+    meses_espanol = {
+        'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
+        'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
+    }
 
-    # Asegurar que esté en la lista
-    if ultimo_mes not in meses_seleccionado:
-        meses_seleccionado.append(ultimo_mes)
+    # --- 🔹 Convertir Mes_A en número de mes ---
+    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower()  # Asegurar minúsculas para el map
+    df_2025['Mes_num'] = df_2025['Mes_A'].map(meses_espanol)
 
-    # Mostrar el último mes (como nombre de mes si es numérico)
-    try:
-        nombre_mes = calendar.month_name[int(ultimo_mes)]
-        st.markdown(f"#### Último mes agregado automáticamente: **{nombre_mes} ({ultimo_mes})**")
-    except:
-        st.markdown(f"#### Último mes agregado automáticamente: **{ultimo_mes}**")
-
-       # --- 🔹 Calcular mes anterior (mejorado con soporte de fechas) ---
-    # Convertimos los meses a datetime si no lo son ya
-    df_2025['Mes_A_dt'] = pd.to_datetime(df_2025['Mes_A'], errors='coerce')
-    ultimo_mes_fecha = df_2025['Mes_A_dt'].max()
-
-    if pd.isna(ultimo_mes_fecha):
-        st.warning("No se pudo determinar el último mes correctamente.")
+    if df_2025['Mes_num'].isna().all():
+        st.warning("⚠ No se pudo mapear 'Mes_A' a meses numéricos. Revisa el formato.")
+        st.write("Ejemplos de valores 'Mes_A':", df_2025['Mes_A'].unique())
         return
 
-    mes_anterior_fecha = (ultimo_mes_fecha - pd.DateOffset(months=1)).to_period('M').to_timestamp()
+    # --- 🔹 Crear columna datetime usando año fijo (2025) ---
+    df_2025['Mes_A_dt'] = pd.to_datetime(dict(year=2025, month=df_2025['Mes_num'], day=1))
 
-    # Mostrar el mes anterior como texto
+    # --- 🔹 Último mes disponible ---
+    ultimo_mes_fecha = df_2025['Mes_A_dt'].max()
+    ultimo_mes_str = ultimo_mes_fecha.strftime('%b').lower() + '.'  # ej. 'abr.'
+
+    # Agregar el último mes a meses_seleccionado si no está
+    if ultimo_mes_str not in meses_seleccionado:
+        meses_seleccionado.append(ultimo_mes_str)
+
+    st.markdown(f"#### Último mes agregado automáticamente: **{ultimo_mes_fecha.strftime('%B %Y')}**")
+
+    # --- 🔹 Calcular mes anterior (Last Month) ---
+    mes_anterior_fecha = ultimo_mes_fecha - pd.DateOffset(months=1)
+    mes_anterior_str = mes_anterior_fecha.strftime('%b').lower() + '.'  # ej. 'mar.'
+
     st.markdown(f"#### Mostrando datos de Last Month: **{mes_anterior_fecha.strftime('%B %Y')}**")
 
-    # --- 🔹 Obtener datos de Last Month desde df_2025 ---
-    df_2025['Mes_A'] = pd.to_datetime(df_2025['Mes_A'], errors='coerce')  # Asegurar que sea datetime
+    # --- 🔹 Filtrar datos del mes anterior en df_2025 ---
     df_lm = df_2025[
-        (df_2025['Mes_A'].dt.to_period('M') == mes_anterior_fecha.to_period('M')) &
+        (df_2025['Mes_A_dt'] == mes_anterior_fecha) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo))
     ].copy()
 
-    df_lm = df_lm.groupby(columnas, as_index=False)['Neto_A'].sum()
-    df_lm.rename(columns={'Neto_A': 'LM'}, inplace=True)
     df_lm = df_lm.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_lm.rename(columns={'Neto_A': 'LM'}, inplace=True)
 
@@ -3977,6 +3977,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     df_pres.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
 
     # --- 🔹 Filtrar REALES ---
+    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower()
     df_real = df_2025[
         (df_2025['Mes_A'].isin(meses_seleccionado)) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo))
@@ -3985,6 +3986,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     df_real.rename(columns={'Neto_A': 'REAL'}, inplace=True)
 
     # --- 🔹 Filtrar LY ---
+    df_ly['Mes_A'] = df_ly['Mes_A'].astype(str).str.lower()
     df_ly_f = df_ly[
         (df_ly['Mes_A'].isin(meses_seleccionado)) &
         (df_ly['Proyecto_A'].isin(proyecto_codigo))
@@ -4036,6 +4038,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     • Variación vs Presupuesto: {var_pres:,.2f}%  
     • Variación vs LY: {var_ly:,.2f}%
     """)
+
     
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
@@ -4068,6 +4071,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
