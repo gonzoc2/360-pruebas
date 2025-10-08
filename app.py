@@ -3908,13 +3908,44 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, meses_seleccionado, titulo):
     st.subheader(titulo)
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
-    # --- 🔹 Filtrar PRESUPUESTO (df_agrid) ---
+    # --- 🔹 Agregar último mes disponible ---
+    ultimo_mes_agrid = df_agrid['Mes_A'].max()
+    ultimo_mes_2025 = df_2025['Mes_A'].max()
+    ultimo_mes_ly = df_ly['Mes_A'].max()
+    ultimo_mes = max(ultimo_mes_agrid, ultimo_mes_2025, ultimo_mes_ly)
+
+    # Asegurar que esté en la lista
+    if ultimo_mes not in meses_seleccionado:
+        meses_seleccionado.append(ultimo_mes)
+
+    # Mostrar el último mes (como nombre de mes si es numérico)
+    try:
+        nombre_mes = calendar.month_name[int(ultimo_mes)]
+        st.markdown(f"#### Último mes agregado automáticamente: **{nombre_mes} ({ultimo_mes})**")
+    except:
+        st.markdown(f"#### Último mes agregado automáticamente: **{ultimo_mes}**")
+
+    # --- 🔹 Calcular mes anterior ---
+    if isinstance(ultimo_mes, int):  # si el mes es numérico (1–12)
+        mes_anterior = ultimo_mes - 1 if ultimo_mes > 1 else 12
+    else:
+        # si son strings como '2025-10', se puede adaptar a usar datetime
+        mes_anterior = None  # gestionar según tu formato real
+
+    # --- 🔹 Obtener columna LM del mes anterior ---
+    df_lm = df_2025[
+        (df_2025['Mes_A'] == mes_anterior) &
+        (df_2025['Proyecto_A'].isin(proyecto_codigo))
+    ].copy()
+    df_lm = df_lm.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_lm.rename(columns={'Neto_A': 'LM'}, inplace=True)
+
+    # --- 🔹 Filtrar PRESUPUESTO ---
     df_pres = df_agrid[
         (df_agrid['Mes_A'].isin(meses_seleccionado)) &
         (df_agrid['Proyecto_A'].isin(proyecto_codigo))
@@ -3922,7 +3953,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     df_pres = df_pres.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_pres.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
 
-    # --- 🔹 Filtrar REALES (df_2025) ---
+    # --- 🔹 Filtrar REALES ---
     df_real = df_2025[
         (df_2025['Mes_A'].isin(meses_seleccionado)) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo))
@@ -3930,26 +3961,19 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     df_real = df_real.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_real.rename(columns={'Neto_A': 'REAL'}, inplace=True)
 
-    # --- 🔹 Filtrar LY (df_ly) ---
+    # --- 🔹 Filtrar LY ---
     df_ly_f = df_ly[
         (df_ly['Mes_A'].isin(meses_seleccionado)) &
         (df_ly['Proyecto_A'].isin(proyecto_codigo))
     ].copy()
     df_ly_f = df_ly_f.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_ly_f.rename(columns={'Neto_A': 'LY'}, inplace=True)
-    indice_mes = meses.index(meses_seleccionado[0])
-    mes_anterior = meses[indice_mes - 1]
-    er_lm = estado_resultado(df_2025, [mes_anterior], proyecto_nombre, proyecto_codigo, list_pro)
-    df_compara = tabla_er(metricas_seleccionadas, er_lm, "LM")
-    df_compara.drop(columns=["% sobre Ingreso"], inplace=True)
-    df_agrid = df_2025[df_2025['Mes_A'] == mes_anterior]
-    df_agrid = df_agrid[df_agrid['Proyecto_A'].isin(proyecto_codigo)]
 
     # --- 🔹 Unir todo ---
     df_compara = pd.merge(df_pres, df_real, on=columnas, how='outer').fillna(0)
     df_compara = pd.merge(df_compara, df_ly_f, on=columnas, how='outer').fillna(0)
-    df_compara = pd.merge(df_compara, mes_anterior, on=columnas, how='outer').fillna(0)
-    
+    df_compara = pd.merge(df_compara, df_lm, on=columnas, how='outer').fillna(0)
+
     # --- 🔹 Calcular variaciones ---
     df_compara['Var % vs Presupuesto'] = np.where(
         df_compara[f'{tipo_com}'] != 0,
@@ -3965,18 +3989,12 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     # --- 🔹 Ordenar para presentación ---
     df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
 
-    # --- 🔹 Mostrar clasificación, categorías y cuentas sin anidar expanders ---
+    # --- 🔹 Mostrar clasificación, categorías y cuentas ---
     clasificaciones = df_compara['Clasificacion_A'].unique()
     for clasificacion in clasificaciones:
         clasificacion_str = str(clasificacion) if clasificacion is not None else 'Desconocida'
-        
-        # Mostrar la clasificación como un título, sin usar expander aquí
         st.markdown(f"### {clasificacion_str}")
-        
-        # Filtrar por clasificación
         df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
-        
-        # Mostrar la tabla filtrada para esa clasificación
         st.dataframe(df_clasificacion)
 
     # --- 🔹 Totales ---
@@ -3995,15 +4013,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     • Variación vs Presupuesto: {var_pres:,.2f}%  
     • Variación vs LY: {var_ly:,.2f}%
     """)
-
-    # --- 🔹 Agregar último mes disponible ---
-    ultimo_mes_agrid = df_agrid['Mes_A'].max()
-    ultimo_mes_2025 = df_2025['Mes_A'].max()
-    ultimo_mes_ly = df_ly['Mes_A'].max()
-    ultimo_mes = max(ultimo_mes_agrid, ultimo_mes_2025, ultimo_mes_ly)
-    
-
-
     
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
@@ -4036,6 +4045,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
