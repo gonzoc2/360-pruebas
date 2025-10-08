@@ -3923,7 +3923,7 @@ else:
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_seleccionado, titulo):
     st.subheader(titulo)
 
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A']
 
     # Diccionario meses abreviados español -> número
     meses_espanol = {
@@ -3996,15 +3996,12 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
         0
     )
-# Ordenar y mostrar resultados (igual que antes)
-df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A', 'Clasificacion_A'])
-clasificaciones = df_compara['Clasificacion_A'].unique()
-for clasificacion in clasificaciones:
-    clasificacion_str = str(clasificacion) if clasificacion is not None else 'Desconocida'
-    st.markdown(f"### {clasificacion_str}")
-    df_clasificacion = df_compara[df_compara['Clasificacion_A'] == clasificacion]
-    st.dataframe(df_clasificacion)
+# Ordenar y mostrar resultados por categoría y cuenta
+df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A'])
 
+# Mostrar la tabla completa
+st.markdown("### Detalle por cuenta y categoría")
+st.dataframe(df_compara)
 
     # Totales
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -4061,6 +4058,7 @@ else:
 
 
     
+
 
 
 
