@@ -4039,26 +4039,30 @@ if selected == "PorProyectos":
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
-    meses_seleccionado = col1.multiselect("Selecciona uno o más meses", meses)
+    mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
-    if meses_seleccionado:
-        titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
-        tabla_PorProyectos(
-            tipo_com="Presupuesto",
-            df_agrid=df_ppt,
-            df_2025=df_2025,
-            df_ly=df_ly,
-            proyecto_codigo=proyecto_codigo,
-            meses_seleccionado=meses_seleccionado,
-            titulo=titulo
-        )
+if mes_seleccionado:
+    titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
+    tabla_PorProyectos(
+        tipo_com="Presupuesto",
+        df_agrid=df_ppt,
+        df_2025=df_2025,
+        df_ly=df_ly,
+        proyecto_codigo=proyecto_codigo,
+        mes_seleccionado=mes_seleccionado,
+        titulo=titulo
+    )
+else:
+    st.warning("⚠️ Debes seleccionar un mes para continuar.")
+
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
 
 
     
+
 
 
 
