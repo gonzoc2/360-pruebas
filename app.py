@@ -3942,18 +3942,29 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     except:
         st.markdown(f"#### Último mes agregado automáticamente: **{ultimo_mes}**")
 
-    # --- 🔹 Calcular mes anterior ---
-    if isinstance(ultimo_mes, int):  # si el mes es numérico (1–12)
-        mes_anterior = ultimo_mes - 1 if ultimo_mes > 1 else 12
-    else:
-        # si son strings como '2025-10', se puede adaptar a usar datetime
-        mes_anterior = None  # gestionar según tu formato real
+       # --- 🔹 Calcular mes anterior (mejorado con soporte de fechas) ---
+    # Convertimos los meses a datetime si no lo son ya
+    df_2025['Mes_A_dt'] = pd.to_datetime(df_2025['Mes_A'], errors='coerce')
+    ultimo_mes_fecha = df_2025['Mes_A_dt'].max()
 
-    # --- 🔹 Obtener columna LM del mes anterior ---
+    if pd.isna(ultimo_mes_fecha):
+        st.warning("No se pudo determinar el último mes correctamente.")
+        return
+
+    mes_anterior_fecha = (ultimo_mes_fecha - pd.DateOffset(months=1)).to_period('M').to_timestamp()
+
+    # Mostrar el mes anterior como texto
+    st.markdown(f"#### Mostrando datos de Last Month: **{mes_anterior_fecha.strftime('%B %Y')}**")
+
+    # --- 🔹 Obtener datos de Last Month desde df_2025 ---
+    df_2025['Mes_A'] = pd.to_datetime(df_2025['Mes_A'], errors='coerce')  # Asegurar que sea datetime
     df_lm = df_2025[
-        (df_2025['Mes_A'] == mes_anterior) &
+        (df_2025['Mes_A'].dt.to_period('M') == mes_anterior_fecha.to_period('M')) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo))
     ].copy()
+
+    df_lm = df_lm.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_lm.rename(columns={'Neto_A': 'LM'}, inplace=True)
     df_lm = df_lm.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_lm.rename(columns={'Neto_A': 'LM'}, inplace=True)
 
@@ -4057,6 +4068,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
