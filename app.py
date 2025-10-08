@@ -3937,11 +3937,19 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     ].copy()
     df_ly_f = df_ly_f.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_ly_f.rename(columns={'Neto_A': 'LY'}, inplace=True)
+    indice_mes = meses.index(meses_seleccionado[0])
+    mes_anterior = meses[indice_mes - 1]
+    er_lm = estado_resultado(df_2025, [mes_anterior], proyecto_nombre, proyecto_codigo, list_pro)
+    df_compara = tabla_er(metricas_seleccionadas, er_lm, "LM")
+    df_compara.drop(columns=["% sobre Ingreso"], inplace=True)
+    df_agrid = df_2025[df_2025['Mes_A'] == mes_anterior]
+    df_agrid = df_agrid[df_agrid['Proyecto_A'].isin(proyecto_codigo)]
 
     # --- 🔹 Unir todo ---
     df_compara = pd.merge(df_pres, df_real, on=columnas, how='outer').fillna(0)
     df_compara = pd.merge(df_compara, df_ly_f, on=columnas, how='outer').fillna(0)
-
+    df_compara = pd.merge(df_compara, mes_anterior, on=columnas, how='outer').fillna(0)
+    
     # --- 🔹 Calcular variaciones ---
     df_compara['Var % vs Presupuesto'] = np.where(
         df_compara[f'{tipo_com}'] != 0,
@@ -3994,13 +4002,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     ultimo_mes_ly = df_ly['Mes_A'].max()
     ultimo_mes = max(ultimo_mes_agrid, ultimo_mes_2025, ultimo_mes_ly)
     
-    indice_mes = meses.index(meses_seleccionado[0])
-                mes_anterior = meses[indice_mes - 1]
-                er_lm = estado_resultado(df_2025, [mes_anterior], proyecto_nombre, proyecto_codigo, list_pro)
-                df_compara = tabla_er(metricas_seleccionadas, er_lm, "LM")
-                df_compara.drop(columns=["% sobre Ingreso"], inplace=True)
-                df_agrid = df_2025[df_2025['Mes_A'] == mes_anterior]
-                df_agrid = df_agrid[df_agrid['Proyecto_A'].isin(proyecto_codigo)]
+
 
     
 # ============================
@@ -4034,6 +4036,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
