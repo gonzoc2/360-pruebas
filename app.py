@@ -3987,6 +3987,20 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     • Variación vs Presupuesto: {var_pres:,.2f}%  
     • Variación vs LY: {var_ly:,.2f}%
     """)
+
+    # --- 🔹 Agregar último mes disponible ---
+    ultimo_mes_agrid = df_agrid['Mes_A'].max()
+    ultimo_mes_2025 = df_2025['Mes_A'].max()
+    ultimo_mes_ly = df_ly['Mes_A'].max()
+    ultimo_mes = max(ultimo_mes_agrid, ultimo_mes_2025, ultimo_mes_ly)
+
+    # Asegurar que el último mes esté en la lista de meses seleccionados
+    if ultimo_mes not in meses_seleccionado:
+        meses_seleccionado.append(ultimo_mes)
+meses = meses_seleccionado.copy()
+if ultimo_mes not in meses:
+    meses.append(ultimo_mes)
+
     
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
@@ -4019,6 +4033,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
