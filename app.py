@@ -4056,12 +4056,12 @@ if mes_seleccionado:
 else:
     st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-    else:
-        st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
+
 
 
 
     
+
 
 
 
