@@ -3998,7 +3998,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     )
     
     df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A'])
-    st.markdown("### Detalle por cuenta y categoría")
     st.dataframe(df_compara)
     
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -4009,18 +4008,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     var_pres = ((total_real / total_pres) - 1) * 100 if total_pres != 0 else 0
     var_ly = ((total_real / total_ly) - 1) * 100 if total_ly != 0 else 0
     var_lm = ((total_real / total_lm) - 1) * 100 if total_lm != 0 else 0
-
-    st.markdown(f"""
-    ### **Totales Generales**  
-    • Presupuesto: ${total_pres:,.2f}  
-    • Real: ${total_real:,.2f}  
-    • LY: ${total_ly:,.2f}  
-    • Last Month (LM): ${total_lm:,.2f}  
-
-    • Variación vs Presupuesto: {var_pres:,.2f}%  
-    • Variación vs LY: {var_ly:,.2f}%  
-    • Variación vs LM: {var_lm:,.2f}%
-    """)
 
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
@@ -4055,6 +4042,7 @@ else:
 
 
     
+
 
 
 
