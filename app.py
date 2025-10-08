@@ -96,22 +96,34 @@ def filtro_pro(col):
     return proyecto_codigo, proyecto_nombre
 
 def filtro_meses(col, df_2025):
-    meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-    if selected == "Análisis" or selected == "Proyectos":
-        meses_seleccionado = col.selectbox("Selecciona un mes", meses)
+    meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", 
+             "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+
+    if selected in ["Análisis", "Proyectos"]:
+        meses_seleccionado = col.selectbox("Selecciona un mes", meses, key="mes_selectbox")
         meses_seleccionado = [meses_seleccionado]
-    elif selected == "Mes Corregido" or selected == "Proyeccion":
-        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+
+        # Guardar el mes seleccionado en session_state
+        st.session_state["mes_guardado"] = meses_seleccionado
+
+    elif selected in ["Mes Corregido", "Proyeccion"]:
+        meses_ordenados = meses
 
         meses_disponibles = [mes for mes in meses_ordenados if mes in df_2025["Mes_A"].unique()]
         mes_act = meses_disponibles[-1] if meses_disponibles else None
         index_default = meses_disponibles.index(mes_act) if mes_act in meses_disponibles else 0
 
+        # Usar mes guardado si existe
+        if "mes_guardado" in st.session_state and st.session_state["mes_guardado"][0] in meses_disponibles:
+            mes_default = st.session_state["mes_guardado"][0]
+            index_default = meses_disponibles.index(mes_default)
+
         mes_seleccionado = col.selectbox("Selecciona un mes", meses_disponibles, index=index_default)
         meses_seleccionado = [mes_seleccionado]
+
     else:
         meses_seleccionado = col.multiselect("Selecciona un mes", meses, default=[meses[0]])
+
     return meses_seleccionado
 
 def porcentaje_ingresos(df, meses, pro, codigo_pro):
@@ -4045,6 +4057,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
