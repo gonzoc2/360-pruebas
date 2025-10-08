@@ -3997,9 +3997,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     # Asegurar que el último mes esté en la lista de meses seleccionados
     if ultimo_mes not in meses_seleccionado:
         meses_seleccionado.append(ultimo_mes)
-meses = meses_seleccionado.copy()
-if ultimo_mes not in meses:
-    meses.append(ultimo_mes)
 
     
 # ============================
@@ -4033,6 +4030,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
