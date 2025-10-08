@@ -3996,14 +3996,11 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
         0
     )
-# Ordenar y mostrar resultados por categoría y cuenta
-df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A'])
-
-# Mostrar la tabla completa
-st.markdown("### Detalle por cuenta y categoría")
-st.dataframe(df_compara)
-
-    # Totales
+    
+    df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A'])
+    st.markdown("### Detalle por cuenta y categoría")
+    st.dataframe(df_compara)
+    
     total_pres = df_compara[f'{tipo_com}'].sum()
     total_real = df_compara['REAL'].sum()
     total_ly = df_compara['LY'].sum()
@@ -4058,6 +4055,7 @@ else:
 
 
     
+
 
 
 
