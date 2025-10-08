@@ -3993,10 +3993,14 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mese
     ultimo_mes_2025 = df_2025['Mes_A'].max()
     ultimo_mes_ly = df_ly['Mes_A'].max()
     ultimo_mes = max(ultimo_mes_agrid, ultimo_mes_2025, ultimo_mes_ly)
-
-    # Asegurar que el último mes esté en la lista de meses seleccionados
-    if ultimo_mes not in meses_seleccionado:
-        meses_seleccionado.append(ultimo_mes)
+    
+    indice_mes = meses.index(meses_seleccionado[0])
+                mes_anterior = meses[indice_mes - 1]
+                er_lm = estado_resultado(df_2025, [mes_anterior], proyecto_nombre, proyecto_codigo, list_pro)
+                df_compara = tabla_er(metricas_seleccionadas, er_lm, "LM")
+                df_compara.drop(columns=["% sobre Ingreso"], inplace=True)
+                df_agrid = df_2025[df_2025['Mes_A'] == mes_anterior]
+                df_agrid = df_agrid[df_agrid['Proyecto_A'].isin(proyecto_codigo)]
 
     
 # ============================
@@ -4030,6 +4034,7 @@ if selected == "PorProyectos":
 
 
     
+
 
 
 
