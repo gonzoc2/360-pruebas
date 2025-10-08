@@ -3944,10 +3944,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     meses_inv = {v: k for k, v in meses_espanol.items()}
     mes_anterior_str = meses_inv[mes_anterior_num]
 
-    # Mostrar info
-    st.markdown(f"### Mostrando mes seleccionado: **{mes_seleccionado}**")
-    st.markdown(f"### Comparando con mes anterior (Last Month): **{mes_anterior_str}**")
-
     # Convertir meses en df_2025, df_agrid, df_ly a minúsculas para asegurar matching
     for df in [df_2025, df_agrid, df_ly]:
         df['Mes_A'] = df['Mes_A'].astype(str).str.lower()
@@ -4061,6 +4057,7 @@ else:
 
 
     
+
 
 
 
