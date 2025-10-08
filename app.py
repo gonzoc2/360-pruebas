@@ -3923,7 +3923,7 @@ else:
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_seleccionado, titulo):
     st.subheader(titulo)
 
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A']
 
     # Diccionario meses abreviados español -> número
     meses_espanol = {
@@ -4061,6 +4061,7 @@ else:
 
 
     
+
 
 
 
