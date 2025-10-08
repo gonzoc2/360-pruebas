@@ -3998,7 +3998,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     )
 
     # Ordenar y mostrar resultados (igual que antes)
-    df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
+    df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A'])
     clasificaciones = df_compara['Clasificacion_A'].unique()
     for clasificacion in clasificaciones:
         clasificacion_str = str(clasificacion) if clasificacion is not None else 'Desconocida'
@@ -4061,6 +4061,7 @@ else:
 
 
     
+
 
 
 
