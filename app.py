@@ -3996,6 +3996,11 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
         0
     )
+    df_compara['Var % vs LM'] = np.where(
+    df_compara['LM'] != 0,
+        ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
+        0
+    )
     
     df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A'])
     st.dataframe(df_compara)
@@ -4042,6 +4047,7 @@ else:
 
 
     
+
 
 
 
