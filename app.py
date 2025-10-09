@@ -3996,43 +3996,43 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
 
     df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
 
-    # Agrupar y mostrar por Clasificacion_A
+    # Generador de tabla agrupada visualmente
+    def generar_tabla_agrupada(df):
+        filas = []
+        for categoria, grupo in df.groupby('Categoria_A'):
+            # Fila de encabezado de grupo
+            filas.append({
+                'Group': categoria,
+                'Cuenta_Nombre_A': '',
+                **{col: '' for col in df.columns if col not in ['Categoria_A', 'Cuenta_Nombre_A']}
+            })
+
+            # Filas de cuentas
+            for _, row in grupo.iterrows():
+                fila = {'Group': '', 'Cuenta_Nombre_A': row['Cuenta_Nombre_A']}
+                for col in df.columns:
+                    if col not in ['Categoria_A', 'Cuenta_Nombre_A']:
+                        fila[col] = row[col]
+                filas.append(fila)
+
+        df_final = pd.DataFrame(filas)
+        return df_final
+
+    # Mostrar por Clasificación
     clasificaciones = df_compara['Clasificacion_A'].unique()
 
-    def generar_tabla_agrupada(df):
-    filas = []
-
-    # Agrupar por categoría
-    for categoria, grupo in df.groupby('Categoria_A'):
-        # Agregar fila de encabezado de grupo
-        filas.append({
-            'Group': categoria,
-            'Cuenta_Nombre_A': '',  # vacío, ya que es cabecera
-            **{col: '' for col in df.columns if col not in ['Categoria_A', 'Cuenta_Nombre_A']}
-        })
-
-        # Agregar filas de cuentas
-        for _, row in grupo.iterrows():
-            fila = {'Group': '', 'Cuenta_Nombre_A': row['Cuenta_Nombre_A']}
-            for col in df.columns:
-                if col not in ['Categoria_A', 'Cuenta_Nombre_A']:
-                    fila[col] = row[col]
-            filas.append(fila)
-
-    df_final = pd.DataFrame(filas)
-    return df_final
-
-    
     for clasificacion in clasificaciones:
         df_clas = df_compara[df_compara['Clasificacion_A'] == clasificacion].copy()
         df_clas = df_clas.drop(columns=['Clasificacion_A'])  # Ocultar columna en tabla
         df_clas = df_clas.reset_index(drop=True)             # Eliminar índice numérico
+
         with st.expander(clasificacion.upper(), expanded=False):
             try:
-                df_grouped = generar_tabla_agrupada(df_cat)
+                df_grouped = generar_tabla_agrupada(df_clas)  # <- corregido
                 st.dataframe(df_grouped, use_container_width=True)
             except TypeError:
                 st.dataframe(df_clas)
+
     # Totales
     total_pres = df_compara[f'{tipo_com}'].sum()
     total_real = df_compara['REAL'].sum()
@@ -4042,6 +4042,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     var_pres = ((total_real / total_pres) - 1) * 100 if total_pres != 0 else 0
     var_ly = ((total_real / total_ly) - 1) * 100 if total_ly != 0 else 0
     var_lm = ((total_real / total_lm) - 1) * 100 if total_lm != 0 else 0
+
 
 # ============================
 # EJECUCIÓN SI SE SELECCIONA POR PROYECTOS
@@ -4076,6 +4077,7 @@ else:
 
 
     
+
 
 
 
