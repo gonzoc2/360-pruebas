@@ -4004,7 +4004,7 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         df_clas = df_clas.drop(columns=['Clasificacion_A'])  # Ocultar columna en tabla
         df_clas = df_clas.reset_index(drop=True)             # Eliminar índice numérico
         with st.expander(clasificacion.upper(), expanded=False):
-        st.dataframe(df_clas, use_container_width=True)
+        st.dataframe(df_clas, width=0)
 
     # Totales
     total_pres = df_compara[f'{tipo_com}'].sum()
@@ -4049,6 +4049,7 @@ else:
 
 
     
+
 
 
 
