@@ -3500,7 +3500,7 @@ else:
                 df_viz[col] = df_viz[col].map("{:.2%}".format)
 
             st.subheader("📊 Tabla de Benchmark")
-            (df_viz, use_container_width=True)
+            st.dataframe(df_viz, use_container_width=True)
 
             st.subheader(f"📈 Gráfico de {kpi_orden}")
 
@@ -4077,6 +4077,7 @@ else:
 
 
     
+
 
 
 
