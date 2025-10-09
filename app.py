@@ -3341,7 +3341,7 @@ else:
             st.plotly_chart(fig, use_container_width=True)
 
             st.subheader("📋 Tabla de resultados")
-            (df_result, use_container_width=True)
+            st.dataframe(df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
 
@@ -4077,6 +4077,7 @@ else:
 
 
     
+
 
 
 
