@@ -930,7 +930,7 @@ def seccion_analisis_especial_porcentual(df_actual, df_ly, ingreso, meses_selecc
             else:
                 return [''] * len(row)
 
-        st.dataframe(
+        (
             df_resultado.style
                 .apply(resaltar, axis=1)
                 .format({
@@ -1021,7 +1021,7 @@ def seccion_analisis_por_clasificacion(df_2025, df_ly, ingreso, meses_selecciona
 
         df_analsiis_cla = df_analsiis_cla.set_index("Clasificacion_A")
 
-        st.dataframe(
+        (
             df_analsiis_cla.style
             .apply(resaltar_clasificacion, axis=1)
             .format({
@@ -3341,7 +3341,7 @@ else:
             st.plotly_chart(fig, use_container_width=True)
 
             st.subheader("📋 Tabla de resultados")
-            st.dataframe(df_result, use_container_width=True)
+            (df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
 
@@ -3500,7 +3500,7 @@ else:
                 df_viz[col] = df_viz[col].map("{:.2%}".format)
 
             st.subheader("📊 Tabla de Benchmark")
-            st.dataframe(df_viz, use_container_width=True)
+            (df_viz, use_container_width=True)
 
             st.subheader(f"📈 Gráfico de {kpi_orden}")
 
@@ -3998,6 +3998,30 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
 
     # Agrupar y mostrar por Clasificacion_A
     clasificaciones = df_compara['Clasificacion_A'].unique()
+
+    def generar_tabla_agrupada(df):
+    filas = []
+
+    # Agrupar por categoría
+    for categoria, grupo in df.groupby('Categoria_A'):
+        # Agregar fila de encabezado de grupo
+        filas.append({
+            'Group': categoria,
+            'Cuenta_Nombre_A': '',  # vacío, ya que es cabecera
+            **{col: '' for col in df.columns if col not in ['Categoria_A', 'Cuenta_Nombre_A']}
+        })
+
+        # Agregar filas de cuentas
+        for _, row in grupo.iterrows():
+            fila = {'Group': '', 'Cuenta_Nombre_A': row['Cuenta_Nombre_A']}
+            for col in df.columns:
+                if col not in ['Categoria_A', 'Cuenta_Nombre_A']:
+                    fila[col] = row[col]
+            filas.append(fila)
+
+    df_final = pd.DataFrame(filas)
+    return df_final
+
     
     for clasificacion in clasificaciones:
         df_clas = df_compara[df_compara['Clasificacion_A'] == clasificacion].copy()
@@ -4005,7 +4029,8 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         df_clas = df_clas.reset_index(drop=True)             # Eliminar índice numérico
         with st.expander(clasificacion.upper(), expanded=False):
             try:
-                st.dataframe(df_clas, use_container_width=True)
+                df_grouped = generar_tabla_agrupada(df_cat)
+                st.dataframe(df_grouped, use_container_width=True)
             except TypeError:
                 st.dataframe(df_clas)
     # Totales
@@ -4051,6 +4076,7 @@ else:
 
 
     
+
 
 
 
