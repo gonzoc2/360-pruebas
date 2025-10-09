@@ -4008,8 +4008,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
                 st.dataframe(df_clas, use_container_width=True)
             except TypeError:
                 st.dataframe(df_clas)
-                )
-
     # Totales
     total_pres = df_compara[f'{tipo_com}'].sum()
     total_real = df_compara['REAL'].sum()
@@ -4053,6 +4051,7 @@ else:
 
 
     
+
 
 
 
