@@ -3923,7 +3923,7 @@ else:
 def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_seleccionado, titulo):
     st.subheader(titulo)
 
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A']
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
     # Diccionario meses abreviados español -> número
     meses_espanol = {
@@ -3931,24 +3931,20 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
 
-    # Obtener número del mes seleccionado
     mes_sel_num = meses_espanol.get(mes_seleccionado.lower())
     if not mes_sel_num:
         st.error(f"Mes seleccionado '{mes_seleccionado}' no válido")
         return
 
-    # Calcular mes anterior (con rollover de enero->diciembre)
     mes_anterior_num = mes_sel_num - 1 if mes_sel_num > 1 else 12
-
-    # Obtener nombre del mes anterior en abreviado
     meses_inv = {v: k for k, v in meses_espanol.items()}
     mes_anterior_str = meses_inv[mes_anterior_num]
 
-    # Convertir meses en df_2025, df_agrid, df_ly a minúsculas para asegurar matching
+    # Asegurar minúsculas en columnas de mes
     for df in [df_2025, df_agrid, df_ly]:
         df['Mes_A'] = df['Mes_A'].astype(str).str.lower()
 
-    # Filtrar PRESUPUESTO solo para mes seleccionado
+    # Filtrar y agrupar por proyecto y mes
     df_pres = df_agrid[
         (df_agrid['Mes_A'] == mes_seleccionado) &
         (df_agrid['Proyecto_A'].isin(proyecto_codigo))
@@ -3956,7 +3952,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     df_pres = df_pres.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_pres.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
 
-    # Filtrar REALES para mes seleccionado
     df_real = df_2025[
         (df_2025['Mes_A'] == mes_seleccionado) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo))
@@ -3964,7 +3959,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     df_real = df_real.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_real.rename(columns={'Neto_A': 'REAL'}, inplace=True)
 
-    # Filtrar LY para mes seleccionado
     df_ly_f = df_ly[
         (df_ly['Mes_A'] == mes_seleccionado) &
         (df_ly['Proyecto_A'].isin(proyecto_codigo))
@@ -3972,7 +3966,6 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     df_ly_f = df_ly_f.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_ly_f.rename(columns={'Neto_A': 'LY'}, inplace=True)
 
-    # Filtrar LM (Last Month) solo para mes anterior, desde df_2025
     df_lm = df_2025[
         (df_2025['Mes_A'] == mes_anterior_str) &
         (df_2025['Proyecto_A'].isin(proyecto_codigo))
@@ -3980,12 +3973,11 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
     df_lm = df_lm.groupby(columnas, as_index=False)['Neto_A'].sum()
     df_lm.rename(columns={'Neto_A': 'LM'}, inplace=True)
 
-    # Unir todo
+    # Unir todo y calcular variaciones
     df_compara = pd.merge(df_pres, df_real, on=columnas, how='outer').fillna(0)
     df_compara = pd.merge(df_compara, df_ly_f, on=columnas, how='outer').fillna(0)
     df_compara = pd.merge(df_compara, df_lm, on=columnas, how='outer').fillna(0)
 
-    # Calcular variaciones
     df_compara['Var % vs Presupuesto'] = np.where(
         df_compara[f'{tipo_com}'] != 0,
         ((df_compara['REAL'] / df_compara[f'{tipo_com}']) - 1) * 100,
@@ -3997,14 +3989,22 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         0
     )
     df_compara['Var % vs LM'] = np.where(
-    df_compara['LM'] != 0,
-        ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
+        df_compara['LM'] != 0,
+        ((df_compara['REAL'] / df_compara['LM']) - 1) * 100,
         0
     )
-    
-    df_compara = df_compara.sort_values(by=['Categoria_A', 'Cuenta_Nombre_A'])
-    st.dataframe(df_compara)
-    
+
+    df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
+
+    # Agrupar y mostrar por Clasificacion_A
+    clasificaciones = df_compara['Clasificacion_A'].unique()
+
+    for clasificacion in clasificaciones:
+        df_clas = df_compara[df_compara['Clasificacion_A'] == clasificacion]
+        with st.expander(clasificacion.upper(), expanded=False):
+            st.dataframe(df_clas, use_container_width=True)
+
+    # Totales
     total_pres = df_compara[f'{tipo_com}'].sum()
     total_real = df_compara['REAL'].sum()
     total_ly = df_compara['LY'].sum()
@@ -4047,6 +4047,7 @@ else:
 
 
     
+
 
 
 
