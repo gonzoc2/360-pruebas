@@ -4025,14 +4025,14 @@ def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_
         df_clas = df_compara[df_compara['Clasificacion_A'] == clasificacion].copy()
         df_clas = df_clas.drop(columns=['Clasificacion_A'])  # Ocultar columna en tabla
         df_clas = df_clas.reset_index(drop=True)             # Eliminar índice numérico
-
+        
         with st.expander(clasificacion.upper(), expanded=False):
             try:
-                df_grouped = generar_tabla_agrupada(df_clas)  # <- corregido
-                st.dataframe(df_grouped, use_container_width=True)
+                df_grouped = generar_tabla_agrupada(df_clas)  # Corrige aquí si es df_clas o df_cat
+                st.dataframe(df_grouped.iloc[:, 1:], use_container_width=True)
             except TypeError:
-                st.dataframe(df_clas)
-
+                st.dataframe(df_clas.iloc[:, 1:], use_container_width=True)
+   
     # Totales
     total_pres = df_compara[f'{tipo_com}'].sum()
     total_real = df_compara['REAL'].sum()
@@ -4077,6 +4077,7 @@ else:
 
 
     
+
 
 
 
