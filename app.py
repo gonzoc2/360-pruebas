@@ -4056,7 +4056,7 @@ if selected == "PorProyectos":
     ]
     mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-
+    
 if mes_seleccionado:
     titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
     tabla_PorProyectos(
@@ -4123,6 +4123,7 @@ if selected == "OH":
 
 
     
+
 
 
 
