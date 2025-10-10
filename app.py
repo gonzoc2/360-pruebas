@@ -4072,10 +4072,58 @@ else:
     st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
 
+def tabla_OH(df_2025, mes_seleccionado, titulo):
+    st.subheader(titulo)
+
+    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
+
+    meses_espanol = {
+        'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
+        'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
+    }
+
+    mes_sel_num = meses_espanol.get(mes_seleccionado.lower())
+    if not mes_sel_num:
+        st.error(f"Mes seleccionado '{mes_seleccionado}' no válido")
+        return
+
+    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower()
+
+    df_real = df_2025[
+        (df_2025['Mes_A'] == mes_seleccionado) &
+        (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
+        (df_2025['Clasificacion_A'].isin(["GA", "COSS"]))
+    ].copy()
+
+    df_real = df_real.groupby(columnas, as_index=False)['Neto_A'].sum()
+    df_real.rename(columns={'Neto_A': 'REAL'}, inplace=True)
+
+    st.dataframe(df_real, use_container_width=True)
+
+if selected == "OH":
+    col1, _ = st.columns(2)
+    meses = [
+        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
+    ]
+    mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
+    proyecto_codigo, proyecto_nombre = filtro_pro("8002", "8004")
+
+    if mes_seleccionado:
+        tabla_OH(
+            df_2025=df_2025,
+            mes_seleccionado=mes_seleccionado,
+            titulo=f"Composicion OH - {mes_seleccionado.upper()}"
+        )
+    else:
+        st.warning("⚠️ Debes seleccionar un mes para continuar.")
+
+
 
 
 
     
+
 
 
 
