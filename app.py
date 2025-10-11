@@ -4057,20 +4057,19 @@ if selected == "PorProyectos":
     mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
     
-if mes_seleccionado:
-    titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
-    tabla_PorProyectos(
-        tipo_com="Presupuesto",
-        df_agrid=df_ppt,
-        df_2025=df_2025,
-        df_ly=df_ly,
-        proyecto_codigo=proyecto_codigo,
-        mes_seleccionado=mes_seleccionado,
-        titulo=titulo
-    )
-else:
-    st.warning("⚠️ Debes seleccionar un mes para continuar.")
-
+    if mes_seleccionado:
+        titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
+        tabla_PorProyectos(
+            tipo_com="Presupuesto",
+            df_agrid=df_ppt,
+            df_2025=df_2025,
+            df_ly=df_ly,
+            proyecto_codigo=proyecto_codigo,
+            mes_seleccionado=mes_seleccionado,
+            titulo=titulo
+        )
+    else:
+        st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
 def tabla_OH(df_2025, mes_seleccionado, titulo):
     st.subheader(titulo)
@@ -4104,29 +4103,24 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
     # Asegurar que los datos estén limpios
     df_real.dropna(subset=columnas + ['Neto_A'], inplace=True)
 
-    # 🧩 Nivel 3: Cuentas
     df_cuentas = df_real.groupby(['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'], as_index=False)['Neto_A'].sum()
     df_cuentas.rename(columns={'Neto_A': 'REAL'}, inplace=True)
     df_cuentas["id"] = df_cuentas.index
     df_cuentas["parent_id"] = df_cuentas.apply(lambda row: f"{row['Clasificacion_A']}_{row['Categoria_A']}", axis=1)
 
-    # 🧩 Nivel 2: Categorías
     df_categoria = df_cuentas.groupby(["Clasificacion_A", "Categoria_A"], as_index=False)["REAL"].sum()
     df_categoria["Cuenta_Nombre_A"] = None
     df_categoria["id"] = df_categoria.apply(lambda row: f"{row['Clasificacion_A']}_{row['Categoria_A']}", axis=1)
     df_categoria["parent_id"] = df_categoria["Clasificacion_A"]
 
-    # 🧩 Nivel 1: Clasificación
     df_clasif = df_categoria.groupby(["Clasificacion_A"], as_index=False)["REAL"].sum()
     df_clasif["Categoria_A"] = None
     df_clasif["Cuenta_Nombre_A"] = None
     df_clasif["id"] = df_clasif["Clasificacion_A"]
     df_clasif["parent_id"] = None
 
-    # 🧩 Unir todos los niveles
     df_final = pd.concat([df_clasif, df_categoria, df_cuentas], ignore_index=True)
 
-    # 🧩 Configurar AgGrid con jerarquía
     gb = GridOptionsBuilder.from_dataframe(df_final)
     gb.configure_grid_options(
         treeData=True,
@@ -4178,6 +4172,7 @@ if selected == "OH":
 
 
     
+
 
 
 
