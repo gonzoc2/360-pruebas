@@ -4154,11 +4154,10 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
     st.markdown("### 📊 Tabla jerárquica: Clasificación > Categoría > Cuenta")
     AgGrid(
         df_final,
-        gridOptions=grid_options,
-        enable_enterprise_modules=True,
-        fit_columns_on_grid_load=True,
-        height=500
+        height=500,
+        fit_columns_on_grid_load=True
     )
+    
 if selected == "OH":
     st.title("Composición Overhead (OH)")
     col1, col2 = st.columns(2)
@@ -4186,6 +4185,7 @@ if selected == "OH":
 
 
     
+
 
 
 
