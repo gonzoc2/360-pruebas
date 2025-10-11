@@ -4154,7 +4154,7 @@ if selected == "OH":
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
     mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
-    proyecto_codigo, proyecto_nombre = filtro_pro("8002", "8004")
+    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
     if mes_seleccionado:
         titulo = f"Composición OH"
@@ -4172,6 +4172,7 @@ if selected == "OH":
 
 
     
+
 
 
 
