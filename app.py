@@ -4156,7 +4156,6 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
         df_final,
         gridOptions=grid_options,
         enable_enterprise_modules=True,
-        update_mode=GridUpdateMode.NO_UPDATE,
         fit_columns_on_grid_load=True,
         height=500
     )
@@ -4187,6 +4186,7 @@ if selected == "OH":
 
 
     
+
 
 
 
