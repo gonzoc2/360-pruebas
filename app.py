@@ -4076,23 +4076,32 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
+    # Diccionario de meses
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
 
+    # Validar mes
     mes_sel_num = meses_espanol.get(mes_seleccionado.lower())
     if not mes_sel_num:
         st.error(f"Mes seleccionado '{mes_seleccionado}' no válido")
         return
 
-    # Convertir 'Mes_A' a número
-    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str[:3].str.lower().map(meses_espanol)
+    # 🔧 Normalizar columnas para evitar errores de formato
+    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str[:3].str.lower()
+    df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
+    df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
 
-    # 🎯 Filtrar solo por 8002 y 8004 en GA y COSS
+    # ✅ Debug: mostrar valores únicos
+    st.write("🔎 Meses únicos:", df_2025['Mes_A'].unique())
+    st.write("🔎 Proyectos únicos:", df_2025['Proyecto_A'].unique())
+    st.write("🔎 Clasificaciones únicas:", df_2025['Clasificacion_A'].unique())
+
+    # 🎯 Filtrar por mes, proyecto y clasificación
     df_real = df_2025[
-        (df_2025['Mes_A'] == mes_sel_num) &
-        (df_2025['Proyecto_A'].astype(str).isin(["8002", "8004"])) &
+        (df_2025['Mes_A'].map(meses_espanol) == mes_sel_num) &
+        (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
         (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
     ].copy()
 
@@ -4141,6 +4150,7 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
 
     grid_options = gb.build()
 
+    # 📊 Mostrar tabla
     st.markdown("### 📊 Tabla jerárquica: Clasificación > Categoría > Cuenta")
     AgGrid(
         df_final,
@@ -4150,17 +4160,18 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
         fit_columns_on_grid_load=True,
         height=500
     )
-
 if selected == "OH":
-    col1, _ = st.columns(2)
+    st.title("Composición Overhead (OH)")
+    col1, col2 = st.columns(2)
     meses = [
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
     mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
+    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
     if mes_seleccionado:
-        titulo = f"Composición OH"
+        titulo = f"📌 Composición OH — Proyectos 8002 y 8004 (GA y COSS)"
         tabla_OH(
             df_2025=df_2025,
             mes_seleccionado=mes_seleccionado,
@@ -4176,6 +4187,7 @@ if selected == "OH":
 
 
     
+
 
 
 
