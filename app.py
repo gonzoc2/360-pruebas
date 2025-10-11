@@ -4093,7 +4093,7 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
     df_real = df_2025[
         (df_2025['Mes_A'] == mes_sel_num) &
         (df_2025['Proyecto_A'].astype(str).isin(["8002", "8004"])) &
-        (df_2025['Clasificacion_A'].isin(["G.ADMN", "COSS"]))
+        (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
     ].copy()
 
     if df_real.empty:
@@ -4176,6 +4176,7 @@ if selected == "OH":
 
 
     
+
 
 
 
