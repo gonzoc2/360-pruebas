@@ -4089,7 +4089,7 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
         return
 
     # 🔧 Normalizar columnas para evitar errores de formato
-    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str[:3].str.lower()
+    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
 
@@ -4187,6 +4187,7 @@ if selected == "OH":
 
 
     
+
 
 
 
