@@ -20,7 +20,7 @@ python-decouple==3.8
 # Interactividad y UI
 extra-streamlit-components==0.1.71
 streamlit-option-menu==0.4.0
-streamlit-aggrid==0.3.3
+streamlit-aggrid==0.3.6
 streamlit-cookies-manager==0.2.0
 
 # Manipulación de Excel (opcional extra)
@@ -32,4 +32,5 @@ Pillow==9.5.0
 
 gspread
 oauth2client
+
 
