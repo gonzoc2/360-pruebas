@@ -4148,11 +4148,13 @@ if selected == "OH":
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
     mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
-
+    
     if mes_seleccionado:
+        titulo = "COMPOSICIÓN OH"
         tabla_OH(
             df_2025=df_2025,
             mes_seleccionado=mes_seleccionado,
+            titulo=titulo
         )
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
@@ -4162,7 +4164,9 @@ if selected == "OH":
 
 
 
+
     
+
 
 
 
