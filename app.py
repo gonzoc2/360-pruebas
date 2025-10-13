@@ -4104,32 +4104,41 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
 
     df_real.dropna(subset=columnas + ['Neto_A'], inplace=True)
 
-    # Agrupación jerárquica manual
-    resumen = []
-    for clasif, df_clasif in df_real.groupby('Clasificacion_A'):
-        total_clasif = df_clasif['Neto_A'].sum()
-        resumen.append({
-            'Descripción': f"▶️ {clasif}",
-            'Monto': total_clasif
-        })
+    df_real['Neto'] = df_real['Neto_A']
 
-        for categoria, df_cat in df_clasif.groupby('Categoria_A'):
-            total_cat = df_cat['Neto_A'].sum()
-            resumen.append({
-                'Descripción': f"📂 {categoria}",
-                'Monto': total_cat
+    # Solo nos quedamos con columnas necesarias
+    df_real = df_real[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Neto']]
+
+    # Agrupación visual por categoría
+    def generar_tabla_agrupada(df):
+        filas = []
+        for categoria, grupo in df.groupby('Categoria_A'):
+            # Fila de grupo
+            filas.append({
+                'Group': categoria,
+                'Cuenta_Nombre_A': '',
+                'Neto': ''
             })
 
-            for _, row in df_cat.iterrows():
-                resumen.append({
-                    'Descripción': f"    • {row['Cuenta_Nombre_A']}",
-                    'Monto': row['Neto_A']
+            # Filas de cuentas
+            for _, row in grupo.iterrows():
+                filas.append({
+                    'Group': '',
+                    'Cuenta_Nombre_A': row['Cuenta_Nombre_A'],
+                    'Neto': f"${row['Neto']:,.2f}"
                 })
 
-    df_final = pd.DataFrame(resumen)
-    df_final['Monto'] = df_final['Monto'].apply(lambda x: f"${x:,.0f}")
-    st.dataframe(df_final, use_container_width=True)
+        return pd.DataFrame(filas)
 
+    for clasificacion in df_real['Clasificacion_A'].unique():
+        df_clas = df_real[df_real['Clasificacion_A'] == clasificacion].copy().reset_index(drop=True)
+
+        with st.expander(clasificacion.upper(), expanded=False):
+            try:
+                df_grouped = generar_tabla_agrupada(df_clas)
+                st.dataframe(df_grouped, use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error(f"Error al mostrar la tabla: {e}")
     
 if selected == "OH":
     st.title("Composición Overhead (OH)")
@@ -4141,11 +4150,9 @@ if selected == "OH":
     mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
 
     if mes_seleccionado:
-        titulo = f"COMPOSICIÓN OH"
         tabla_OH(
             df_2025=df_2025,
             mes_seleccionado=mes_seleccionado,
-            titulo=titulo
         )
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
@@ -4156,6 +4163,7 @@ if selected == "OH":
 
 
     
+
 
 
 
