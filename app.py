@@ -4088,17 +4088,12 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
         st.error(f"Mes seleccionado '{mes_seleccionado}' no válido")
         return
 
-    # 🔧 Normalizar columnas para evitar errores de formato
+    # Normalizar columnas
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
 
-    # ✅ Debug: mostrar valores únicos
-    st.write("🔎 Meses únicos:", df_2025['Mes_A'].unique())
-    st.write("🔎 Proyectos únicos:", df_2025['Proyecto_A'].unique())
-    st.write("🔎 Clasificaciones únicas:", df_2025['Clasificacion_A'].unique())
-
-    # 🎯 Filtrar por mes, proyecto y clasificación
+    # Filtrar
     df_real = df_2025[
         (df_2025['Mes_A'].map(meses_espanol) == mes_sel_num) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
@@ -4113,28 +4108,27 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
 
     # Nivel 3: Cuentas
     df_cuentas = df_real.groupby(['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'], as_index=False)['Neto_A'].sum()
-    df_cuentas.rename(columns={'Neto_A': 'REAL'}, inplace=True)
+    df_cuentas.rename(columns={'Neto_A': 'Neto'}, inplace=True)
     df_cuentas["id"] = df_cuentas.index.astype(str)
     df_cuentas["parent_id"] = df_cuentas.apply(lambda row: f"{row['Clasificacion_A']}_{row['Categoria_A']}", axis=1)
 
     # Nivel 2: Categorías
-    df_categoria = df_cuentas.groupby(["Clasificacion_A", "Categoria_A"], as_index=False)["REAL"].sum()
+    df_categoria = df_cuentas.groupby(["Clasificacion_A", "Categoria_A"], as_index=False)["Neto"].sum()
     df_categoria["Cuenta_Nombre_A"] = None
     df_categoria["id"] = df_categoria.apply(lambda row: f"{row['Clasificacion_A']}_{row['Categoria_A']}", axis=1)
     df_categoria["parent_id"] = df_categoria["Clasificacion_A"]
 
     # Nivel 1: Clasificaciones
-    df_clasif = df_categoria.groupby(["Clasificacion_A"], as_index=False)["REAL"].sum()
+    df_clasif = df_categoria.groupby(["Clasificacion_A"], as_index=False)["Neto"].sum()
     df_clasif["Categoria_A"] = None
     df_clasif["Cuenta_Nombre_A"] = None
     df_clasif["id"] = df_clasif["Clasificacion_A"]
     df_clasif["parent_id"] = None
 
-    # 🔗 Unir niveles
     df_final = pd.concat([df_clasif, df_categoria, df_cuentas], ignore_index=True)
 
-    # ⚙️ Configuración AgGrid
     gb = GridOptionsBuilder.from_dataframe(df_final)
+    gb.configure_columns(["id", "parent_id"], hide=True)
     gb.configure_grid_options(
         treeData=True,
         groupDefaultExpanded=-1,
@@ -4145,17 +4139,30 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
         ]
     )
     gb.configure_columns(["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"], rowGroup=True, hide=True)
-    gb.configure_column("REAL", type=["numericColumn"], aggFunc='sum',
-                        valueFormatter="`$` + Math.round(value).toLocaleString()")
+
+    # Configurar columna "REAL" como moneda
+    gb.configure_column(
+        "Neto",
+        type=["numericColumn"],
+        aggFunc='sum',
+        valueFormatter='''function(params) {
+            if (params.value !== undefined && params.value !== null) {
+                return '$' + params.value.toLocaleString();
+            } else {
+                return '';
+            }
+        }'''
+    )
 
     grid_options = gb.build()
 
-    # 📊 Mostrar tabla
-    st.markdown("### 📊 Tabla jerárquica: Clasificación > Categoría > Cuenta")
     AgGrid(
         df_final,
+        gridOptions=grid_options,
+        enable_enterprise_modules=True,
+        allow_unsafe_jscode=True,
         height=500,
-        fit_columns_on_grid_load=True
+        theme="alpine"
     )
     
 if selected == "OH":
@@ -4169,7 +4176,7 @@ if selected == "OH":
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
     if mes_seleccionado:
-        titulo = f"📌 Composición OH — Proyectos 8002 y 8004 (GA y COSS)"
+        titulo = f"COMPOSICIÓN OH"
         tabla_OH(
             df_2025=df_2025,
             mes_seleccionado=mes_seleccionado,
@@ -4183,8 +4190,8 @@ if selected == "OH":
 
 
 
-
     
+
 
 
 
