@@ -4076,13 +4076,11 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
 
-    # Diccionario de meses
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
 
-    # Validar mes
     mes_sel_num = meses_espanol.get(mes_seleccionado.lower())
     if not mes_sel_num:
         st.error(f"Mes seleccionado '{mes_seleccionado}' no válido")
@@ -4106,64 +4104,32 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
 
     df_real.dropna(subset=columnas + ['Neto_A'], inplace=True)
 
-    # Nivel 3: Cuentas
-    df_cuentas = df_real.groupby(['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'], as_index=False)['Neto_A'].sum()
-    df_cuentas.rename(columns={'Neto_A': 'Neto'}, inplace=True)
-    df_cuentas["id"] = df_cuentas.index.astype(str)
-    df_cuentas["parent_id"] = df_cuentas.apply(lambda row: f"{row['Clasificacion_A']}_{row['Categoria_A']}", axis=1)
+    # Agrupación jerárquica manual
+    resumen = []
+    for clasif, df_clasif in df_real.groupby('Clasificacion_A'):
+        total_clasif = df_clasif['Neto_A'].sum()
+        resumen.append({
+            'Descripción': f"▶️ {clasif}",
+            'Monto': total_clasif
+        })
 
-    # Nivel 2: Categorías
-    df_categoria = df_cuentas.groupby(["Clasificacion_A", "Categoria_A"], as_index=False)["Neto"].sum()
-    df_categoria["Cuenta_Nombre_A"] = None
-    df_categoria["id"] = df_categoria.apply(lambda row: f"{row['Clasificacion_A']}_{row['Categoria_A']}", axis=1)
-    df_categoria["parent_id"] = df_categoria["Clasificacion_A"]
+        for categoria, df_cat in df_clasif.groupby('Categoria_A'):
+            total_cat = df_cat['Neto_A'].sum()
+            resumen.append({
+                'Descripción': f"📂 {categoria}",
+                'Monto': total_cat
+            })
 
-    # Nivel 1: Clasificaciones
-    df_clasif = df_categoria.groupby(["Clasificacion_A"], as_index=False)["Neto"].sum()
-    df_clasif["Categoria_A"] = None
-    df_clasif["Cuenta_Nombre_A"] = None
-    df_clasif["id"] = df_clasif["Clasificacion_A"]
-    df_clasif["parent_id"] = None
+            for _, row in df_cat.iterrows():
+                resumen.append({
+                    'Descripción': f"    • {row['Cuenta_Nombre_A']}",
+                    'Monto': row['Neto_A']
+                })
 
-    df_final = pd.concat([df_clasif, df_categoria, df_cuentas], ignore_index=True)
+    df_final = pd.DataFrame(resumen)
+    df_final['Monto'] = df_final['Monto'].apply(lambda x: f"${x:,.0f}")
+    st.dataframe(df_final, use_container_width=True)
 
-    gb = GridOptionsBuilder.from_dataframe(df_final)
-    gb.configure_columns(["id", "parent_id"], hide=True)
-    gb.configure_grid_options(
-        treeData=True,
-        groupDefaultExpanded=-1,
-        getDataPath=lambda row: [
-            row["Clasificacion_A"],
-            row["Categoria_A"] if pd.notnull(row["Categoria_A"]) else "",
-            row["Cuenta_Nombre_A"] if pd.notnull(row["Cuenta_Nombre_A"]) else ""
-        ]
-    )
-    gb.configure_columns(["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"], rowGroup=True, hide=True)
-
-    # Configurar columna "REAL" como moneda
-    gb.configure_column(
-        "Neto",
-        type=["numericColumn"],
-        aggFunc='sum',
-        valueFormatter='''function(params) {
-            if (params.value !== undefined && params.value !== null) {
-                return '$' + params.value.toLocaleString();
-            } else {
-                return '';
-            }
-        }'''
-    )
-
-    grid_options = gb.build()
-
-    AgGrid(
-        df_final,
-        gridOptions=grid_options,
-        enable_enterprise_modules=True,
-        allow_unsafe_jscode=True,
-        height=500,
-        theme="alpine"
-    )
     
 if selected == "OH":
     st.title("Composición Overhead (OH)")
@@ -4190,6 +4156,7 @@ if selected == "OH":
 
 
     
+
 
 
 
