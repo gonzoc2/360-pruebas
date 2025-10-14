@@ -4068,74 +4068,6 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-def tabla_OH(df_2025, mes_seleccionado, titulo):
-    st.subheader(titulo)
-
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
-
-    meses_espanol = {
-        'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
-        'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
-    }
-
-    mes_sel_num = meses_espanol.get(mes_seleccionado.lower())
-    if not mes_sel_num:
-        st.error(f"Mes seleccionado '{mes_seleccionado}' no válido")
-        return
-
-    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
-    df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
-    df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
-    df_real = df_2025[
-        (df_2025['Mes_A'].map(meses_espanol) == mes_sel_num) &
-        (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
-        (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
-    ].copy()
-
-    if df_real.empty:
-        st.warning("⚠️ No hay datos para los filtros seleccionados.")
-        return
-
-    df_real.dropna(subset=columnas + ['Neto_A'], inplace=True)
-    df_real['Neto'] = df_real['Neto_A']
-    df_real = df_real[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Neto']]
-
-    def generar_tabla_agrupada(df):
-        filas = []
-
-        for categoria, grupo in df.groupby('Categoria_A'):
-
-            cuentas_agrupadas = (
-                grupo.groupby('Cuenta_Nombre_A', as_index=False)['Neto']
-                .sum()
-                .sort_values('Cuenta_Nombre_A')
-            )
-
-            subtotal = cuentas_agrupadas['Neto'].sum()
-            filas.append({
-                'Group': categoria,
-                'Cuenta_Nombre_A': '',
-                'Neto': f"${subtotal:,.2f}"
-            })
-            for _, row in cuentas_agrupadas.iterrows():
-                filas.append({
-                    'Group': '',
-                    'Cuenta_Nombre_A': row['Cuenta_Nombre_A'],
-                    'Neto': f"${row['Neto']:,.2f}"
-                })
-
-        return pd.DataFrame(filas)
-
-    for clasificacion in df_real['Clasificacion_A'].unique():
-        df_clas = df_real[df_real['Clasificacion_A'] == clasificacion].copy().reset_index(drop=True)
-
-        with st.expander(clasificacion.upper(), expanded=False):
-            try:
-                df_grouped = generar_tabla_agrupada(df_clas)
-                st.dataframe(df_grouped, use_container_width=True, hide_index=True)
-            except Exception as e:
-                st.error(f"Error al mostrar la tabla: {e}")
-
 def tabla_OH_2(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
     if not meses_seleccionados:
@@ -4300,11 +4232,6 @@ if selected == "OH":
 
     if mes_seleccionado:
         titulo = f"COMPOSICIÓN OH - {mes_seleccionado.upper()}"
-        tabla_OH(
-            df_2025=df_2025,
-            mes_seleccionado=mes_seleccionado,
-            titulo=titulo
-        )
         tabla_OH_2(
             df_2025=df_2025,
             meses_seleccionados=[mes_seleccionado],
@@ -4330,6 +4257,7 @@ if selected == "OH":
 
 
     
+
 
 
 
