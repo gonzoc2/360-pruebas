@@ -4070,25 +4070,26 @@ if selected == "PorProyectos":
 
 def tabla_OH_2(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
+
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
 
+    # Diccionario de meses en español
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
-
-    meses_num = [meses_espanol.get(m.lower()) for m in meses_seleccionados]
 
     # Normalizar columnas necesarias
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
 
-    # Filtrar datos relevantes
+    # Filtrar por meses seleccionados
+    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
     df_real = df_2025[
-        (df_2025['Mes_A'].map(meses_espanol).isin(meses_num)) &
+        (df_2025['Mes_A'].isin(meses_filtrados)) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
         (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
     ].copy()
@@ -4097,24 +4098,37 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
 
-    # ✅ Reemplazar 'Valor_A' por 'Neto_A'
+    # Crear resumen para tabla
     resumen = df_real.groupby('Mes_A')['Neto_A'].sum().reset_index()
-
-    # Convertir meses numéricos a nombres
-    resumen['Mes_A'] = resumen['Mes_A'].map(
-        lambda x: [k for k, v in meses_espanol.items() if v == x][0]
-        if isinstance(x, int) else x
-    )
-
-    # Ordenar meses según secuencia
+    
+    # Ordenar meses
     meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
                    'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
     resumen['orden'] = resumen['Mes_A'].map(lambda x: meses_orden.index(x))
     resumen = resumen.sort_values('orden')
 
-    # Mostrar tabla OH
-    st.dataframe(resumen.rename(columns={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'}),
-                 use_container_width=True, hide_index=True)
+    st.dataframe(
+        resumen[['Mes_A', 'Neto_A']].rename(columns={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'}),
+        use_container_width=True,
+        hide_index=True
+    )
+    fig = px.bar(
+        resumen,
+        x='Mes_A',
+        y='Neto_A',
+        title="Composición OH por mes",
+        text='Neto_A',
+        labels={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'},
+        height=400,
+        color='Neto_A',
+        color_continuous_scale='Blues'
+    )
+
+    fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
+    fig.update_layout(template="plotly_white")
+
+    st.plotly_chart(fig, use_container_width=True)
+ 
 
 def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
@@ -4224,32 +4238,40 @@ def tabla_Clasificacion_OH(df_2025, mes_seleccionado, titulo):
 if selected == "OH":
     st.title("📊 Composición Overhead (OH)")
     col1, col2 = st.columns(2)
+    
     meses = [
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
-    mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
+    
+    meses_seleccionados = col1.multiselect("Selecciona uno o más meses", meses)
 
-    if mes_seleccionado:
-        titulo = f"COMPOSICIÓN OH - {mes_seleccionado.upper()}"
+    if meses_seleccionados:
+        titulo = f"COMPOSICIÓN OH"
+        
         tabla_OH_2(
             df_2025=df_2025,
-            meses_seleccionados=[mes_seleccionado],
-            titulo="Resumen y gráfico OH"
+            meses_seleccionados=meses_seleccionados,
+            titulo="OH"
         )
-        tabla_OH_meses(
-            df_2025=df_2025,
-            meses_seleccionados=[mes_seleccionado],
-            titulo="Histórico OH por mes"
-        )
-        tabla_Clasificacion_OH(
-            df_2025=df_2025,
-            mes_seleccionado=mes_seleccionado,
-            titulo="Resumen por Clasificación (COSS / G.ADMN)"
-        )
+        with st.container():
+            st.subheader("Composición OH")
+            
+            tabla_OH_meses(
+                df_2025=df_2025,
+                meses_seleccionados=meses_seleccionados,
+                titulo=None 
+            )
+            
+            for mes in meses_seleccionados:
+                tabla_Clasificacion_OH(
+                    df_2025=df_2025,
+                    mes_seleccionado=mes,
+                    titulo=f""
+                )
 
     else:
-        st.warning("⚠️ Debes seleccionar un mes para continuar.")
+        st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
 
 
@@ -4257,6 +4279,7 @@ if selected == "OH":
 
 
     
+
 
 
 
