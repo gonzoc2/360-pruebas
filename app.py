@@ -4116,7 +4116,7 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
         resumen,
         x='Mes_A',
         y='Neto_A',
-        title="Composición OH por mes",
+        title="Comparativo OH",
         text='Neto_A',
         labels={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'},
         height=400,
@@ -4133,8 +4133,6 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
 def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
 
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
-
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
@@ -4143,15 +4141,16 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
+    meses_orden = list(meses_espanol.keys())
 
-    meses_num = [meses_espanol.get(m.lower()) for m in meses_seleccionados]
+    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
+    # Normalizar columnas necesarias
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
-
     df_real = df_2025[
-        (df_2025['Mes_A'].map(meses_espanol).isin(meses_num)) &
+        (df_2025['Mes_A'].isin(meses_filtrados)) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
         (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
     ].copy()
@@ -4161,67 +4160,49 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
         return
 
     # Limpieza y preparación
-    df_real.dropna(subset=columnas + ['Neto_A'], inplace=True)
-    df_real['Neto'] = df_real['Neto_A']
-    df_real = df_real[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Neto']]
+    df_real.dropna(subset=['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', 'Neto_A'], inplace=True)
 
-    # Función interna para agrupar por categoría
-    def generar_tabla_agrupada(df):
-        filas = []
-        for categoria, grupo in df.groupby('Categoria_A'):
-            cuentas_agrupadas = (
-                grupo.groupby('Cuenta_Nombre_A', as_index=False)['Neto']
-                .sum()
-                .sort_values('Cuenta_Nombre_A')
-            )
-            subtotal = cuentas_agrupadas['Neto'].sum()
-            filas.append({
-                'Grupo': categoria,
-                'Cuenta_Nombre_A': '',
-                'Neto': f"${subtotal:,.2f}"
-            })
-            for _, row in cuentas_agrupadas.iterrows():
-                filas.append({
-                    'Grupo': '',
-                    'Cuenta_Nombre_A': row['Cuenta_Nombre_A'],
-                    'Neto': f"${row['Neto']:,.2f}"
-                })
-        return pd.DataFrame(filas)
+    # Crear tabla pivote: monto por cuenta y mes
+    df_pivote = df_real.groupby([
+        'Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Mes_A'
+    ])['Neto_A'].sum().reset_index()
 
-    # Mostrar una tabla expandible por clasificación
-    for clasificacion in df_real['Clasificacion_A'].unique():
-        df_clas = df_real[df_real['Clasificacion_A'] == clasificacion].copy().reset_index(drop=True)
+    tabla_final = df_pivote.pivot_table(
+        index=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'],
+        columns='Mes_A',
+        values='Neto_A',
+        fill_value=0
+    ).reset_index()
+
+    columnas_meses = [mes for mes in meses_orden if mes in tabla_final.columns]
+    tabla_final = tabla_final[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'] + columnas_meses]
+    for mes in columnas_meses:
+        tabla_final[mes] = tabla_final[mes].apply(lambda x: f"${x:,.2f}")
+    for clasificacion in tabla_final['Clasificacion_A'].unique():
+        df_clas = tabla_final[tabla_final['Clasificacion_A'] == clasificacion]
         with st.expander(clasificacion.upper(), expanded=False):
-            try:
-                df_grouped = generar_tabla_agrupada(df_clas)
-                st.dataframe(df_grouped, use_container_width=True, hide_index=True)
-            except Exception as e:
-                st.error(f"Error al mostrar la tabla: {e}")
+            st.dataframe(df_clas.drop(columns='Clasificacion_A'), use_container_width=True, hide_index=True)
 
-def tabla_Clasificacion_OH(df_2025, mes_seleccionado, titulo):
+
+def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
 
-    columnas = ['Clasificacion_A']
-
+    if not meses_seleccionados:
+        st.warning("⚠️ Debes seleccionar al menos un mes.")
+        return
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
-
-    # Validar mes seleccionado
-    mes_sel_num = meses_espanol.get(mes_seleccionado.lower())
-    if not mes_sel_num:
-        st.error(f"Mes seleccionado '{mes_seleccionado}' no válido.")
-        return
-
-    # Normalizar columnas
+    meses_orden = list(meses_espanol.keys())
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
 
-    # Filtrar datos
+    # Filtrar por meses seleccionados
+    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
     df_real = df_2025[
-        (df_2025['Mes_A'].map(meses_espanol) == mes_sel_num) &
+        (df_2025['Mes_A'].isin(meses_filtrados)) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
         (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
     ].copy()
@@ -4229,46 +4210,58 @@ def tabla_Clasificacion_OH(df_2025, mes_seleccionado, titulo):
     if df_real.empty:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
-    df_real.dropna(subset=columnas + ['Neto_A'], inplace=True)
-    df_total = df_real.groupby('Clasificacion_A', as_index=False)['Neto_A'].sum()
-    df_total['Neto_A'] = df_total['Neto_A'].apply(lambda x: f"${x:,.2f}")
-    st.dataframe(df_total.rename(columns={'Neto_A': 'Neto (MXN)'}), use_container_width=True, hide_index=True)
+    df_grouped = df_real.groupby(['Clasificacion_A', 'Mes_A'])['Neto_A'].sum().reset_index()
+
+    df_pivot = df_grouped.pivot_table(
+        index='Clasificacion_A',
+        columns='Mes_A',
+        values='Neto_A',
+        fill_value=0
+    ).reset_index()
+
+
+    columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
+    df_pivot = df_pivot[['Clasificacion_A'] + columnas_meses]
+    for col in columnas_meses:
+        df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
+    st.dataframe(df_pivot.rename(columns={'Clasificacion_A': 'Clasificación'}),
+                 use_container_width=True,
+                 hide_index=True)
            
 
 if selected == "OH":
     st.title("📊 Composición Overhead (OH)")
     col1, col2 = st.columns(2)
-    
+
     meses = [
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
-    
+
     meses_seleccionados = col1.multiselect("Selecciona uno o más meses", meses)
 
     if meses_seleccionados:
-        titulo = f"COMPOSICIÓN OH"
-        
+        titulo = "OH"
+
         tabla_OH_2(
             df_2025=df_2025,
             meses_seleccionados=meses_seleccionados,
-            titulo="OH"
+            titulo=titulo
         )
+
         with st.container():
             st.subheader("Composición OH")
-            
+
+            tabla_Clasificacion_OH(
+                df_2025=df_2025,
+                meses_seleccionados=meses_seleccionados,
+                titulo="Totales"
+            )
             tabla_OH_meses(
                 df_2025=df_2025,
                 meses_seleccionados=meses_seleccionados,
-                titulo=None 
+                titulo="Histórico OH por mes"
             )
-            
-            for mes in meses_seleccionados:
-                tabla_Clasificacion_OH(
-                    df_2025=df_2025,
-                    mes_seleccionado=mes,
-                    titulo=f""
-                )
 
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
@@ -4277,8 +4270,8 @@ if selected == "OH":
 
 
 
-
     
+
 
 
 
