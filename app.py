@@ -4138,7 +4138,6 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
 
 def tabla_OH_2(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
-    columnas = ['OH']
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
@@ -4147,6 +4146,7 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
+
     meses_num = [meses_espanol.get(m.lower()) for m in meses_seleccionados]
 
     # Normalizar columnas necesarias
@@ -4154,46 +4154,48 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
 
+    # Filtrar datos relevantes
     df_real = df_2025[
         (df_2025['Mes_A'].map(meses_espanol).isin(meses_num)) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
         (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
     ].copy()
 
-    # Agrupar por mes y sumar los valores
-    resumen = df_real.groupby('Mes_A')['Valor_A'].sum().reset_index()
+    if df_real.empty:
+        st.warning("⚠️ No hay datos para los filtros seleccionados.")
+        return
 
-    # Crear diccionario para traducir los meses numéricos a nombres en formato corto
-    meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
-    resumen['Mes_A'] = resumen['Mes_A'].map(lambda x: [k for k, v in meses_espanol.items() if v == x][0])
+    # ✅ Reemplazar 'Valor_A' por 'Neto_A'
+    resumen = df_real.groupby('Mes_A')['Neto_A'].sum().reset_index()
 
-    # Crear un diccionario para la fila 'OH'
-    fila_oh = {'OH': ''}
-    for mes in meses_orden:
-        if mes in resumen['Mes_A'].values:
-            valor = resumen.loc[resumen['Mes_A'] == mes, 'Valor_A'].values[0]
-            fila_oh[mes] = f"${valor:,.2f}"
-        else:
-            fila_oh[mes] = ""
-    df_tabla = pd.DataFrame([fila_oh])
-    st.dataframe(df_tabla, use_container_width=True)
+    # Convertir meses numéricos a nombres
+    resumen['Mes_A'] = resumen['Mes_A'].map(
+        lambda x: [k for k, v in meses_espanol.items() if v == x][0]
+        if isinstance(x, int) else x
+    )
 
-    if not resumen.empty:
-        # Ordenar los meses según el orden cronológico
-        resumen['orden'] = resumen['Mes_A'].map(lambda x: meses_orden.index(x))
-        resumen = resumen.sort_values('orden')
+    # Ordenar meses según secuencia
+    meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
+                   'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
+    resumen['orden'] = resumen['Mes_A'].map(lambda x: meses_orden.index(x))
+    resumen = resumen.sort_values('orden')
 
-        fig, ax = plt.subplots(figsize=(8, 4))
-        ax.bar(resumen['Mes_A'], resumen['Valor_A'], edgecolor='black')
-        ax.set_title('OH', fontsize=14, weight='bold')
-        ax.set_xlabel('Mes')
-        ax.set_ylabel('Monto (MXN)')
-        ax.tick_params(axis='x', rotation=45)
-        for i, v in enumerate(resumen['Valor_A']):
-            ax.text(i, v, f"${v:,.0f}", ha='center', va='bottom', fontsize=8)
-        st.pyplot(fig)
-    else:
-        st.info("No hay datos disponibles para graficar.")
+    # Mostrar tabla OH
+    st.dataframe(resumen.rename(columns={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'}),
+                 use_container_width=True, hide_index=True)
+
+    # ---- 📊 GRÁFICO ----
+    fig, ax = plt.subplots(figsize=(8, 4))
+    ax.bar(resumen['Mes_A'], resumen['Neto_A'], edgecolor='black')
+    ax.set_title('Gasto OH por Mes', fontsize=14, weight='bold')
+    ax.set_xlabel('Mes')
+    ax.set_ylabel('Monto (MXN)')
+    ax.tick_params(axis='x', rotation=45)
+
+    for i, v in enumerate(resumen['Neto_A']):
+        ax.text(i, v, f"${v:,.0f}", ha='center', va='bottom', fontsize=8)
+
+    st.pyplot(fig)
 
 def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
@@ -4341,6 +4343,7 @@ if selected == "OH":
 
 
     
+
 
 
 
