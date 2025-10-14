@@ -4184,19 +4184,6 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
     st.dataframe(resumen.rename(columns={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'}),
                  use_container_width=True, hide_index=True)
 
-    # ---- 📊 GRÁFICO ----
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(resumen['Mes_A'], resumen['Neto_A'], edgecolor='black')
-    ax.set_title('Gasto OH por Mes', fontsize=14, weight='bold')
-    ax.set_xlabel('Mes')
-    ax.set_ylabel('Monto (MXN)')
-    ax.tick_params(axis='x', rotation=45)
-
-    for i, v in enumerate(resumen['Neto_A']):
-        ax.text(i, v, f"${v:,.0f}", ha='center', va='bottom', fontsize=8)
-
-    st.pyplot(fig)
-
 def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
 
@@ -4343,6 +4330,7 @@ if selected == "OH":
 
 
     
+
 
 
 
