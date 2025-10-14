@@ -4126,29 +4126,25 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
 
     fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
     fig.update_layout(template="plotly_white")
-
     st.plotly_chart(fig, use_container_width=True)
- 
 
-def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
+def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo):
     st.subheader(titulo)
 
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
-
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
     meses_orden = list(meses_espanol.keys())
-
-    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
-
-    # Normalizar columnas necesarias
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
+
+    # Filtrar por meses seleccionados
+    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
     df_real = df_2025[
         (df_2025['Mes_A'].isin(meses_filtrados)) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
@@ -4158,33 +4154,26 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
     if df_real.empty:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
+    df_grouped = df_real.groupby(['Clasificacion_A', 'Mes_A'])['Neto_A'].sum().reset_index()
 
-    # Limpieza y preparación
-    df_real.dropna(subset=['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A', 'Neto_A'], inplace=True)
-
-    # Crear tabla pivote: monto por cuenta y mes
-    df_pivote = df_real.groupby([
-        'Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Mes_A'
-    ])['Neto_A'].sum().reset_index()
-
-    tabla_final = df_pivote.pivot_table(
-        index=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'],
+    df_pivot = df_grouped.pivot_table(
+        index='Clasificacion_A',
         columns='Mes_A',
         values='Neto_A',
         fill_value=0
     ).reset_index()
 
-    columnas_meses = [mes for mes in meses_orden if mes in tabla_final.columns]
-    tabla_final = tabla_final[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'] + columnas_meses]
-    for mes in columnas_meses:
-        tabla_final[mes] = tabla_final[mes].apply(lambda x: f"${x:,.2f}")
-    for clasificacion in tabla_final['Clasificacion_A'].unique():
-        df_clas = tabla_final[tabla_final['Clasificacion_A'] == clasificacion]
-        with st.expander(clasificacion.upper(), expanded=False):
-            st.dataframe(df_clas.drop(columns='Clasificacion_A'), use_container_width=True, hide_index=True)
+
+    columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
+    df_pivot = df_pivot[['Clasificacion_A'] + columnas_meses]
+    for col in columnas_meses:
+        df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
+    st.dataframe(df_pivot.rename(columns={'Clasificacion_A': 'Clasificación'}),
+                 use_container_width=True,
+                 hide_index=True)
 
 
-def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo):
+def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
     if titulo:
         st.subheader(titulo)
 
@@ -4300,6 +4289,7 @@ if selected == "OH":
 
 
     
+
 
 
 
