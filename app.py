@@ -4071,7 +4071,7 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-def tabla_OH(df_2025, mes_seleccionado, titulo):
+ef tabla_OH(df_2025, mes_seleccionado, titulo):
     st.subheader(titulo)
 
     columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
@@ -4095,7 +4095,7 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
     df_real = df_2025[
         (df_2025['Mes_A'].map(meses_espanol) == mes_sel_num) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
-        (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
+        (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN', 'GASTOS FINANCIEROS']))
     ].copy()
 
     if df_real.empty:
@@ -4105,31 +4105,41 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
     df_real.dropna(subset=columnas + ['Neto_A'], inplace=True)
 
     df_real['Neto'] = df_real['Neto_A']
-
-    # Solo nos quedamos con columnas necesarias
     df_real = df_real[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Neto']]
 
-    # Agrupación visual por categoría
+    # Agrupar visualmente por categoría y sumar cuentas
     def generar_tabla_agrupada(df):
         filas = []
         for categoria, grupo in df.groupby('Categoria_A'):
-            # Fila de grupo
+            # Fila de encabezado de categoría
             filas.append({
                 'Group': categoria,
                 'Cuenta_Nombre_A': '',
                 'Neto': ''
             })
 
-            # Filas de cuentas
-            for _, row in grupo.iterrows():
+            # Agrupar cuentas dentro de la categoría
+            cuentas_agrupadas = grupo.groupby('Cuenta_Nombre_A', as_index=False)['Neto'].sum()
+
+            # Agregar filas de cuentas
+            for _, row in cuentas_agrupadas.iterrows():
                 filas.append({
                     'Group': '',
                     'Cuenta_Nombre_A': row['Cuenta_Nombre_A'],
                     'Neto': f"${row['Neto']:,.2f}"
                 })
 
+            # Subtotal por categoría
+            subtotal = cuentas_agrupadas['Neto'].sum()
+            filas.append({
+                'Group': '',
+                'Cuenta_Nombre_A': 'Subtotal',
+                'Neto': f"${subtotal:,.2f}"
+            })
+
         return pd.DataFrame(filas)
 
+    # Mostrar por clasificación
     for clasificacion in df_real['Clasificacion_A'].unique():
         df_clas = df_real[df_real['Clasificacion_A'] == clasificacion].copy().reset_index(drop=True)
 
@@ -4139,6 +4149,7 @@ def tabla_OH(df_2025, mes_seleccionado, titulo):
                 st.dataframe(df_grouped, use_container_width=True, hide_index=True)
             except Exception as e:
                 st.error(f"Error al mostrar la tabla: {e}")
+
     
 if selected == "OH":
     st.title("Composición Overhead (OH)")
@@ -4166,6 +4177,7 @@ if selected == "OH":
 
 
     
+
 
 
 
