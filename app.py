@@ -4068,59 +4068,74 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-def tabla_OH_2(df_2025, meses_seleccionados, titulo):
+def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     st.subheader(titulo)
 
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
 
-    # Diccionario de meses en español
-    meses_espanol = {
-        'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
-        'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
-    }
-
-    # Normalizar columnas necesarias
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
 
-    # Filtrar por meses seleccionados
-    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
-    df_real = df_2025[
-        (df_2025['Mes_A'].isin(meses_filtrados)) &
-        (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
-        (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
-    ].copy()
+    codigos_oh = ["8002", "8004"]
+    clasificaciones_validas = ['COSS', 'G.ADMN']
+    resultados = []
 
-    if df_real.empty:
+    for mes in meses_seleccionados:
+        mes_normalizado = mes.lower().strip()
+        df_mes = df_2025[
+            (df_2025['Mes_A'] == mes_normalizado) &
+            (df_2025['Proyecto_A'].isin(codigos_oh)) &
+            (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
+        ]
+
+        if df_mes.empty:
+            continue
+
+        porcentaje = porcentaje_ingresos(df_2025, [mes_normalizado], nombre_proyecto, codigo_proyecto)
+        oh_total = df_mes['Neto_A'].sum()
+        oh_proporcional = oh_total * porcentaje
+
+        resultados.append({
+            'Mes_A': mes_normalizado,
+            'Neto_OH_Proporcional': oh_proporcional
+        })
+
+    if not resultados:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
 
-    # Crear resumen para tabla
-    resumen = df_real.groupby('Mes_A')['Neto_A'].sum().reset_index()
-    
-    # Ordenar meses
+    # Crear DataFrame con los resultados
+    resumen = pd.DataFrame(resultados)
+
+    # Ordenar los meses
     meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
                    'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
     resumen['orden'] = resumen['Mes_A'].map(lambda x: meses_orden.index(x))
     resumen = resumen.sort_values('orden')
 
+    # Mostrar tabla
     st.dataframe(
-        resumen[['Mes_A', 'Neto_A']].rename(columns={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'}),
+        resumen[['Mes_A', 'Neto_OH_Proporcional']].rename(columns={
+            'Mes_A': 'Mes',
+            'Neto_OH_Proporcional': 'OH Proporcional (MXN)'
+        }),
         use_container_width=True,
         hide_index=True
     )
+
+    # Mostrar gráfico
     fig = px.bar(
         resumen,
         x='Mes_A',
-        y='Neto_A',
-        title="Comparativo OH",
-        text='Neto_A',
-        labels={'Mes_A': 'Mes', 'Neto_A': 'Monto (MXN)'},
+        y='Neto_OH_Proporcional',
+        title="Overhead Proporcional por Proyecto",
+        text='Neto_OH_Proporcional',
+        labels={'Mes_A': 'Mes', 'Neto_OH_Proporcional': 'OH Proporcional (MXN)'},
         height=400,
-        color='Neto_A',
+        color='Neto_OH_Proporcional',
         color_continuous_scale='Blues'
     )
 
@@ -4128,12 +4143,14 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo):
     fig.update_layout(template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
 
-def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo):
+
+def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     st.subheader(titulo)
 
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
+
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
@@ -4142,38 +4159,60 @@ def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo):
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
-
-    # Filtrar por meses seleccionados
+    codigos_oh = ["8002", "8004"]
+    clasificaciones_validas = ['COSS', 'G.ADMN']
     meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
-    df_real = df_2025[
-        (df_2025['Mes_A'].isin(meses_filtrados)) &
-        (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
-        (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
-    ].copy()
+    registros = []
 
-    if df_real.empty:
+    for mes in meses_filtrados:
+        df_mes = df_2025[
+            (df_2025['Mes_A'] == mes) &
+            (df_2025['Proyecto_A'].isin(codigos_oh)) &
+            (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
+        ]
+
+        if df_mes.empty:
+            continue
+
+        porcentaje = porcentaje_ingresos(df_2025, [mes], nombre_proyecto, codigo_proyecto)
+        df_grouped = df_mes.groupby('Clasificacion_A')['Neto_A'].sum().reset_index()
+        for _, row in df_grouped.iterrows():
+            registros.append({
+                'Clasificacion_A': row['Clasificacion_A'],
+                'Mes_A': mes,
+                'Neto_A_Proporcional': row['Neto_A'] * porcentaje
+            })
+
+    if not registros:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
-    df_grouped = df_real.groupby(['Clasificacion_A', 'Mes_A'])['Neto_A'].sum().reset_index()
+    df_resultado = pd.DataFrame(registros)
 
-    df_pivot = df_grouped.pivot_table(
+    df_pivot = df_resultado.pivot_table(
         index='Clasificacion_A',
         columns='Mes_A',
-        values='Neto_A',
+        values='Neto_A_Proporcional',
         fill_value=0
     ).reset_index()
 
-
+    # Ordenar columnas de meses
     columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
     df_pivot = df_pivot[['Clasificacion_A'] + columnas_meses]
+
+    # Formatear a moneda
     for col in columnas_meses:
         df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
-    st.dataframe(df_pivot.rename(columns={'Clasificacion_A': 'Clasificación'}),
-                 use_container_width=True,
-                 hide_index=True)
+
+    # Mostrar DataFrame en Streamlit
+    st.dataframe(
+        df_pivot.rename(columns={'Clasificacion_A': 'Clasificación'}),
+        use_container_width=True,
+        hide_index=True
+    )
 
 
-def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
+
+def tabla_OH_meses(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     if titulo:
         st.subheader(titulo)
 
@@ -4181,17 +4220,22 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
 
+    # Diccionario de meses
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
     meses_orden = list(meses_espanol.keys())
     meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
+
+    # Normalización
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
     df_2025['Categoria_A'] = df_2025['Categoria_A'].astype(str).str.strip()
     df_2025['Cuenta_Nombre_A'] = df_2025['Cuenta_Nombre_A'].astype(str).str.strip()
+
+    # Filtro inicial
     df_real = df_2025[
         (df_2025['Mes_A'].isin(meses_filtrados)) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
@@ -4201,28 +4245,41 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
     if df_real.empty:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
+
+    # Aplicar porcentaje de ingresos a los montos por mes
+    df_real['Neto_A_Proporcional'] = 0.0
+
+    for mes in meses_filtrados:
+        porcentaje = porcentaje_ingresos(df_2025, [mes], nombre_proyecto, codigo_proyecto)
+        df_real.loc[df_real['Mes_A'] == mes, 'Neto_A_Proporcional'] = \
+            df_real.loc[df_real['Mes_A'] == mes, 'Neto_A'] * porcentaje
+
+    # Agrupación por Clasificación, Categoría, Cuenta y Mes
     df_grouped = df_real.groupby(
         ['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Mes_A'],
         as_index=False
-    )['Neto_A'].sum()
+    )['Neto_A_Proporcional'].sum()
 
+    # Pivot para mostrar meses en columnas
     df_pivot = df_grouped.pivot_table(
         index=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'],
         columns='Mes_A',
-        values='Neto_A',
+        values='Neto_A_Proporcional',
         fill_value=0
     ).reset_index()
 
     columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
     df_pivot = df_pivot[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'] + columnas_meses]
 
+    # Formatear a moneda
     for col in columnas_meses:
         df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
 
+    # Mostrar tabla por Clasificación con expanders
     for clasificacion in df_pivot['Clasificacion_A'].unique():
         df_clas = df_pivot[df_pivot['Clasificacion_A'] == clasificacion].copy()
-        with st.expander(clasificacion.upper(), expanded=False):
 
+        with st.expander(clasificacion.upper(), expanded=False):
             filas = []
             categorias = df_clas['Categoria_A'].unique()
 
@@ -4244,8 +4301,10 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo):
                         'Cuenta_Nombre_A': row['Cuenta_Nombre_A'],
                         **{mes: row[mes] for mes in columnas_meses}
                     })
+
             df_final = pd.DataFrame(filas)
             st.dataframe(df_final, use_container_width=True, hide_index=True)
+
            
 if selected == "OH":
     st.title("📊 Composición Overhead (OH)")
@@ -4256,15 +4315,22 @@ if selected == "OH":
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
 
-    meses_seleccionados = col1.multiselect("Selecciona uno o más meses", meses)
+    meses_seleccionados = col1.multiselect(
+        "Selecciona uno o más meses",
+        meses,
+        default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
+    )
+
+    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
 
     if meses_seleccionados:
         titulo = "OH"
-
         tabla_OH_2(
             df_2025=df_2025,
             meses_seleccionados=meses_seleccionados,
-            titulo=titulo
+            titulo=titulo,
+            codigo_proyecto=proyecto_codigo,
+            nombre_proyecto=proyecto_nombre
         )
 
         with st.container():
@@ -4273,12 +4339,17 @@ if selected == "OH":
             tabla_Clasificacion_OH(
                 df_2025=df_2025,
                 meses_seleccionados=meses_seleccionados,
-                titulo="Totales"
+                titulo="Totales",
+                codigo_proyecto=proyecto_codigo,
+                nombre_proyecto=proyecto_nombre
             )
+
             tabla_OH_meses(
                 df_2025=df_2025,
                 meses_seleccionados=meses_seleccionados,
-                titulo="Histórico OH por mes"
+                titulo="Histórico OH por mes",
+                codigo_proyecto=proyecto_codigo,
+                nombre_proyecto=proyecto_nombre
             )
 
     else:
@@ -4289,6 +4360,7 @@ if selected == "OH":
 
 
     
+
 
 
 
