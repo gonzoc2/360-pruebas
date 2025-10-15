@@ -4068,12 +4068,13 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
+ef tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     st.subheader(titulo)
 
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
+
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
@@ -4105,14 +4106,17 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_pro
     if not resultados:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
+
+    # Crear DataFrame con los resultados
     resumen = pd.DataFrame(resultados)
+
+    # Ordenar los meses
     meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
                    'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
     resumen['orden'] = resumen['Mes_A'].map(lambda x: meses_orden.index(x))
     resumen = resumen.sort_values('orden')
-    resumen['Monto_Numerico'] = resumen['Neto_OH_Proporcional']
-    resumen['Neto_OH_Proporcional'] = resumen['Neto_OH_Proporcional'].apply(lambda x: f"${x:,.2f}")
 
+    # Mostrar tabla
     st.dataframe(
         resumen[['Mes_A', 'Neto_OH_Proporcional']].rename(columns={
             'Mes_A': 'Mes',
@@ -4138,7 +4142,6 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_pro
     fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
     fig.update_layout(template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
-
 
 def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     st.subheader(titulo)
@@ -4356,6 +4359,7 @@ if selected == "OH":
 
 
     
+
 
 
 
