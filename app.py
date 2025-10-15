@@ -4068,7 +4068,7 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-ef tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
+def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     st.subheader(titulo)
 
     if not meses_seleccionados:
@@ -4359,6 +4359,7 @@ if selected == "OH":
 
 
     
+
 
 
 
