@@ -4068,88 +4068,112 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto, cecos):
+def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto, ceco_seleccionado):
     st.subheader(titulo)
 
+    # --- Validaciones iniciales ---
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
 
-    if not cecos:
-        st.warning("⚠️ Debes seleccionar al menos un centro de costo.")
+    if ceco_seleccionado is None:
+        st.warning("⚠️ Debes seleccionar un centro de costo.")
         return
 
-    # Normalización de columnas
+    # --- Normalización de columnas ---
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
-    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()  # Asegúrate que este sea el nombre correcto
+    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
+    df_2025['Neto_A'] = pd.to_numeric(df_2025['Neto_A'], errors='coerce').fillna(0)
 
+    # --- Parámetros base ---
     codigos_oh = ["8002", "8004"]
     clasificaciones_validas = ['COSS', 'G.ADMN']
+    meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
+                   'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
+
+    # --- Filtro inicial ---
+    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
+
+    df_real = df_2025[
+        (df_2025['Mes_A'].isin(meses_filtrados)) &
+        (df_2025['Proyecto_A'].isin(codigos_oh)) &
+        (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
+    ].copy()
+
+    # --- Filtro adicional por CeCo ---
+    if ceco_seleccionado != "Todos":
+        df_real = df_real[df_real['CeCo_A'] == ceco_seleccionado]
+
+    if df_real.empty:
+        st.warning("⚠️ No hay datos para los filtros seleccionados.")
+        return
+
+    # --- Calcular OH proporcional ---
     resultados = []
-
-    for mes in meses_seleccionados:
-        mes_normalizado = mes.lower().strip()
-
-        # Aplicar todos los filtros
-        df_mes = df_2025[
-            (df_2025['Mes_A'] == mes_normalizado) &
-            (df_2025['Proyecto_A'].isin(codigos_oh)) &
-            (df_2025['Clasificacion_A'].isin(clasificaciones_validas)) &
-            (df_2025['CeCo_A'].isin(cecos))
-        ]
+    for mes in meses_filtrados:
+        df_mes = df_real[df_real['Mes_A'] == mes]
 
         if df_mes.empty:
             continue
 
-        porcentaje = porcentaje_ingresos(df_2025, [mes_normalizado], nombre_proyecto, codigo_proyecto)
+        porcentaje = porcentaje_ingresos(df_2025, [mes], nombre_proyecto, codigo_proyecto)
         oh_total = df_mes['Neto_A'].sum()
         oh_proporcional = oh_total * porcentaje
 
         resultados.append({
-            'Mes_A': mes_normalizado,
-            'Neto_OH_Proporcional': oh_proporcional
+            'Mes_A': mes,
+            'OH_Proporcional': oh_proporcional
         })
 
     if not resultados:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
 
-    # Crear DataFrame con los resultados
+    # --- Crear DataFrame resumen ---
     resumen = pd.DataFrame(resultados)
 
-    # Ordenar los meses
-    meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
-                   'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
-    resumen['orden'] = resumen['Mes_A'].map(lambda x: meses_orden.index(x))
-    resumen = resumen.sort_values('orden')
+    resumen['Mes_A'] = pd.Categorical(
+        resumen['Mes_A'],
+        categories=[m.lower().strip() for m in meses_orden],
+        ordered=True
+    )
+    resumen = resumen.sort_values('Mes_A').reset_index(drop=True)
 
-    # Mostrar tabla
+    # --- Tabla con formato ---
+    resumen['OH_Proporcional_fmt'] = resumen['OH_Proporcional'].apply(lambda x: f"${x:,.2f}")
+
     st.dataframe(
-        resumen[['Mes_A', 'Neto_OH_Proporcional']].rename(columns={
+        resumen[['Mes_A', 'OH_Proporcional_fmt']].rename(columns={
             'Mes_A': 'Mes',
-            'Neto_OH_Proporcional': 'OH Proporcional (MXN)'
+            'OH_Proporcional_fmt': 'OH Proporcional (MXN)'
         }),
         use_container_width=True,
         hide_index=True
     )
 
-    # Mostrar gráfico
+    # --- Gráfico ---
     fig = px.bar(
         resumen,
         x='Mes_A',
-        y='Neto_OH_Proporcional',
-        title="Overhead Proporcional por Proyecto",
-        text='Neto_OH_Proporcional',
-        labels={'Mes_A': 'Mes', 'Neto_OH_Proporcional': 'OH Proporcional (MXN)'},
-        height=400,
-        color='Neto_OH_Proporcional',
+        y='OH_Proporcional',
+        title=f"Overhead Proporcional — CeCo: {ceco_seleccionado}",
+        text=resumen['OH_Proporcional'].apply(lambda x: f"${x:,.0f}"),
+        labels={'Mes_A': 'Mes', 'OH_Proporcional': 'OH Proporcional (MXN)'},
+        height=420,
+        color='OH_Proporcional',
         color_continuous_scale='Blues'
     )
 
-    fig.update_traces(texttemplate='%{text:.2s}', textposition='outside')
-    fig.update_layout(template="plotly_white")
+    fig.update_traces(textposition='outside')
+    fig.update_layout(
+        template="plotly_white",
+        xaxis=dict(title="", tickangle=-45),
+        yaxis=dict(title="Monto (MXN)", tickformat=","),
+        coloraxis_showscale=False
+    )
+
     st.plotly_chart(fig, use_container_width=True)
 
 
@@ -4407,6 +4431,7 @@ if selected == "OH":
 
 
     
+
 
 
 
