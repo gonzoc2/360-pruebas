@@ -4153,7 +4153,7 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_pro
     st.plotly_chart(fig, use_container_width=True)
 
 
-ddef tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
+def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     st.subheader(titulo)
 
     if not meses_seleccionados:
@@ -4407,6 +4407,7 @@ if selected == "OH":
 
 
     
+
 
 
 
