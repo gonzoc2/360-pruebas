@@ -4068,16 +4068,22 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
+def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto, cecos):
     st.subheader(titulo)
 
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
 
+    if not cecos:
+        st.warning("⚠️ Debes seleccionar al menos un centro de costo.")
+        return
+
+    # Normalización de columnas
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
+    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()  # Asegúrate que este sea el nombre correcto
 
     codigos_oh = ["8002", "8004"]
     clasificaciones_validas = ['COSS', 'G.ADMN']
@@ -4085,10 +4091,13 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_pro
 
     for mes in meses_seleccionados:
         mes_normalizado = mes.lower().strip()
+
+        # Aplicar todos los filtros
         df_mes = df_2025[
             (df_2025['Mes_A'] == mes_normalizado) &
             (df_2025['Proyecto_A'].isin(codigos_oh)) &
-            (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
+            (df_2025['Clasificacion_A'].isin(clasificaciones_validas)) &
+            (df_2025['CeCo_A'].isin(cecos))
         ]
 
         if df_mes.empty:
@@ -4143,21 +4152,32 @@ def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_pro
     fig.update_layout(template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
 
-def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
+
+ddef tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
     st.subheader(titulo)
 
     if not meses_seleccionados:
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
 
+    # --- Mapeo de meses ---
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
     }
     meses_orden = list(meses_espanol.keys())
+
+    # --- Normalizar campos ---
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
+    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()  # <- nuevo campo
+
+    # --- Filtro de CeCo dinámico ---
+    lista_cecos = sorted(df_2025['CeCo_A'].unique())
+    ceco_seleccionado = st.selectbox("Selecciona un Centro de Costo (CeCo):", ["Todos"] + lista_cecos)
+
+    # --- Filtros base ---
     codigos_oh = ["8002", "8004"]
     clasificaciones_validas = ['COSS', 'G.ADMN']
     meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
@@ -4169,6 +4189,10 @@ def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto
             (df_2025['Proyecto_A'].isin(codigos_oh)) &
             (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
         ]
+
+        # Aplicar filtro de CeCo si no es "Todos"
+        if ceco_seleccionado != "Todos":
+            df_mes = df_mes[df_mes['CeCo_A'] == ceco_seleccionado]
 
         if df_mes.empty:
             continue
@@ -4185,6 +4209,7 @@ def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto
     if not registros:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
+
     df_resultado = pd.DataFrame(registros)
 
     df_pivot = df_resultado.pivot_table(
@@ -4198,17 +4223,16 @@ def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto
     columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
     df_pivot = df_pivot[['Clasificacion_A'] + columnas_meses]
 
-    # Formatear a moneda
+    # Formatear valores como moneda
     for col in columnas_meses:
         df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
 
-    # Mostrar DataFrame en Streamlit
+    # Mostrar DataFrame final en Streamlit
     st.dataframe(
         df_pivot.rename(columns={'Clasificacion_A': 'Clasificación'}),
         use_container_width=True,
         hide_index=True
     )
-
 
 
 def tabla_OH_meses(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
@@ -4219,7 +4243,7 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre
         st.warning("⚠️ Debes seleccionar al menos un mes.")
         return
 
-    # Diccionario de meses
+    # --- Diccionario de meses ---
     meses_espanol = {
         'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
         'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
@@ -4227,39 +4251,47 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre
     meses_orden = list(meses_espanol.keys())
     meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
-    # Normalización
+    # --- Normalización ---
     df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
     df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
     df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
     df_2025['Categoria_A'] = df_2025['Categoria_A'].astype(str).str.strip()
     df_2025['Cuenta_Nombre_A'] = df_2025['Cuenta_Nombre_A'].astype(str).str.strip()
+    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()  # <- nuevo campo CeCo
 
-    # Filtro inicial
+    # --- Filtro de CeCo ---
+    lista_cecos = sorted(df_2025['CeCo_A'].unique())
+    ceco_seleccionado = st.selectbox("Selecciona un Centro de Costo (CeCo):", ["Todos"] + lista_cecos)
+
+    # --- Filtro inicial ---
     df_real = df_2025[
         (df_2025['Mes_A'].isin(meses_filtrados)) &
         (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
         (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
     ].copy()
 
+    # Aplicar filtro de CeCo si no es "Todos"
+    if ceco_seleccionado != "Todos":
+        df_real = df_real[df_real['CeCo_A'] == ceco_seleccionado]
+
     if df_real.empty:
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
 
-    # Aplicar porcentaje de ingresos a los montos por mes
+    # --- Aplicar porcentaje de ingresos ---
     df_real['Neto_A_Proporcional'] = 0.0
-
     for mes in meses_filtrados:
         porcentaje = porcentaje_ingresos(df_2025, [mes], nombre_proyecto, codigo_proyecto)
         df_real.loc[df_real['Mes_A'] == mes, 'Neto_A_Proporcional'] = \
             df_real.loc[df_real['Mes_A'] == mes, 'Neto_A'] * porcentaje
 
-    # Agrupación por Clasificación, Categoría, Cuenta y Mes
+    # --- Agrupación ---
     df_grouped = df_real.groupby(
         ['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Mes_A'],
         as_index=False
     )['Neto_A_Proporcional'].sum()
 
-    # Pivot para mostrar meses en columnas
+    # --- Pivot (Meses en columnas) ---
     df_pivot = df_grouped.pivot_table(
         index=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'],
         columns='Mes_A',
@@ -4270,15 +4302,15 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre
     columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
     df_pivot = df_pivot[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'] + columnas_meses]
 
-    # Formatear a moneda
+    # --- Formato moneda ---
     for col in columnas_meses:
         df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
 
-    # Mostrar tabla por Clasificación con expanders
+    # --- Mostrar tablas por Clasificación ---
     for clasificacion in df_pivot['Clasificacion_A'].unique():
         df_clas = df_pivot[df_pivot['Clasificacion_A'] == clasificacion].copy()
 
-        with st.expander(clasificacion.upper(), expanded=False):
+        with st.expander(f"{clasificacion.upper()} — CeCo: {ceco_seleccionado}", expanded=False):
             filas = []
             categorias = df_clas['Categoria_A'].unique()
 
@@ -4307,8 +4339,9 @@ def tabla_OH_meses(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre
            
 if selected == "OH":
     st.title("📊 Composición Overhead (OH)")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
+    # --- Selector de meses ---
     meses = [
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
@@ -4320,16 +4353,28 @@ if selected == "OH":
         default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
     )
 
+    # --- Selector de proyecto ---
     proyecto_codigo, proyecto_nombre = filtro_pro(col2)
+
+    # --- Filtro de CeCo global ---
+    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
+    lista_cecos = sorted(df_2025['CeCo_A'].unique())
+    ceco_seleccionado = col3.selectbox(
+        "Selecciona un Centro de Costo (CeCo):",
+        ["Todos"] + lista_cecos
+    )
 
     if meses_seleccionados:
         titulo = "OH"
+
+        # --- Llamadas a funciones con CeCo incluido ---
         tabla_OH_2(
             df_2025=df_2025,
             meses_seleccionados=meses_seleccionados,
             titulo=titulo,
             codigo_proyecto=proyecto_codigo,
-            nombre_proyecto=proyecto_nombre
+            nombre_proyecto=proyecto_nombre,
+            ceco_seleccionado=ceco_seleccionado
         )
 
         with st.container():
@@ -4340,7 +4385,8 @@ if selected == "OH":
                 meses_seleccionados=meses_seleccionados,
                 titulo="Totales",
                 codigo_proyecto=proyecto_codigo,
-                nombre_proyecto=proyecto_nombre
+                nombre_proyecto=proyecto_nombre,
+                ceco_seleccionado=ceco_seleccionado
             )
 
             tabla_OH_meses(
@@ -4348,7 +4394,8 @@ if selected == "OH":
                 meses_seleccionados=meses_seleccionados,
                 titulo="Histórico OH por mes",
                 codigo_proyecto=proyecto_codigo,
-                nombre_proyecto=proyecto_nombre
+                nombre_proyecto=proyecto_nombre,
+                ceco_seleccionado=ceco_seleccionado
             )
 
     else:
@@ -4358,7 +4405,9 @@ if selected == "OH":
 
 
 
+
     
+
 
 
 
