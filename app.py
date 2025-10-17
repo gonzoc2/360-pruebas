@@ -4093,7 +4093,7 @@ if selected == "OH":
         default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
     )
 
-    # --- Selector CeCo por nombre ---
+    # --- Selector CeCo ---
     lista_cecos = sorted(df_2025['CeCo_Nombre'].dropna().unique())
     ceco_seleccionado = col2.selectbox(
         "Selecciona un Centro de Costo (CeCo):",
@@ -4103,71 +4103,106 @@ if selected == "OH":
     if meses_seleccionados:
         titulo = "OH"
 
-        def tabla_OH_2(df_2025, meses_seleccionados, titulo, ceco_seleccionado):
+        def tabla_OH_2(df_2025, base_ppt, meses_seleccionados, titulo, ceco_seleccionado):
             st.subheader(titulo)
 
-            df = df_2025.copy()
-            df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
-            df['Proyecto_A'] = df['Proyecto_A'].astype(str).str.strip()
-            df['Clasificacion_A'] = df['Clasificacion_A'].astype(str).str.strip().str.upper()
-            df['Neto_A'] = pd.to_numeric(df['Neto_A'], errors='coerce').fillna(0)
+            # --- Normalización de datos ---
+            for df in [df_2025, base_ppt]:
+                df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
+                df['Proyecto_A'] = df['Proyecto_A'].astype(str).str.strip()
+                df['Clasificacion_A'] = df['Clasificacion_A'].astype(str).str.upper().str.strip()
+                df['Neto_A'] = pd.to_numeric(df['Neto_A'], errors='coerce').fillna(0)
 
             codigos_oh = ["8002", "8004"]
             clasificaciones_validas = ['COSS', 'G.ADMN']
             meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
-            df = df[
-                (df['Mes_A'].isin(meses_filtrados)) &
-                (df['Proyecto_A'].isin(codigos_oh)) &
-                (df['Clasificacion_A'].isin(clasificaciones_validas))
+            # --- Filtrado de datos reales ---
+            df_real = df_2025[
+                (df_2025['Mes_A'].isin(meses_filtrados)) &
+                (df_2025['Proyecto_A'].isin(codigos_oh)) &
+                (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
             ]
-
             if ceco_seleccionado != "ESGARI":
-                df = df[df['CeCo_Nombre'] == ceco_seleccionado]
+                df_real = df_real[df_real['CeCo_Nombre'] == ceco_seleccionado]
 
-            if df.empty:
+            # --- Filtrado de presupuesto ---
+            df_ppt = base_ppt[
+                (base_ppt['Mes_A'].isin(meses_filtrados)) &
+                (base_ppt['Proyecto_A'].isin(codigos_oh)) &
+                (base_ppt['Clasificacion_A'].isin(clasificaciones_validas))
+            ]
+            if ceco_seleccionado != "ESGARI":
+                df_ppt = df_ppt[df_ppt['CeCo_Nombre'] == ceco_seleccionado]
+
+            if df_real.empty and df_ppt.empty:
                 st.warning("⚠️ No hay datos para los filtros seleccionados.")
                 return
 
-            resumen = (
-                df.groupby('Mes_A')['Neto_A']
+            # --- Agrupación ---
+            resumen_real = (
+                df_real.groupby('Mes_A')['Neto_A']
                 .sum()
                 .reindex(meses_filtrados, fill_value=0)
                 .reset_index()
-                .rename(columns={'Neto_A': 'OH_Proporcional'})
+                .rename(columns={'Neto_A': 'OH_Real'})
             )
 
-            resumen['OH_Proporcional_fmt'] = resumen['OH_Proporcional'].apply(lambda x: f"${x:,.2f}")
+            resumen_ppt = (
+                df_ppt.groupby('Mes_A')['Neto_A']
+                .sum()
+                .reindex(meses_filtrados, fill_value=0)
+                .reset_index()
+                .rename(columns={'Neto_A': 'OH_Presupuesto'})
+            )
+
+            # --- Unión ---
+            resumen = pd.merge(resumen_real, resumen_ppt, on='Mes_A', how='outer').fillna(0)
+            resumen['VarAbs'] = resumen['OH_Real'] - resumen['OH_Presupuesto']
+            resumen['VarPct'] = resumen.apply(
+                lambda x: (x['VarAbs'] / x['OH_Presupuesto']) if x['OH_Presupuesto'] else 0, axis=1
+            )
+
+            # --- Formatos ---
+            resumen_fmt = resumen.copy()
+            resumen_fmt['OH_Real'] = resumen_fmt['OH_Real'].apply(lambda x: f"${x:,.2f}")
+            resumen_fmt['OH_Presupuesto'] = resumen_fmt['OH_Presupuesto'].apply(lambda x: f"${x:,.2f}")
+            resumen_fmt['VarAbs'] = resumen_fmt['VarAbs'].apply(lambda x: f"${x:,.2f}")
+            resumen_fmt['VarPct'] = resumen_fmt['VarPct'].apply(lambda x: f"{x:.1%}")
 
             st.dataframe(
-                resumen[['Mes_A', 'OH_Proporcional_fmt']].rename(columns={
+                resumen_fmt.rename(columns={
                     'Mes_A': 'Mes',
-                    'OH_Proporcional_fmt': 'OH Proporcional (MXN)'
+                    'OH_Real': 'OH Real (MXN)',
+                    'OH_Presupuesto': 'Presupuesto (MXN)',
+                    'VarAbs': 'Variación Absoluta',
+                    'VarPct': 'Variación %'
                 }),
                 use_container_width=True,
                 hide_index=True
             )
 
+            # --- Gráfico comparativo ---
             fig = px.bar(
-                resumen,
+                resumen.melt(id_vars='Mes_A', value_vars=['OH_Real', 'OH_Presupuesto']),
                 x='Mes_A',
-                y='OH_Proporcional',
-                title=f"Overhead Proporcional",
-                text=resumen['OH_Proporcional'].apply(lambda x: f"${x:,.0f}"),
-                labels={'Mes_A': 'Mes', 'OH_Proporcional': 'OH Proporcional (MXN)'},
+                y='value',
+                color='variable',
+                barmode='group',
+                text='value',
+                labels={'Mes_A': 'Mes', 'value': 'Monto (MXN)', 'variable': 'Tipo'},
+                title=f"Overhead Real vs Presupuesto — CeCo: {ceco_seleccionado}",
                 height=420,
-                color='OH_Proporcional',
-                color_continuous_scale='Blues'
+                color_discrete_map={'OH_Real': '#2E86DE', 'OH_Presupuesto': '#AAB7B8'}
             )
 
-            fig.update_traces(textposition='outside')
+            fig.update_traces(texttemplate="%{text:.2s}", textposition='outside')
             fig.update_layout(
                 template="plotly_white",
                 xaxis=dict(title="", tickangle=-45),
-                yaxis=dict(title="Monto (MXN)", tickformat=","), 
-                coloraxis_showscale=False
+                yaxis=dict(title="Monto (MXN)", tickformat=","),
+                legend_title_text="",
             )
-
             st.plotly_chart(fig, use_container_width=True)
 
         def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, ceco_seleccionado):
@@ -4306,6 +4341,7 @@ if selected == "OH":
 
 
     
+
 
 
 
