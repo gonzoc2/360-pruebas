@@ -4327,7 +4327,7 @@ if selected == "OH":
                     st.dataframe(df_final, use_container_width=True, hide_index=True)
 
         # Mostrar tablas
-        tabla_OH_2(df_2025, meses_seleccionados, titulo, ceco_seleccionado)
+        tabla_OH_2(df_2025, base_ppt, meses_seleccionados, titulo, ceco_seleccionado)
         st.subheader("Composición OH")
         tabla_Clasificacion_OH(df_2025, meses_seleccionados, "Totales", ceco_seleccionado)
         tabla_OH_meses(df_2025, meses_seleccionados, "Histórico OH por mes", ceco_seleccionado)
@@ -4341,6 +4341,7 @@ if selected == "OH":
 
 
     
+
 
 
 
