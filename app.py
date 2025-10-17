@@ -4068,299 +4068,16 @@ if selected == "PorProyectos":
     else:
         st.warning("⚠️ Debes seleccionar un mes para continuar.")
 
-def tabla_OH_2(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto, ceco_seleccionado):
-    st.subheader(titulo)
+cecos['ceco'] = cecos['ceco'].astype(str).str.strip()
+cecos['nombre'] = cecos['nombre'].astype(str).str.strip()
+map_ceco_nombre = dict(zip(cecos['ceco'], cecos['nombre']))
+df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
+df_2025['CeCo_Nombre'] = df_2025['CeCo_A'].map(map_ceco_nombre)
+if 'selected' not in st.session_state:
+    st.session_state.selected = "OH"
 
-    # --- Validaciones iniciales ---
-    if not meses_seleccionados:
-        st.warning("⚠️ Debes seleccionar al menos un mes.")
-        return
+selected = st.session_state.selected
 
-    if ceco_seleccionado is None:
-        st.warning("⚠️ Debes seleccionar un centro de costo.")
-        return
-
-    # --- Normalización de columnas ---
-    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
-    df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
-    df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
-    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
-    df_2025['Neto_A'] = pd.to_numeric(df_2025['Neto_A'], errors='coerce').fillna(0)
-
-    # --- Parámetros base ---
-    codigos_oh = ["8002", "8004"]
-    clasificaciones_validas = ['COSS', 'G.ADMN']
-    meses_orden = ['ene.', 'feb.', 'mar.', 'abr.', 'may.', 'jun.',
-                   'jul.', 'ago.', 'sep.', 'oct.', 'nov.', 'dic.']
-
-    # --- Filtro inicial ---
-    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
-
-    df_real = df_2025[
-        (df_2025['Mes_A'].isin(meses_filtrados)) &
-        (df_2025['Proyecto_A'].isin(codigos_oh)) &
-        (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
-    ].copy()
-
-    # --- Filtro adicional por CeCo ---
-    if ceco_seleccionado != "Todos":
-        df_real = df_real[df_real['CeCo_A'] == ceco_seleccionado]
-
-    if df_real.empty:
-        st.warning("⚠️ No hay datos para los filtros seleccionados.")
-        return
-
-    # --- Calcular OH proporcional ---
-    resultados = []
-    for mes in meses_filtrados:
-        df_mes = df_real[df_real['Mes_A'] == mes]
-
-        if df_mes.empty:
-            continue
-
-        porcentaje = porcentaje_ingresos(df_2025, [mes], nombre_proyecto, codigo_proyecto)
-        oh_total = df_mes['Neto_A'].sum()
-        oh_proporcional = oh_total * porcentaje
-
-        resultados.append({
-            'Mes_A': mes,
-            'OH_Proporcional': oh_proporcional
-        })
-
-    if not resultados:
-        st.warning("⚠️ No hay datos para los filtros seleccionados.")
-        return
-
-    # --- Crear DataFrame resumen ---
-    resumen = pd.DataFrame(resultados)
-
-    resumen['Mes_A'] = pd.Categorical(
-        resumen['Mes_A'],
-        categories=[m.lower().strip() for m in meses_orden],
-        ordered=True
-    )
-    resumen = resumen.sort_values('Mes_A').reset_index(drop=True)
-
-    # --- Tabla con formato ---
-    resumen['OH_Proporcional_fmt'] = resumen['OH_Proporcional'].apply(lambda x: f"${x:,.2f}")
-
-    st.dataframe(
-        resumen[['Mes_A', 'OH_Proporcional_fmt']].rename(columns={
-            'Mes_A': 'Mes',
-            'OH_Proporcional_fmt': 'OH Proporcional (MXN)'
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    # --- Gráfico ---
-    fig = px.bar(
-        resumen,
-        x='Mes_A',
-        y='OH_Proporcional',
-        title=f"Overhead Proporcional — CeCo: {ceco_seleccionado}",
-        text=resumen['OH_Proporcional'].apply(lambda x: f"${x:,.0f}"),
-        labels={'Mes_A': 'Mes', 'OH_Proporcional': 'OH Proporcional (MXN)'},
-        height=420,
-        color='OH_Proporcional',
-        color_continuous_scale='Blues'
-    )
-
-    fig.update_traces(textposition='outside')
-    fig.update_layout(
-        template="plotly_white",
-        xaxis=dict(title="", tickangle=-45),
-        yaxis=dict(title="Monto (MXN)", tickformat=","),
-        coloraxis_showscale=False
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
-    st.subheader(titulo)
-
-    if not meses_seleccionados:
-        st.warning("⚠️ Debes seleccionar al menos un mes.")
-        return
-
-    # --- Mapeo de meses ---
-    meses_espanol = {
-        'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
-        'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
-    }
-    meses_orden = list(meses_espanol.keys())
-
-    # --- Normalizar campos ---
-    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
-    df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
-    df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
-    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()  # <- nuevo campo
-
-    # --- Filtro de CeCo dinámico ---
-    lista_cecos = sorted(df_2025['CeCo_A'].unique())
-    ceco_seleccionado = st.selectbox("Selecciona un Centro de Costo (CeCo):", ["Todos"] + lista_cecos)
-
-    # --- Filtros base ---
-    codigos_oh = ["8002", "8004"]
-    clasificaciones_validas = ['COSS', 'G.ADMN']
-    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
-    registros = []
-
-    for mes in meses_filtrados:
-        df_mes = df_2025[
-            (df_2025['Mes_A'] == mes) &
-            (df_2025['Proyecto_A'].isin(codigos_oh)) &
-            (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
-        ]
-
-        # Aplicar filtro de CeCo si no es "Todos"
-        if ceco_seleccionado != "Todos":
-            df_mes = df_mes[df_mes['CeCo_A'] == ceco_seleccionado]
-
-        if df_mes.empty:
-            continue
-
-        porcentaje = porcentaje_ingresos(df_2025, [mes], nombre_proyecto, codigo_proyecto)
-        df_grouped = df_mes.groupby('Clasificacion_A')['Neto_A'].sum().reset_index()
-        for _, row in df_grouped.iterrows():
-            registros.append({
-                'Clasificacion_A': row['Clasificacion_A'],
-                'Mes_A': mes,
-                'Neto_A_Proporcional': row['Neto_A'] * porcentaje
-            })
-
-    if not registros:
-        st.warning("⚠️ No hay datos para los filtros seleccionados.")
-        return
-
-    df_resultado = pd.DataFrame(registros)
-
-    df_pivot = df_resultado.pivot_table(
-        index='Clasificacion_A',
-        columns='Mes_A',
-        values='Neto_A_Proporcional',
-        fill_value=0
-    ).reset_index()
-
-    # Ordenar columnas de meses
-    columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
-    df_pivot = df_pivot[['Clasificacion_A'] + columnas_meses]
-
-    # Formatear valores como moneda
-    for col in columnas_meses:
-        df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
-
-    # Mostrar DataFrame final en Streamlit
-    st.dataframe(
-        df_pivot.rename(columns={'Clasificacion_A': 'Clasificación'}),
-        use_container_width=True,
-        hide_index=True
-    )
-
-
-def tabla_OH_meses(df_2025, meses_seleccionados, titulo, codigo_proyecto, nombre_proyecto):
-    if titulo:
-        st.subheader(titulo)
-
-    if not meses_seleccionados:
-        st.warning("⚠️ Debes seleccionar al menos un mes.")
-        return
-
-    # --- Diccionario de meses ---
-    meses_espanol = {
-        'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
-        'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
-    }
-    meses_orden = list(meses_espanol.keys())
-    meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
-
-    # --- Normalización ---
-    df_2025['Mes_A'] = df_2025['Mes_A'].astype(str).str.lower().str.strip()
-    df_2025['Proyecto_A'] = df_2025['Proyecto_A'].astype(str).str.strip()
-    df_2025['Clasificacion_A'] = df_2025['Clasificacion_A'].astype(str).str.strip().str.upper()
-    df_2025['Categoria_A'] = df_2025['Categoria_A'].astype(str).str.strip()
-    df_2025['Cuenta_Nombre_A'] = df_2025['Cuenta_Nombre_A'].astype(str).str.strip()
-    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()  # <- nuevo campo CeCo
-
-    # --- Filtro de CeCo ---
-    lista_cecos = sorted(df_2025['CeCo_A'].unique())
-    ceco_seleccionado = st.selectbox("Selecciona un Centro de Costo (CeCo):", ["Todos"] + lista_cecos)
-
-    # --- Filtro inicial ---
-    df_real = df_2025[
-        (df_2025['Mes_A'].isin(meses_filtrados)) &
-        (df_2025['Proyecto_A'].isin(["8002", "8004"])) &
-        (df_2025['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
-    ].copy()
-
-    # Aplicar filtro de CeCo si no es "Todos"
-    if ceco_seleccionado != "Todos":
-        df_real = df_real[df_real['CeCo_A'] == ceco_seleccionado]
-
-    if df_real.empty:
-        st.warning("⚠️ No hay datos para los filtros seleccionados.")
-        return
-
-    # --- Aplicar porcentaje de ingresos ---
-    df_real['Neto_A_Proporcional'] = 0.0
-    for mes in meses_filtrados:
-        porcentaje = porcentaje_ingresos(df_2025, [mes], nombre_proyecto, codigo_proyecto)
-        df_real.loc[df_real['Mes_A'] == mes, 'Neto_A_Proporcional'] = \
-            df_real.loc[df_real['Mes_A'] == mes, 'Neto_A'] * porcentaje
-
-    # --- Agrupación ---
-    df_grouped = df_real.groupby(
-        ['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Mes_A'],
-        as_index=False
-    )['Neto_A_Proporcional'].sum()
-
-    # --- Pivot (Meses en columnas) ---
-    df_pivot = df_grouped.pivot_table(
-        index=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'],
-        columns='Mes_A',
-        values='Neto_A_Proporcional',
-        fill_value=0
-    ).reset_index()
-
-    columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
-    df_pivot = df_pivot[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'] + columnas_meses]
-
-    # --- Formato moneda ---
-    for col in columnas_meses:
-        df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
-
-    # --- Mostrar tablas por Clasificación ---
-    for clasificacion in df_pivot['Clasificacion_A'].unique():
-        df_clas = df_pivot[df_pivot['Clasificacion_A'] == clasificacion].copy()
-
-        with st.expander(f"{clasificacion.upper()} — CeCo: {ceco_seleccionado}", expanded=False):
-            filas = []
-            categorias = df_clas['Categoria_A'].unique()
-
-            for cat in categorias:
-                df_cat = df_clas[df_clas['Categoria_A'] == cat]
-
-                # Subtotal por categoría
-                subtotal = df_cat[columnas_meses].replace('[\$,]', '', regex=True).astype(float).sum()
-
-                filas.append({
-                    'Grupo': cat,
-                    'Cuenta_Nombre_A': '',
-                    **{mes: f"${subtotal[mes]:,.2f}" for mes in columnas_meses}
-                })
-
-                for _, row in df_cat.iterrows():
-                    filas.append({
-                        'Grupo': '',
-                        'Cuenta_Nombre_A': row['Cuenta_Nombre_A'],
-                        **{mes: row[mes] for mes in columnas_meses}
-                    })
-
-            df_final = pd.DataFrame(filas)
-            st.dataframe(df_final, use_container_width=True, hide_index=True)
-
-           
 if selected == "OH":
     st.title("📊 Composición Overhead (OH)")
     col1, col2, col3 = st.columns(3)
@@ -4370,58 +4087,215 @@ if selected == "OH":
         "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
     ]
-
     meses_seleccionados = col1.multiselect(
         "Selecciona uno o más meses",
         meses,
         default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
     )
 
-    # --- Selector de proyecto ---
-    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-
-    # --- Filtro de CeCo global ---
-    df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
-    lista_cecos = sorted(df_2025['CeCo_A'].unique())
+    # --- Selector CeCo por nombre ---
+    lista_cecos = sorted(df_2025['CeCo_Nombre'].dropna().unique())
     ceco_seleccionado = col3.selectbox(
         "Selecciona un Centro de Costo (CeCo):",
-        ["Todos"] + lista_cecos
+        ["ESGARI"] + lista_cecos
     )
 
     if meses_seleccionados:
         titulo = "OH"
 
-        # --- Llamadas a funciones con CeCo incluido ---
-        tabla_OH_2(
-            df_2025=df_2025,
-            meses_seleccionados=meses_seleccionados,
-            titulo=titulo,
-            codigo_proyecto=proyecto_codigo,
-            nombre_proyecto=proyecto_nombre,
-            ceco_seleccionado=ceco_seleccionado
-        )
+        def tabla_OH_2(df_2025, meses_seleccionados, titulo, ceco_seleccionado):
+            st.subheader(titulo)
 
-        with st.container():
-            st.subheader("Composición OH")
+            df = df_2025.copy()
+            df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
+            df['Proyecto_A'] = df['Proyecto_A'].astype(str).str.strip()
+            df['Clasificacion_A'] = df['Clasificacion_A'].astype(str).str.strip().str.upper()
+            df['Neto_A'] = pd.to_numeric(df['Neto_A'], errors='coerce').fillna(0)
 
-            tabla_Clasificacion_OH(
-                df_2025=df_2025,
-                meses_seleccionados=meses_seleccionados,
-                titulo="Totales",
-                codigo_proyecto=proyecto_codigo,
-                nombre_proyecto=proyecto_nombre,
-                ceco_seleccionado=ceco_seleccionado
+            codigos_oh = ["8002", "8004"]
+            clasificaciones_validas = ['COSS', 'G.ADMN']
+            meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
+
+            df = df[
+                (df['Mes_A'].isin(meses_filtrados)) &
+                (df['Proyecto_A'].isin(codigos_oh)) &
+                (df['Clasificacion_A'].isin(clasificaciones_validas))
+            ]
+
+            if ceco_seleccionado != "ESGARI":
+                df = df[df['CeCo_Nombre'] == ceco_seleccionado]
+
+            if df.empty:
+                st.warning("⚠️ No hay datos para los filtros seleccionados.")
+                return
+
+            resumen = (
+                df.groupby('Mes_A')['Neto_A']
+                .sum()
+                .reindex(meses_filtrados, fill_value=0)
+                .reset_index()
+                .rename(columns={'Neto_A': 'OH_Proporcional'})
             )
 
-            tabla_OH_meses(
-                df_2025=df_2025,
-                meses_seleccionados=meses_seleccionados,
-                titulo="Histórico OH por mes",
-                codigo_proyecto=proyecto_codigo,
-                nombre_proyecto=proyecto_nombre,
-                ceco_seleccionado=ceco_seleccionado
+            resumen['OH_Proporcional_fmt'] = resumen['OH_Proporcional'].apply(lambda x: f"${x:,.2f}")
+
+            st.dataframe(
+                resumen[['Mes_A', 'OH_Proporcional_fmt']].rename(columns={
+                    'Mes_A': 'Mes',
+                    'OH_Proporcional_fmt': 'OH Proporcional (MXN)'
+                }),
+                use_container_width=True,
+                hide_index=True
             )
 
+            fig = px.bar(
+                resumen,
+                x='Mes_A',
+                y='OH_Proporcional',
+                title=f"Overhead Proporcional — CeCo: {ceco_seleccionado}",
+                text=resumen['OH_Proporcional'].apply(lambda x: f"${x:,.0f}"),
+                labels={'Mes_A': 'Mes', 'OH_Proporcional': 'OH Proporcional (MXN)'},
+                height=420,
+                color='OH_Proporcional',
+                color_continuous_scale='Blues'
+            )
+
+            fig.update_traces(textposition='outside')
+            fig.update_layout(
+                template="plotly_white",
+                xaxis=dict(title="", tickangle=-45),
+                yaxis=dict(title="Monto (MXN)", tickformat=","), 
+                coloraxis_showscale=False
+            )
+
+            st.plotly_chart(fig, use_container_width=True)
+
+        def tabla_Clasificacion_OH(df_2025, meses_seleccionados, titulo, ceco_seleccionado):
+            st.subheader(titulo)
+
+            df = df_2025.copy()
+            df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
+            df['Proyecto_A'] = df['Proyecto_A'].astype(str).str.strip()
+            df['Clasificacion_A'] = df['Clasificacion_A'].astype(str).str.strip().str.upper()
+            df['Neto_A'] = pd.to_numeric(df['Neto_A'], errors='coerce').fillna(0)
+
+            codigos_oh = ["8002", "8004"]
+            clasificaciones_validas = ['COSS', 'G.ADMN']
+            registros = []
+
+            for mes in meses_seleccionados:
+                df_mes = df[
+                    (df['Mes_A'] == mes.lower().strip()) &
+                    (df['Proyecto_A'].isin(codigos_oh)) &
+                    (df['Clasificacion_A'].isin(clasificaciones_validas))
+                ]
+
+                if ceco_seleccionado != "ESGARI":
+                    df_mes = df_mes[df_mes['CeCo_Nombre'] == ceco_seleccionado]
+
+                if df_mes.empty:
+                    continue
+
+                df_grouped = df_mes.groupby('Clasificacion_A')['Neto_A'].sum().reset_index()
+                df_grouped['Mes_A'] = mes
+                registros.extend(df_grouped.to_dict('records'))
+
+            if not registros:
+                st.warning("⚠️ No hay datos para los filtros seleccionados.")
+                return
+
+            df_resultado = pd.DataFrame(registros)
+            df_pivot = df_resultado.pivot_table(
+                index='Clasificacion_A',
+                columns='Mes_A',
+                values='Neto_A',
+                fill_value=0
+            ).reset_index()
+
+            columnas_meses = [mes for mes in meses if mes in df_pivot.columns]
+            df_pivot = df_pivot[['Clasificacion_A'] + columnas_meses]
+
+            for col in columnas_meses:
+                df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
+
+            st.dataframe(
+                df_pivot.rename(columns={'Clasificacion_A': 'Clasificación'}),
+                use_container_width=True,
+                hide_index=True
+            )
+
+        def tabla_OH_meses(df_2025, meses_seleccionados, titulo, ceco_seleccionado):
+            st.subheader(titulo)
+
+            df = df_2025.copy()
+            df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
+            df['Proyecto_A'] = df['Proyecto_A'].astype(str).str.strip()
+            df['Clasificacion_A'] = df['Clasificacion_A'].astype(str).str.strip().str.upper()
+            df['Categoria_A'] = df['Categoria_A'].astype(str).str.strip()
+            df['Cuenta_Nombre_A'] = df['Cuenta_Nombre_A'].astype(str).str.strip()
+            df['Neto_A'] = pd.to_numeric(df['Neto_A'], errors='coerce').fillna(0)
+
+            df = df[
+                (df['Mes_A'].isin([m.lower().strip() for m in meses_seleccionados])) &
+                (df['Proyecto_A'].isin(["8002", "8004"])) &
+                (df['Clasificacion_A'].isin(['COSS', 'G.ADMN']))
+            ]
+
+            if ceco_seleccionado != "ESGARI":
+                df = df[df['CeCo_Nombre'] == ceco_seleccionado]
+
+            if df.empty:
+                st.warning("⚠️ No hay datos para los filtros seleccionados.")
+                return
+
+            df_grouped = df.groupby(
+                ['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A', 'Mes_A'],
+                as_index=False
+            )['Neto_A'].sum()
+
+            df_pivot = df_grouped.pivot_table(
+                index=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'],
+                columns='Mes_A',
+                values='Neto_A',
+                fill_value=0
+            ).reset_index()
+
+            meses_orden = [m.lower().strip() for m in meses]
+            columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
+            df_pivot = df_pivot[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'] + columnas_meses]
+
+            for col in columnas_meses:
+                df_pivot[col] = df_pivot[col].apply(lambda x: f"${x:,.2f}")
+
+            for clasificacion in df_pivot['Clasificacion_A'].unique():
+                df_clas = df_pivot[df_pivot['Clasificacion_A'] == clasificacion].copy()
+
+                with st.expander(f"{clasificacion} — CeCo: {ceco_seleccionado}", expanded=False):
+                    filas = []
+                    for cat in df_clas['Categoria_A'].unique():
+                        df_cat = df_clas[df_clas['Categoria_A'] == cat]
+                        subtotal = df_cat[columnas_meses].replace('[\$,]', '', regex=True).astype(float).sum()
+                        filas.append({
+                            'Grupo': cat,
+                            'Cuenta_Nombre_A': '',
+                            **{mes: f"${subtotal[mes]:,.2f}" for mes in columnas_meses}
+                        })
+
+                        for _, row in df_cat.iterrows():
+                            filas.append({
+                                'Grupo': '',
+                                'Cuenta_Nombre_A': row['Cuenta_Nombre_A'],
+                                **{mes: row[mes] for mes in columnas_meses}
+                            })
+
+                    df_final = pd.DataFrame(filas)
+                    st.dataframe(df_final, use_container_width=True, hide_index=True)
+
+        # Mostrar tablas
+        tabla_OH_2(df_2025, meses_seleccionados, titulo, ceco_seleccionado)
+        st.subheader("Composición OH")
+        tabla_Clasificacion_OH(df_2025, meses_seleccionados, "Totales", ceco_seleccionado)
+        tabla_OH_meses(df_2025, meses_seleccionados, "Histórico OH por mes", ceco_seleccionado)
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
@@ -4430,7 +4304,9 @@ if selected == "OH":
 
 
 
+
     
+
 
 
 
