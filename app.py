@@ -4080,7 +4080,7 @@ selected = st.session_state.selected
 
 if selected == "OH":
     st.title("📊 Composición Overhead (OH)")
-    col1, col2, col3 = st.columns(3)
+    col1, col2 = st.columns(2)
 
     # --- Selector de meses ---
     meses = [
@@ -4095,7 +4095,7 @@ if selected == "OH":
 
     # --- Selector CeCo por nombre ---
     lista_cecos = sorted(df_2025['CeCo_Nombre'].dropna().unique())
-    ceco_seleccionado = col3.selectbox(
+    ceco_seleccionado = col2.selectbox(
         "Selecciona un Centro de Costo (CeCo):",
         ["ESGARI"] + lista_cecos
     )
@@ -4152,7 +4152,7 @@ if selected == "OH":
                 resumen,
                 x='Mes_A',
                 y='OH_Proporcional',
-                title=f"Overhead Proporcional — CeCo: {ceco_seleccionado}",
+                title=f"Overhead Proporcional",
                 text=resumen['OH_Proporcional'].apply(lambda x: f"${x:,.0f}"),
                 labels={'Mes_A': 'Mes', 'OH_Proporcional': 'OH Proporcional (MXN)'},
                 height=420,
@@ -4270,7 +4270,7 @@ if selected == "OH":
             for clasificacion in df_pivot['Clasificacion_A'].unique():
                 df_clas = df_pivot[df_pivot['Clasificacion_A'] == clasificacion].copy()
 
-                with st.expander(f"{clasificacion} — CeCo: {ceco_seleccionado}", expanded=False):
+                with st.expander(f"{clasificacion}", expanded=False):
                     filas = []
                     for cat in df_clas['Categoria_A'].unique():
                         df_cat = df_clas[df_clas['Categoria_A'] == cat]
@@ -4306,6 +4306,7 @@ if selected == "OH":
 
 
     
+
 
 
 
