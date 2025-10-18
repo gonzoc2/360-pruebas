@@ -4073,7 +4073,8 @@ cecos['nombre'] = cecos['nombre'].astype(str).str.strip()
 map_ceco_nombre = dict(zip(cecos['ceco'], cecos['nombre']))
 df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
 df_2025['CeCo_Nombre'] = df_2025['CeCo_A'].map(map_ceco_nombre)
-
+base_ppt['CeCo_A'] = base_ppt['CeCo_A'].astype(str).str.strip()
+base_ppt['CeCo_Nombre'] = base_ppt['CeCo_A'].map(map_ceco_nombre)
 
 def tabla_OH_2(df_2025, base_ppt, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
@@ -4354,6 +4355,7 @@ if selected == "OH":
 
 
     
+
 
 
 
