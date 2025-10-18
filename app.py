@@ -4073,21 +4073,21 @@ cecos['ceco'] = cecos['ceco'].astype(str).str.strip()
 cecos['nombre'] = cecos['nombre'].astype(str).str.strip()
 map_ceco_nombre = dict(zip(cecos['ceco'], cecos['nombre']))
 
-df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
-df_2025['CeCo_Nombre'] = df_2025['CeCo_A'].map(map_ceco_nombre)
+# Aplicar mapeo a todos los DataFrames
+for df in [df_2025, df_ppt, df_ly]:
+    if 'CeCo_A' in df.columns:
+        df['CeCo_A'] = df['CeCo_A'].astype(str).str.strip()
+        df['CeCo_Nombre'] = df['CeCo_A'].map(map_ceco_nombre)
+    else:
+        st.error(f"La columna 'CeCo_A' no está presente en el DataFrame: {df}")
+        st.write(df.columns)
 
-if 'CeCo_A' in df_ppt.columns:
-    df_ppt['CeCo_A'] = df_ppt['CeCo_A'].astype(str).str.strip()
-    df_ppt['CeCo_Nombre'] = df_ppt['CeCo_A'].map(map_ceco_nombre)
-else:
-    st.error("La columna 'CeCo_A' no está presente en df_ppt")
-    st.write(df_ppt.columns)
-
-
-def tabla_OH_2(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
+# --- Funciones ---
+def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
 
-    for df in [df_2025, df_ppt]:
+    # Preprocesamiento común
+    for df in [df_2025, df_ppt, df_ly]:
         df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
         df['Proyecto_A'] = df['Proyecto_A'].astype(str).str.strip()
         df['Clasificacion_A'] = df['Clasificacion_A'].astype(str).str.upper().str.strip()
@@ -4097,21 +4097,23 @@ def tabla_OH_2(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, 
     clasificaciones_validas = ['COSS', 'G.ADMN']
     meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
-    if tipo_dato == "OH":
-        df_filtrado = df_2025[
-            (df_2025['Mes_A'].isin(meses_filtrados)) &
-            (df_2025['Proyecto_A'].isin(codigos_oh)) &
-            (df_2025['Clasificacion_A'].isin(clasificaciones_validas))
-        ]
-    elif tipo_dato == "Presupuesto":
-        df_filtrado = df_ppt[
-            (df_ppt['Mes_A'].isin(meses_filtrados)) &
-            (df_ppt['Proyecto_A'].isin(codigos_oh)) &
-            (df_ppt['Clasificacion_A'].isin(clasificaciones_validas))
-        ]
-    else:
-        st.error("❌ Tipo de dato no válido. Usa 'OH' o 'Presupuesto'.")
+    # Selección de DataFrame base
+    df_base = {
+        "OH": df_2025,
+        "Presupuesto": df_ppt,
+        "LY": df_ly
+    }.get(tipo_dato)
+
+    if df_base is None:
+        st.error("❌ Tipo de dato no válido. Usa 'OH', 'Presupuesto' o 'LY'.")
         return
+
+    # Filtro por condiciones
+    df_filtrado = df_base[
+        (df_base['Mes_A'].isin(meses_filtrados)) &
+        (df_base['Proyecto_A'].isin(codigos_oh)) &
+        (df_base['Clasificacion_A'].isin(clasificaciones_validas))
+    ]
 
     if ceco_seleccionado != "ESGARI":
         df_filtrado = df_filtrado[df_filtrado['CeCo_Nombre'] == ceco_seleccionado]
@@ -4120,6 +4122,7 @@ def tabla_OH_2(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, 
         st.warning("⚠️ No hay datos para los filtros seleccionados.")
         return
 
+    # Agregación
     resumen = (
         df_filtrado.groupby('Mes_A')['Neto_A']
         .sum()
@@ -4127,9 +4130,15 @@ def tabla_OH_2(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, 
         .reset_index()
     )
 
-    columna_valor = 'OH_Real' if tipo_dato == "OH" else 'OH_Presupuesto'
+    columna_valor = {
+        "OH": "OH_Real",
+        "Presupuesto": "OH_Presupuesto",
+        "LY": "OH_LY"
+    }.get(tipo_dato, "Neto_A")
+
     resumen = resumen.rename(columns={'Neto_A': columna_valor, 'Mes_A': 'Mes'})
 
+    # Formateo para tabla
     resumen_fmt = resumen.copy()
     resumen_fmt[columna_valor] = resumen_fmt[columna_valor].apply(lambda x: f"${x:,.2f}")
 
@@ -4139,33 +4148,42 @@ def tabla_OH_2(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, 
         hide_index=True
     )
 
+    # Gráfico con gradiente azul
     fig = px.bar(
         resumen,
-        x='Mes', y=columna_valor,
+        x='Mes',
+        y=columna_valor,
+        color=columna_valor,
+        color_continuous_scale='Blues',
         text=columna_valor,
         labels={'Mes': 'Mes', columna_valor: 'Monto (MXN)'},
         title=f"Overhead {tipo_dato}",
-        height=420,
-        color_discrete_sequence=['#2E86DE'] if tipo_dato == "OH" else ['#AAB7B8']
+        height=420
     )
-    fig.update_traces(texttemplate="%{text:.2s}", textposition='outside')
+
+    fig.update_traces(
+        texttemplate="%{text:.2s}",
+        textposition='outside'
+    )
+
     fig.update_layout(
         template="plotly_white",
         xaxis=dict(title="", tickangle=-45),
-        yaxis=dict(title="Monto (MXN)", tickformat=","), showlegend=False
+        yaxis=dict(title="Monto (MXN)", tickformat=","),
+        coloraxis_showscale=False,
+        showlegend=False
     )
+
     st.plotly_chart(fig, use_container_width=True)
 
 
-def tabla_Clasificacion_OH(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
+
+def tabla_Clasificacion_OH(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
 
-    if tipo_dato == "OH":
-        df = df_2025.copy()
-    elif tipo_dato == "Presupuesto":
-        df = df_ppt.copy()
-    else:
-        st.error("❌ Tipo de dato no válido. Usa 'OH' o 'Presupuesto'.")
+    df = {"OH": df_2025, "Presupuesto": df_ppt, "LY": df_ly}.get(tipo_dato)
+    if df is None:
+        st.error("❌ Tipo de dato no válido. Usa 'OH', 'Presupuesto' o 'LY'.")
         return
 
     df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
@@ -4175,8 +4193,8 @@ def tabla_Clasificacion_OH(df_2025, df_ppt, meses_seleccionados, titulo, ceco_se
 
     codigos_oh = ["8002", "8004"]
     clasificaciones_validas = ['COSS', 'G.ADMN']
-
     registros = []
+
     for mes in meses_seleccionados:
         df_mes = df[
             (df['Mes_A'] == mes.lower().strip()) &
@@ -4185,10 +4203,8 @@ def tabla_Clasificacion_OH(df_2025, df_ppt, meses_seleccionados, titulo, ceco_se
         ]
         if ceco_seleccionado != "ESGARI":
             df_mes = df_mes[df_mes['CeCo_Nombre'] == ceco_seleccionado]
-
         if df_mes.empty:
             continue
-
         df_grouped = df_mes.groupby('Clasificacion_A')['Neto_A'].sum().reset_index()
         df_grouped['Mes_A'] = mes
         registros.extend(df_grouped.to_dict('records'))
@@ -4202,10 +4218,8 @@ def tabla_Clasificacion_OH(df_2025, df_ppt, meses_seleccionados, titulo, ceco_se
         index='Clasificacion_A', columns='Mes_A', values='Neto_A', fill_value=0
     ).reset_index()
 
-    meses_orden = [
-        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
-    ]
+    meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                   "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
     columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
     df_pivot = df_pivot[['Clasificacion_A'] + columnas_meses]
 
@@ -4219,15 +4233,12 @@ def tabla_Clasificacion_OH(df_2025, df_ppt, meses_seleccionados, titulo, ceco_se
     )
 
 
-def tabla_OH_meses(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
+def tabla_OH_meses(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
 
-    if tipo_dato == "OH":
-        df = df_2025.copy()
-    elif tipo_dato == "Presupuesto":
-        df = df_ppt.copy()
-    else:
-        st.error("❌ Tipo de dato no válido. Usa 'OH' o 'Presupuesto'.")
+    df = {"OH": df_2025, "Presupuesto": df_ppt, "LY": df_ly}.get(tipo_dato)
+    if df is None:
+        st.error("❌ Tipo de dato no válido. Usa 'OH', 'Presupuesto' o 'LY'.")
         return
 
     df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
@@ -4259,12 +4270,9 @@ def tabla_OH_meses(df_2025, df_ppt, meses_seleccionados, titulo, ceco_selecciona
         columns='Mes_A', values='Neto_A', fill_value=0
     ).reset_index()
 
-    meses_orden = [
-        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
-    ]
-    meses_orden = [m.lower().strip() for m in meses_orden]
-    columnas_meses = [mes for mes in meses_orden if mes in df_pivot.columns]
+    meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                   "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+    columnas_meses = [m.lower().strip() for m in meses_orden if m.lower().strip() in df_pivot.columns]
     df_pivot = df_pivot[['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'] + columnas_meses]
 
     for col in columnas_meses:
@@ -4272,7 +4280,7 @@ def tabla_OH_meses(df_2025, df_ppt, meses_seleccionados, titulo, ceco_selecciona
 
     for clasificacion in df_pivot['Clasificacion_A'].unique():
         df_clas = df_pivot[df_pivot['Clasificacion_A'] == clasificacion].copy()
-        with st.expander(f"{clasificacion} — CeCo: {ceco_seleccionado}", expanded=False):
+        with st.expander(f"{clasificacion}", expanded=False):
             filas = []
             for cat in df_clas['Categoria_A'].unique():
                 df_cat = df_clas[df_clas['Categoria_A'] == cat]
@@ -4291,15 +4299,14 @@ def tabla_OH_meses(df_2025, df_ppt, meses_seleccionados, titulo, ceco_selecciona
             df_final = pd.DataFrame(filas)
             st.dataframe(df_final, use_container_width=True, hide_index=True)
 
-
+# --- UI Principal en Streamlit ---
 if selected == "OH":
     st.title("📊 Composición Overhead (OH)")
-    col1, col2 = st.columns(2)
 
-    meses = [
-        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
-    ]
+    col1, col2 = st.columns(2)
+    meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+             "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+
     meses_seleccionados = col1.multiselect(
         "Selecciona uno o más meses",
         meses,
@@ -4314,22 +4321,22 @@ if selected == "OH":
 
     tipo_dato = st.selectbox(
         "Selecciona el tipo de información a mostrar:",
-        options=["OH", "Presupuesto"]
+        options=["OH", "Presupuesto", "LY"]
     )
 
     if meses_seleccionados:
         titulo = f"OH {tipo_dato}"
-        tabla_OH_2(df_2025, df_ppt, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato)
+        tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato)
         st.subheader(f"Composición OH ({tipo_dato})")
-        tabla_Clasificacion_OH(df_2025, df_ppt, meses_seleccionados, "Totales", ceco_seleccionado, tipo_dato)
-        tabla_OH_meses(df_2025, df_ppt, meses_seleccionados, f"Histórico OH por mes ({tipo_dato})", ceco_seleccionado, tipo_dato)
+        tabla_Clasificacion_OH(df_2025, df_ppt, df_ly, meses_seleccionados, "Totales", ceco_seleccionado, tipo_dato)
+        tabla_OH_meses(df_2025, df_ppt, df_ly, meses_seleccionados, f"Histórico OH por mes ({tipo_dato})", ceco_seleccionado, tipo_dato)
     else:
         st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
 
 
-
     
+
 
 
 
