@@ -4071,10 +4071,16 @@ if selected == "PorProyectos":
 cecos['ceco'] = cecos['ceco'].astype(str).str.strip()
 cecos['nombre'] = cecos['nombre'].astype(str).str.strip()
 map_ceco_nombre = dict(zip(cecos['ceco'], cecos['nombre']))
+
 df_2025['CeCo_A'] = df_2025['CeCo_A'].astype(str).str.strip()
 df_2025['CeCo_Nombre'] = df_2025['CeCo_A'].map(map_ceco_nombre)
-base_ppt['CeCo_A'] = base_ppt['CeCo_A'].astype(str).str.strip()
-base_ppt['CeCo_Nombre'] = base_ppt['CeCo_A'].map(map_ceco_nombre)
+
+if 'CeCo_A' in base_ppt.columns:
+    base_ppt['CeCo_A'] = base_ppt['CeCo_A'].astype(str).str.strip()
+    base_ppt['CeCo_Nombre'] = base_ppt['CeCo_A'].map(map_ceco_nombre)
+else:
+    st.error("La columna 'CeCo_A' no está presente en base_ppt")
+    st.write(base_ppt.columns)
 
 def tabla_OH_2(df_2025, base_ppt, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
@@ -4355,6 +4361,7 @@ if selected == "OH":
 
 
     
+
 
 
 
