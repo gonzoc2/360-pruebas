@@ -1092,7 +1092,7 @@ def mostrar_tabla_estilizada(df, id=1):
 
     # Formato condicional para celdas con $ y %
     df_tabla["Valor"] = df_tabla["Valor"].apply(
-        lambda x: f"${float(x.replace('$','').replace(',','')):,.2f}" if "$" in x else x
+        lambda x: f"${float(x.replace('$', '').replace(',', '')):,.2f}" if "$" in x else x
     )
     df_tabla["Valor"] = df_tabla["Valor"].apply(
         lambda x: f'<span style="color:#003366;">{x}</span>' if "%" in x else x
@@ -1147,7 +1147,8 @@ def mostrar_tabla_estilizada(df, id=1):
     st.markdown(html_table, unsafe_allow_html=True)
     descargar_excel(df, nombre_archivo=f"proyeccion{id}.xlsx")
 
-    def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro,
+
+def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro,
                  coss_pro_ori, gadmn_pro_ori, oh_pct_elegido=None):
 
     # ============================================================
@@ -1249,7 +1250,9 @@ def mostrar_tabla_estilizada(df, id=1):
 
         # Si el usuario es gerente, oculta métricas sensibles
         if st.session_state.get("rol") == "gerente":
-            resumen_df = resumen_df[~resumen_df["Concepto"].isin(["OH", "EBIT", "Intereses", "% EBT", "EBT"])]
+            resumen_df = resumen_df[~resumen_df["Concepto"].isin(
+                ["OH", "EBIT", "Intereses", "% EBT", "EBT"]
+            )]
 
         mostrar_tabla_estilizada(resumen_df, id=id_tab)
 
@@ -1259,7 +1262,8 @@ def mostrar_tabla_estilizada(df, id=1):
 
         st.bar_chart(pd.DataFrame({
             "Valor ($)": valores_bar,
-        }, index=["Ingresos", "COSS", "GADM", "Util. Operativa"] + ([] if st.session_state.get("rol") == "gerente" else ["EBT"])))
+        }, index=["Ingresos", "COSS", "GADM", "Util. Operativa"] +
+        ([] if st.session_state.get("rol") == "gerente" else ["EBT"])))
 
         if oh_pct_elegido is not None:
             st.caption(f"OH calculado como {oh_pct_elegido:.2f}% del ingreso")
@@ -1314,7 +1318,8 @@ def mostrar_tabla_estilizada(df, id=1):
 
     # 🔸 TAB: Ingreso manual
     with tab3:
-        ingreso_manual = st.number_input("💰 Ingreso Manual", value=float(ingreso_pro_fut), step=500000.0, format="%.2f")
+        ingreso_manual = st.number_input("💰 Ingreso Manual", value=float(ingreso_pro_fut),
+                                         step=500000.0, format="%.2f")
         df_ext_var_manual = df_ext_var.copy()
         df_ext_var_manual["Neto_A"] = df_ext_var_manual["Neto_normalizado"] * ingreso_manual
         df_ext_var_manual = df_ext_var_manual.drop(columns=["Neto_normalizado"])
@@ -1340,6 +1345,7 @@ def mostrar_tabla_estilizada(df, id=1):
     with tab1:
         st.write("Proyección Original")
         construir_tabla(ingreso_pro_fut, coss_pro_ori, gadmn_pro_ori, oh_pro, intereses, id_tab=5)
+
         
 init_session_state()
 # App principal
@@ -4388,6 +4394,7 @@ if selected == "OH":
 
 
     
+
 
 
 
