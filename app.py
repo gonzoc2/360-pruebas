@@ -4126,12 +4126,11 @@ for df in [df_2025, df_ppt, df_ly]:
     else:
         st.error(f"La columna 'CeCo_A' no está presente en el DataFrame: {df}")
         st.write(df.columns)
-
-# --- Funciones ---
+        
 def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
 
-    # Preprocesamiento común
+    # --- Preprocesamiento común ---
     for df in [df_2025, df_ppt, df_ly]:
         df['Mes_A'] = df['Mes_A'].astype(str).str.lower().str.strip()
         df['Proyecto_A'] = df['Proyecto_A'].astype(str).str.strip()
@@ -4142,53 +4141,67 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
     clasificaciones_validas = ['COSS', 'G.ADMN']
     meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
-    # Selección de DataFrame base
-    df_base = {
-        "OH": df_2025,
-        "Presupuesto": df_ppt,
-        "LY": df_ly
-    }.get(tipo_dato)
+    # --- Función auxiliar de filtrado ---
+    def filtrar_datos(df):
+        df_filt = df[
+            (df['Mes_A'].isin(meses_filtrados)) &
+            (df['Proyecto_A'].isin(codigos_oh)) &
+            (df['Clasificacion_A'].isin(clasificaciones_validas))
+        ]
+        if ceco_seleccionado != "ESGARI":
+            df_filt = df_filt[df_filt['CeCo_Nombre'] == ceco_seleccionado]
+        return df_filt
 
-    if df_base is None:
-        st.error("❌ Tipo de dato no válido. Usa 'OH', 'Presupuesto' o 'LY'.")
+    # --- Filtrar los datasets relevantes ---
+    df_real = filtrar_datos(df_2025)
+    df_ly_filt = filtrar_datos(df_ly)
+
+    if df_real.empty and df_ly_filt.empty:
+        st.warning("⚠️ No hay datos disponibles para los filtros seleccionados.")
         return
 
-    # Filtro por condiciones
-    df_filtrado = df_base[
-        (df_base['Mes_A'].isin(meses_filtrados)) &
-        (df_base['Proyecto_A'].isin(codigos_oh)) &
-        (df_base['Clasificacion_A'].isin(clasificaciones_validas))
-    ]
-
-    if ceco_seleccionado != "ESGARI":
-        df_filtrado = df_filtrado[df_filtrado['CeCo_Nombre'] == ceco_seleccionado]
-
-    if df_filtrado.empty:
-        st.warning("⚠️ No hay datos para los filtros seleccionados.")
-        return
-
-    # Agregación
-    resumen = (
-        df_filtrado.groupby('Mes_A')['Neto_A']
+    # --- Agregar datos ---
+    resumen_real = (
+        df_real.groupby('Mes_A')['Neto_A']
         .sum()
         .reindex(meses_filtrados, fill_value=0)
         .reset_index()
+        .rename(columns={'Neto_A': 'OH_Real'})
     )
 
-    columna_valor = {
-        "OH": "OH_Real",
-        "Presupuesto": "OH_Presupuesto",
-        "LY": "OH_LY"
-    }.get(tipo_dato, "Neto_A")
+    resumen_ly = (
+        df_ly_filt.groupby('Mes_A')['Neto_A']
+        .sum()
+        .reindex(meses_filtrados, fill_value=0)
+        .reset_index()
+        .rename(columns={'Neto_A': 'OH_LY'})
+    )
 
-    resumen = resumen.rename(columns={'Neto_A': columna_valor, 'Mes_A': 'Mes'})
+    # --- Unir y calcular diferencias ---
+    resumen = resumen_real.merge(resumen_ly, on='Mes_A', how='outer').fillna(0)
+    resumen = resumen.rename(columns={'Mes_A': 'Mes'})
 
-    # Formateo para tabla
+    resumen['Variación'] = resumen['OH_Real'] - resumen['OH_LY']
+    resumen['% Variación'] = resumen.apply(
+        lambda x: (x['Variación'] / x['OH_LY']) if x['OH_LY'] != 0 else 0,
+        axis=1
+    )
+
+    # --- Formato visual ---
     resumen_fmt = resumen.copy()
-    resumen_fmt[columna_valor] = resumen_fmt[columna_valor].apply(lambda x: f"${x:,.2f}")
+    for col in ['OH_Real', 'OH_LY', 'Variación']:
+        resumen_fmt[col] = resumen_fmt[col].apply(lambda x: f"${x:,.2f}")
+    resumen_fmt['% Variación'] = resumen_fmt['% Variación'].apply(lambda x: f"{x:.1%}")
 
+    # --- Mostrar tabla final ---
     st.dataframe(
-        resumen_fmt.rename(columns={columna_valor: f"{tipo_dato} (MXN)"}),
+        resumen_fmt.rename(columns={
+            'Mes': 'Mes',
+            'OH_Real': 'Real (MXN)',
+            'OH_LY': 'Año Anterior (LY)',
+            'Variación': 'Diferencia (MXN)',
+            '% Variación': '% Diferencia'
+        }),
         use_container_width=True,
         hide_index=True
     )
@@ -4381,6 +4394,7 @@ if selected == "OH":
 
 
     
+
 
 
 
