@@ -1148,50 +1148,16 @@ def mostrar_tabla_estilizada(df, id=1):
     descargar_excel(df, nombre_archivo=f"proyeccion{id}.xlsx")
 
 
-def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro,
-                 coss_pro_ori, gadmn_pro_ori, oh_pct_elegido=None):
+def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro_ori, gadmn_pro_ori, oh_pct_elegido=None):
+    variable = df_ext_var["Neto_normalizado"].sum()
+    fijos_uo = df_sum[df_sum["Clasificacion_A"].isin(["G.ADMN", "COSS"])]["Neto_A"].sum() + patio_pro
 
-    # ============================================================
-    # 🔹 CLASIFICACIÓN DE VARIABLES Y FIJOS
-    # ============================================================
-
-    # Categorías variables dentro de COSS
-    categorias_variables = ["FLETES", "CASETAS", "COMBUSTIBLES", "OTROS COSS"]
-
-    # Calcular total de costos variables
-    variable = df_ext_var[df_ext_var["Categoria_A"].isin(categorias_variables)]["Neto_normalizado"].sum()
-
-    # Clasificaciones y categorías consideradas fijas
-    clasificaciones_fijas = ["G.ADMN", "COSS"]
-    categorias_fijas = ["COSTO OPERADORES", "AMORT ARRENDAMIENTO", "NOMINA OPERADORES"]
-
-    # Excluir variables de los fijos
-    df_fijos = df_sum[
-        (
-            (df_sum["Clasificacion_A"].isin(clasificaciones_fijas)) |
-            (df_sum["Categoria_A"].isin(categorias_fijas))
-        )
-        & (~df_sum["Categoria_A"].isin(categorias_variables))
-    ]
-
-    # Calcular total de fijos (incluye patio)
-    fijos_uo = df_fijos["Neto_A"].sum() + patio_pro
-
-    # ============================================================
-    # 🔹 PARÁMETROS ADICIONALES
-    # ============================================================
-
-    # OH en porcentaje (si aplica)
+    # OH como porcentaje
     oh_pct = (oh_pct_elegido / 100.0) if oh_pct_elegido is not None else 0.0
 
-    # ============================================================
-    # 🔹 ESCENARIOS DE INGRESO OBJETIVO
-    # ============================================================
+    # 👇 Nuevos cálculos de ingreso objetivo según tipo de OH
+    ingreso_uo_24 = fijos_uo / (1 - variable - 0.25)  # No cambia
 
-    # Ingreso para utilidad operativa 25%
-    ingreso_uo_24 = fijos_uo / (1 - variable - 0.25)
-
-    # Escenarios con/sin OH definido
     if oh_pct_elegido is not None:
         ingreso_ebt_0 = (fijos_uo + intereses) / (1 - variable - oh_pct)
         ingreso_ebt_115 = (fijos_uo + intereses) / (1 - variable - 0.115 - oh_pct)
@@ -1200,17 +1166,11 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
         ingreso_ebt_0 = fijos_ebt / (1 - variable)
         ingreso_ebt_115 = fijos_ebt / (1 - variable - 0.115)
 
-    # ============================================================
-    # 🔹 FUNCIONES INTERNAS
-    # ============================================================
-
-    # Cálculo dinámico de OH
     def calcular_oh_dinamico(ingreso_obj):
         if oh_pct_elegido is not None:
             return ingreso_obj * oh_pct
         return oh_pro
 
-    # Construir tabla y gráfico de resultados
     def construir_tabla(ingreso_obj, coss, gadm, oh, interes, id_tab):
         utilidad_op = ingreso_obj - coss - gadm
         por_util_op = utilidad_op / ingreso_obj if ingreso_obj else 0
@@ -1248,51 +1208,32 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
             ]
         })
 
-        # Si el usuario es gerente, oculta métricas sensibles
-        if st.session_state.get("rol") == "gerente":
-            resumen_df = resumen_df[~resumen_df["Concepto"].isin(
-                ["OH", "EBIT", "Intereses", "% EBT", "EBT"]
-            )]
+        if st.session_state["rol"] == "gerente":
+            resumen_df = resumen_df[~resumen_df["Concepto"].isin(["OH", "EBIT", "Intereses", "% EBT", "EBT"])]
 
         mostrar_tabla_estilizada(resumen_df, id=id_tab)
 
         valores_bar = [ingreso_obj, coss, gadm, utilidad_op]
-        if st.session_state.get("rol") != "gerente":
+        if st.session_state["rol"] != "gerente":
             valores_bar.append(ebt)
 
         st.bar_chart(pd.DataFrame({
             "Valor ($)": valores_bar,
-        }, index=["Ingresos", "COSS", "GADM", "Util. Operativa"] +
-        ([] if st.session_state.get("rol") == "gerente" else ["EBT"])))
+        }, index=["Ingresos", "COSS", "GADM", "Util. Operativa"] + ([] if st.session_state["rol"] == "gerente" else ["EBT"])))
 
         if oh_pct_elegido is not None:
             st.caption(f"OH calculado como {oh_pct_elegido:.2f}% del ingreso")
 
-    # ============================================================
-    # 🔹 MOSTRAR RESUMEN GENERAL DE ESTRUCTURA
-    # ============================================================
-
-    total_fijos = fijos_uo
-    total_variable = variable * ingreso_pro_fut
-    total_costos = total_fijos + total_variable
-    if total_costos != 0:
-        pct_fijos = total_fijos / total_costos
-        pct_variables = total_variable / total_costos
-        st.info(f"**Estructura de costos:** Variables {pct_variables:.1%} / Fijos {pct_fijos:.1%}")
-
-    # ============================================================
-    # 🔹 TABS DE ESCENARIOS
-    # ============================================================
-
+    # 🧩 Tabs
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "Proyección Original",
-        "Punto de Equilibrio (EBT = 0)",
+        "Proyeccion",
+        "Utilidad  Minima Esperada (Punto de Equilibrio)",
         "Ingreso Manual",
-        "Utilidad Esperada (EBT = 11.5%)",
-        "U. Operativa Objetivo (25%)"
+        "Utilidad esperada",
+        "Utilidad Operativa Objetivo (25%)"
     ])
 
-    # 🔸 TAB: U. Operativa 25%
+    # Tab: UO = 25%
     with tab5:
         df_ext_var_24 = df_ext_var.copy()
         df_ext_var_24["Neto_A"] = df_ext_var_24["Neto_normalizado"] * ingreso_uo_24
@@ -1301,10 +1242,10 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
         coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
         gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
         nuevo_oh = calcular_oh_dinamico(ingreso_uo_24)
-        st.write(f"Ingreso necesario para Utilidad Operativa = 25%: **${ingreso_uo_24:,.2f}**")
+        st.write(f"Ingreso necesario para U. Operativa = 25%: **${ingreso_uo_24:,.2f}**")
         construir_tabla(ingreso_uo_24, coss_pro, gadmn_pro, nuevo_oh, intereses, id_tab=1)
 
-    # 🔸 TAB: EBT = 0
+    # Tab: EBT = 0
     with tab2:
         df_ext_var_0 = df_ext_var.copy()
         df_ext_var_0["Neto_A"] = df_ext_var_0["Neto_normalizado"] * ingreso_ebt_0
@@ -1313,13 +1254,59 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
         coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
         gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
         nuevo_oh = calcular_oh_dinamico(ingreso_ebt_0)
-        st.write(f"Ingreso necesario para Punto de Equilibrio (EBT = 0): **${ingreso_ebt_0:,.2f}**")
+        st.write(f"Ingreso necesario para alcanzar Punto de Equilibrio: **${ingreso_ebt_0:,.2f}**")
         construir_tabla(ingreso_ebt_0, coss_pro, gadmn_pro, nuevo_oh, intereses, id_tab=2)
 
-    # 🔸 TAB: Ingreso manual
+        st.markdown("#### 📊 Punto de Equilibrio por Proyecto (Histórico)")
+
+        if "Proyecto_A" in df_sum.columns:
+            # --- Agrupar ingresos históricos por proyecto ---
+            df_hist = df_sum.groupby("Proyecto_A", as_index=False)["Neto_A"].sum()
+            total_ingresos = df_hist["Neto_A"].sum()
+
+            # --- Peso relativo de cada proyecto ---
+            df_hist["Peso_Ingreso"] = df_hist["Neto_A"] / total_ingresos
+
+            # --- Calcular ingreso de equilibrio proporcional ---
+            df_hist["Ingreso_Equilibrio"] = df_hist["Peso_Ingreso"] * ingreso_ebt_0
+
+            # --- Brecha entre ingreso actual y equilibrio ---
+            df_hist["Brecha_vs_Actual"] = df_hist["Ingreso_Equilibrio"] - df_hist["Neto_A"]
+
+            # --- Construir tabla en el mismo estilo ---
+            resumen_eq = pd.DataFrame({
+                "Concepto": [
+                    "Proyecto",
+                    "Ingreso Histórico",
+                    "Ingreso Equilibrio (EBT=0)",
+                    "Brecha vs Actual",
+                    "Participación"
+                ],
+                "Valor": [
+                    "", "", "", "", ""
+                ]
+            })
+
+            # Reemplazar por filas dinámicas tipo DataFrame expandido
+            filas = []
+            for _, row in df_hist.iterrows():
+                filas.append({
+                    "Concepto": f"Proyecto {int(row['Proyecto_A'])}",
+                    "Valor": f"Ingreso actual: ${row['Neto_A']:,.2f} | Equilibrio: ${row['Ingreso_Equilibrio']:,.2f} | Brecha: ${row['Brecha_vs_Actual']:,.2f} | Peso: {row['Peso_Ingreso']:.1%}"
+                })
+
+            df_equilibrio = pd.DataFrame(filas)
+
+            # Mostrar usando el mismo formato estilizado
+            mostrar_tabla_estilizada(df_equilibrio, id="equilibrio_proy")
+
+        else:
+            st.warning("⚠️ No se encontró la columna 'Proyecto_A' en df_sum; no se puede calcular el punto de equilibrio por proyecto.")
+        
+
+    # Tab: Ingreso manual
     with tab3:
-        ingreso_manual = st.number_input("💰 Ingreso Manual", value=float(ingreso_pro_fut),
-                                         step=500000.0, format="%.2f")
+        ingreso_manual = st.number_input("💰 Ingreso Manual", value=float(ingreso_pro_fut), step=500000.0, format="%.2f")
         df_ext_var_manual = df_ext_var.copy()
         df_ext_var_manual["Neto_A"] = df_ext_var_manual["Neto_normalizado"] * ingreso_manual
         df_ext_var_manual = df_ext_var_manual.drop(columns=["Neto_normalizado"])
@@ -1329,7 +1316,7 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
         nuevo_oh = calcular_oh_dinamico(ingreso_manual)
         construir_tabla(ingreso_manual, coss_pro, gadmn_pro, nuevo_oh, intereses, id_tab=3)
 
-    # 🔸 TAB: EBT = 11.5%
+    # Tab: EBT = 11.5%
     with tab4:
         df_ext_var_115 = df_ext_var.copy()
         df_ext_var_115["Neto_A"] = df_ext_var_115["Neto_normalizado"] * ingreso_ebt_115
@@ -1338,10 +1325,10 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
         coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
         gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
         nuevo_oh = calcular_oh_dinamico(ingreso_ebt_115)
-        st.write(f"Ingreso necesario para Utilidad Esperada (EBT = 11.5%): **${ingreso_ebt_115:,.2f}**")
+        st.write(f"Ingreso necesario para Utilidad Esperada (EBT 11.5%): **${ingreso_ebt_115:,.2f}**")
         construir_tabla(ingreso_ebt_115, coss_pro, gadmn_pro, nuevo_oh, intereses, id_tab=4)
 
-    # 🔸 TAB: Proyección original
+    # Tab: Original
     with tab1:
         st.write("Proyección Original")
         construir_tabla(ingreso_pro_fut, coss_pro_ori, gadmn_pro_ori, oh_pro, intereses, id_tab=5)
@@ -4394,6 +4381,7 @@ if selected == "OH":
 
 
     
+
 
 
 
