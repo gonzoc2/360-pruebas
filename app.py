@@ -1147,9 +1147,18 @@ def mostrar_tabla_estilizada(df, id=1):
     st.markdown(html_table, unsafe_allow_html=True)
     descargar_excel(df, nombre_archivo=f"proyeccion{id}.xlsx")
 
-def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro_ori, gadmn_pro_ori, oh_pct_elegido=None):
-    variable = df_ext_var["Neto_normalizado"].sum()
-    fijos_uo = df_sum[df_sum["Clasificacion_A"].isin(["G.ADMN", "COSS"])]["Neto_A"].sum() + patio_pro
+    def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro_ori, gadmn_pro_ori, oh_pct_elegido=None):
+        variable = df_ext_var["Neto_normalizado"].sum()
+        clasificaciones_fijas = ["G.ADMN", "COSS"]
+        categorias_fijas = ["COSTO OPERADORES", "AMORT ARRENDAMIENTO", "NOMINA OPERADORES"]
+        fijos_uo = (
+        df_sum[
+            (df_sum["Clasificacion_A"].isin(clasificaciones_fijas)) |
+            (df_sum["Categoria_A"].isin(categorias_fijas))
+        ]["Neto_A"].sum()
+        + patio_pro
+        )
+
 
     # OH como porcentaje
     oh_pct = (oh_pct_elegido / 100.0) if oh_pct_elegido is not None else 0.0
@@ -4336,6 +4345,7 @@ if selected == "OH":
 
 
     
+
 
 
 
