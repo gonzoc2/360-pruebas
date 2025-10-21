@@ -4127,6 +4127,10 @@ for df in [df_2025, df_ppt, df_ly]:
         st.error(f"La columna 'CeCo_A' no está presente en el DataFrame: {df}")
         st.write(df.columns)
         
+import plotly.express as px
+import pandas as pd
+import streamlit as st
+
 def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
 
@@ -4152,7 +4156,7 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
             df_filt = df_filt[df_filt['CeCo_Nombre'] == ceco_seleccionado]
         return df_filt
 
-    # --- Filtrar los datasets relevantes ---
+    # --- Filtrar datasets ---
     df_real = filtrar_datos(df_2025)
     df_ly_filt = filtrar_datos(df_ly)
 
@@ -4187,7 +4191,7 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
         axis=1
     )
 
-    # --- Formato visual ---
+    # --- Formato visual para tabla ---
     resumen_fmt = resumen.copy()
     for col in ['OH_Real', 'OH_LY', 'Variación']:
         resumen_fmt[col] = resumen_fmt[col].apply(lambda x: f"${x:,.2f}")
@@ -4206,7 +4210,13 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
         hide_index=True
     )
 
-    # Gráfico con gradiente azul
+    # --- Selección de la métrica para el gráfico ---
+    # Si el usuario elige tipo_dato = "OH", se grafica el Real
+    # Si elige tipo_dato = "LY", se grafica el LY
+    # (Puedes cambiar esto según tu preferencia)
+    columna_valor = "OH_Real" if tipo_dato.upper() == "OH" else "OH_LY"
+
+    # --- Gráfico de barras con gradiente azul ---
     fig = px.bar(
         resumen,
         x='Mes',
@@ -4215,7 +4225,7 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
         color_continuous_scale='Blues',
         text=columna_valor,
         labels={'Mes': 'Mes', columna_valor: 'Monto (MXN)'},
-        title=f"Overhead {tipo_dato}",
+        title=f"Overhead {tipo_dato} - Comparativo Real vs LY",
         height=420
     )
 
@@ -4227,14 +4237,12 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
     fig.update_layout(
         template="plotly_white",
         xaxis=dict(title="", tickangle=-45),
-        yaxis=dict(title="Monto (MXN)", tickformat=","),
+        yaxis=dict(title="Monto (MXN)", tickformat=",.0f"),
         coloraxis_showscale=False,
         showlegend=False
     )
 
     st.plotly_chart(fig, use_container_width=True)
-
-
 
 def tabla_Clasificacion_OH(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     st.subheader(titulo)
@@ -4394,6 +4402,7 @@ if selected == "OH":
 
 
     
+
 
 
 
