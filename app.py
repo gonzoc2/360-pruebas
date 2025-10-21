@@ -4136,6 +4136,8 @@ import pandas as pd
 import streamlit as st
 
 def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
+    import plotly.express as px
+
     st.subheader(titulo)
 
     # --- Preprocesamiento común ---
@@ -4160,36 +4162,44 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
             df_filt = df_filt[df_filt['CeCo_Nombre'] == ceco_seleccionado]
         return df_filt
 
-    # --- Filtrar los datasets relevantes ---
+    # --- Filtrar datasets ---
     df_real = filtrar_datos(df_2025)
     df_ppt_filt = filtrar_datos(df_ppt)
     df_ly_filt = filtrar_datos(df_ly)
 
     if df_real.empty:
-        st.warning("⚠️ No hay datos disponibles para los filtros seleccionados.")
+        st.warning("⚠️ No hay datos reales para los filtros seleccionados.")
         return
 
-    # --- Agregar datos por mes ---
+    # --- Agregar por mes ---
     resumen_real = (
         df_real.groupby('Mes_A')['Neto_A']
-        .sum().reindex(meses_filtrados, fill_value=0)
-        .reset_index().rename(columns={'Neto_A': 'OH_Real'})
+        .sum()
+        .reindex(meses_filtrados, fill_value=0)
+        .reset_index()
+        .rename(columns={'Neto_A': 'OH_Real'})
     )
 
     resumen_ppt = (
         df_ppt_filt.groupby('Mes_A')['Neto_A']
-        .sum().reindex(meses_filtrados, fill_value=0)
-        .reset_index().rename(columns={'Neto_A': 'OH_Presupuesto'})
+        .sum()
+        .reindex(meses_filtrados, fill_value=0)
+        .reset_index()
+        .rename(columns={'Neto_A': 'OH_Presupuesto'})
     )
 
     resumen_ly = (
         df_ly_filt.groupby('Mes_A')['Neto_A']
-        .sum().reindex(meses_filtrados, fill_value=0)
-        .reset_index().rename(columns={'Neto_A': 'OH_LY'})
+        .sum()
+        .reindex(meses_filtrados, fill_value=0)
+        .reset_index()
+        .rename(columns={'Neto_A': 'OH_LY'})
     )
 
-    # --- Elegir comparativo ---
-    if tipo_dato == "OH":
+    # --- Determinar comparativo ---
+    tipo_dato = tipo_dato.strip().upper()
+
+    if tipo_dato in ["OH", "PRESUPUESTO"]:
         comparativo = resumen_ppt
         col_compara = 'OH_Presupuesto'
         label_compara = 'Presupuesto (MXN)'
@@ -4198,23 +4208,25 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
         col_compara = 'OH_LY'
         label_compara = 'Año Anterior (LY)'
     else:
-        st.warning("Selecciona 'OH' o 'LY' para mostrar la comparación.")
+        st.warning("Selecciona 'OH', 'Presupuesto' o 'LY' para mostrar la comparación.")
         return
 
-    # --- Combinar y calcular diferencias ---
+    # --- Unir datos ---
     resumen = resumen_real.merge(comparativo, on='Mes_A', how='outer').fillna(0)
-    resumen['Variación'] = resumen['OH_Real'] - resumen[col_compara]
-    resumen['% Variación'] = resumen.apply(
-        lambda x: (x['Variación'] / x[col_compara]) if x[col_compara] != 0 else 0, axis=1
-    )
+    resumen['Mes'] = resumen['Mes_A']
 
-    resumen = resumen.rename(columns={'Mes_A': 'Mes'})
+    # --- Calcular diferencias ---
+    resumen['Diferencia'] = resumen['OH_Real'] - resumen[col_compara]
+    resumen['% Diferencia'] = resumen.apply(
+        lambda x: (x['Diferencia'] / x[col_compara]) if x[col_compara] != 0 else 0,
+        axis=1
+    )
 
     # --- Formato visual ---
     resumen_fmt = resumen.copy()
-    for col in ['OH_Real', col_compara, 'Variación']:
+    for col in ['OH_Real', col_compara, 'Diferencia']:
         resumen_fmt[col] = resumen_fmt[col].apply(lambda x: f"${x:,.2f}")
-    resumen_fmt['% Variación'] = resumen_fmt['% Variación'].apply(lambda x: f"{x:.1%}")
+    resumen_fmt['% Diferencia'] = resumen_fmt['% Diferencia'].apply(lambda x: f"{x:.1%}")
 
     # --- Mostrar tabla final ---
     st.dataframe(
@@ -4222,36 +4234,30 @@ def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_selecci
             'Mes': 'Mes',
             'OH_Real': 'Real (MXN)',
             col_compara: label_compara,
-            'Variación': 'Diferencia (MXN)',
-            '% Variación': '% Diferencia'
-        }),
+            'Diferencia': 'Diferencia (MXN)',
+            '% Diferencia': '% Diferencia'
+        })[['Mes', 'Real (MXN)', label_compara, 'Diferencia (MXN)', '% Diferencia']],
         use_container_width=True,
         hide_index=True
     )
 
-    # --- Gráfico dinámico ---
+    # --- Gráfico comparativo ---
     fig = px.bar(
         resumen,
         x='Mes',
-        y='OH_Real',
-        color='OH_Real',
-        color_continuous_scale='Blues',
-        text='OH_Real',
-        labels={'Mes': 'Mes', 'OH_Real': 'Monto (MXN)'},
-        title=f"Overhead {'vs ' + label_compara}",
+        y=['OH_Real', col_compara],
+        barmode='group',
+        labels={'value': 'Monto (MXN)', 'variable': 'Tipo'},
+        title=f"Comparativa Overhead: Real vs {label_compara.replace('(MXN)', '').strip()}",
         height=420
     )
 
-    fig.update_traces(
-        texttemplate="%{text:.2s}",
-        textposition='outside'
-    )
+    fig.update_traces(texttemplate='%{y:,.0f}', textposition='outside')
     fig.update_layout(
         template="plotly_white",
-        xaxis=dict(title="", tickangle=-45),
+        xaxis=dict(title="Mes", tickangle=-45),
         yaxis=dict(title="Monto (MXN)", tickformat=","),
-        coloraxis_showscale=False,
-        showlegend=False
+        showlegend=True
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -4414,6 +4420,7 @@ if selected == "OH":
 
 
     
+
 
 
 
