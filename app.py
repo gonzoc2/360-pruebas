@@ -3239,7 +3239,7 @@ else:
             "Clasificación": "Clasificacion_A",
             "Categoría": "Categoria_A",
             "Cuenta": "Cuenta_Nombre_A",
-            "Estado de Resultado": "ER",
+            "estado_resultado": "ER",
         }
 
         er_label_to_key = {
@@ -4420,6 +4420,7 @@ if selected == "OH":
 
 
     
+
 
 
 
