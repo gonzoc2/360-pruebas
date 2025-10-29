@@ -3195,11 +3195,8 @@ else:
             use_container_width=True
     )
 
-    elif selected == "Ratios":
+    elif selected == "Ratios": 
         st.title("📊 Análisis de Ratios Personalizados")
-    
-        # --- Filtro de proyectos ---
-        col_pro, _ = st.columns([2, 1])
     
         def filtro_pro_ratios(col):
             df_visibles = proyectos[proyectos["proyectos"].astype(str).isin(st.session_state["proyectos"])]
@@ -3214,19 +3211,16 @@ else:
                     proyectos_dict["ESGARI"] = codigos_todos
                 seleccion_otros = [s for s in seleccionados if s != "ESGARI"]
                 for nombre in seleccion_otros:
-                    codigo = proyectos.loc[proyectos["nombre"] == nombre, "proyectos"].astype(str).iloc[0]
+                    codigo = proyectos[proyectos["nombre"] == nombre]["proyectos"].astype(str).iloc[0]
                     proyectos_dict[nombre] = codigo
             else:
                 seleccionados = col.multiselect("Selecciona proyecto(s)", list(nombre_a_codigo.keys()))
                 for nombre in seleccionados:
                     proyectos_dict[nombre] = nombre_a_codigo[nombre]
-    
             return proyectos_dict
     
-        # 🔹 CORREGIDO: se pasa col_pro (columna Streamlit), no st
-        dic_proyectos = filtro_pro_ratios(col_pro)
+        dic_proyectos = filtro_pro_ratios(st)
     
-        # --- Generar lista local de proyectos seleccionados ---
         lista_proyectos_local = []
         for _nombre, _cod in dic_proyectos.items():
             if isinstance(_cod, list):
@@ -3234,9 +3228,8 @@ else:
             else:
                 lista_proyectos_local.append(_cod)
     
-        # --- Filtros de mes y configuración ---
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
     
@@ -3246,7 +3239,7 @@ else:
             "Clasificación": "Clasificacion_A",
             "Categoría": "Categoria_A",
             "Cuenta": "Cuenta_Nombre_A",
-            "Estado Resultado": "ER",
+            "Estado de Resultado": "ER",
         }
     
         er_label_to_key = {
@@ -3266,7 +3259,6 @@ else:
         }
         er_labels = list(er_label_to_key.keys())
     
-        # --- Configuración dinámica de ratios ---
         ratio_config = []
         for i in range(num_ratios):
             with st.expander(f"⚙️ Configuración del Ratio {i+1}", expanded=(i == 0)):
@@ -3292,7 +3284,10 @@ else:
                             sorted(df_2025[campo_map[tipo_num_2]].dropna().unique()),
                             key=f"val_num_2_{i}"
                         )
-                        num_extra = {"campo": campo_map[tipo_num_2], "valor": valor_num_2}
+                        num_extra = {
+                            "campo": campo_map[tipo_num_2],
+                            "valor": valor_num_2
+                        }
                     else:
                         num_extra = None
     
@@ -3315,7 +3310,10 @@ else:
                             sorted(df_2025[campo_map[tipo_den_2]].dropna().unique()),
                             key=f"val_den_2_{i}"
                         )
-                        den_extra = {"campo": campo_map[tipo_den_2], "valor": valor_den_2}
+                        den_extra = {
+                            "campo": campo_map[tipo_den_2],
+                            "valor": valor_den_2
+                        }
                     else:
                         den_extra = None
     
@@ -3329,7 +3327,6 @@ else:
                     "extra_den": den_extra
                 })
     
-        # --- Cálculo de ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
             if not isinstance(codigos, list):
@@ -3362,17 +3359,14 @@ else:
                         "Mes": mes,
                         "Proyecto": proyecto,
                         "Nombre": config["nombre"],
-                        "Numerador": f"${num:,.2f}",
-                        "Denominador": f"${den:,.2f}",
-                        "Ratio": f"{ratio:.2%}"
+                        "Numerador": f"${num:,.2f}",       # 💵 mostrar valor
+                        "Denominador": f"${den:,.2f}",     # 💵 mostrar valor
+                        "Ratio": f"{ratio:.2%}"            # 📊 mostrar en porcentaje
                     })
     
         df_result = pd.DataFrame(resultados)
         df_result["Mes"] = pd.Categorical(df_result["Mes"], categories=meses_ordenados, ordered=True)
         df_result = df_result.sort_values(["Nombre", "Proyecto", "Mes"])
-    
-        st.dataframe(df_result, use_container_width=True)
-
 
         if not df_result.empty:
             st.subheader("📈 Evolución de Ratios")
@@ -4428,6 +4422,7 @@ if selected == "OH":
 
 
     
+
 
 
 
