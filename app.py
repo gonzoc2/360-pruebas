@@ -3239,16 +3239,16 @@ else:
             "Clasificación": "Clasificacion_A",
             "Categoría": "Categoria_A",
             "Cuenta": "Cuenta_Nombre_A",
-            "estado_resultado": "ER",
+            "Estado Resultado": "ER",
         }
 
         er_label_to_key = {
             "Ingreso": "ingreso_proyecto",
-            "COSS": "coss_pro", "mal_coss"
+            "COSS": "coss_pro",
             "PATIO": "patio_pro",
             "COSS total": "coss_total",
             "Utilidad bruta": "utilidad_bruta",
-            "G.ADMN": "gadmn_pro", "mal_gadmn"
+            "G.ADMN": "gadmn_pro",
             "Utilidad operativa": "utilidad_operativa",
             "OH": "oh_pro",
             "EBIT": "ebit",
@@ -4423,6 +4423,7 @@ if selected == "OH":
 
 
     
+
 
 
 
