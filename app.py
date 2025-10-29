@@ -96,34 +96,22 @@ def filtro_pro(col):
     return proyecto_codigo, proyecto_nombre
 
 def filtro_meses(col, df_2025):
-    meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", 
-             "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-
-    if selected in ["Análisis", "Proyectos"]:
-        meses_seleccionado = col.selectbox("Selecciona un mes", meses, key="mes_selectbox")
+    meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+    if selected == "Análisis":
+        meses_seleccionado = col.selectbox("Selecciona un mes", meses)
         meses_seleccionado = [meses_seleccionado]
-
-        # Guardar el mes seleccionado en session_state
-        st.session_state["mes_guardado"] = meses_seleccionado
-
-    elif selected in ["Mes Corregido", "Proyeccion"]:
-        meses_ordenados = meses
+    elif selected == "Mes Corregido" or selected == "Proyeccion":
+        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
         meses_disponibles = [mes for mes in meses_ordenados if mes in df_2025["Mes_A"].unique()]
         mes_act = meses_disponibles[-1] if meses_disponibles else None
         index_default = meses_disponibles.index(mes_act) if mes_act in meses_disponibles else 0
 
-        # Usar mes guardado si existe
-        if "mes_guardado" in st.session_state and st.session_state["mes_guardado"][0] in meses_disponibles:
-            mes_default = st.session_state["mes_guardado"][0]
-            index_default = meses_disponibles.index(mes_default)
-
         mes_seleccionado = col.selectbox("Selecciona un mes", meses_disponibles, index=index_default)
         meses_seleccionado = [mes_seleccionado]
-
     else:
         meses_seleccionado = col.multiselect("Selecciona un mes", meses, default=[meses[0]])
-
     return meses_seleccionado
 
 def porcentaje_ingresos(df, meses, pro, codigo_pro):
@@ -326,8 +314,8 @@ def ingreso_fin (df, meses, codigo_pro, pro, lista_proyectos):
 
     return ingreso_fin, mal_clasificados, oh_ingreso_fin
 
-def estado_(df_2025, meses_seleccionado, proyecto_nombre, proyecto_codigo, lista_proyectos):
-    estado_ = {}
+def estado_resultado(df_2025, meses_seleccionado, proyecto_nombre, proyecto_codigo, lista_proyectos):
+    estado_resultado = {}
 
     por_ingre = porcentaje_ingresos(df_2025, meses_seleccionado, proyecto_nombre, proyecto_codigo)
     ingreso_proyecto = ingreso(df_2025, meses_seleccionado, proyecto_codigo, proyecto_nombre)
@@ -930,7 +918,7 @@ def seccion_analisis_especial_porcentual(df_actual, df_ly, ingreso, meses_selecc
             else:
                 return [''] * len(row)
 
-        (
+        st.dataframe(
             df_resultado.style
                 .apply(resaltar, axis=1)
                 .format({
@@ -1021,7 +1009,7 @@ def seccion_analisis_por_clasificacion(df_2025, df_ly, ingreso, meses_selecciona
 
         df_analsiis_cla = df_analsiis_cla.set_index("Clasificacion_A")
 
-        (
+        st.dataframe(
             df_analsiis_cla.style
             .apply(resaltar_clasificacion, axis=1)
             .format({
@@ -1092,7 +1080,7 @@ def mostrar_tabla_estilizada(df, id=1):
 
     # Formato condicional para celdas con $ y %
     df_tabla["Valor"] = df_tabla["Valor"].apply(
-        lambda x: f"${float(x.replace('$', '').replace(',', '')):,.2f}" if "$" in x else x
+        lambda x: f"${float(x.replace('$','').replace(',','')):,.2f}" if "$" in x else x
     )
     df_tabla["Valor"] = df_tabla["Valor"].apply(
         lambda x: f'<span style="color:#003366;">{x}</span>' if "%" in x else x
@@ -1146,7 +1134,6 @@ def mostrar_tabla_estilizada(df, id=1):
     html_table = df_tabla.to_html(index=False, escape=False, classes=f"tab-table-{id}")
     st.markdown(html_table, unsafe_allow_html=True)
     descargar_excel(df, nombre_archivo=f"proyeccion{id}.xlsx")
-
 
 def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro_ori, gadmn_pro_ori, oh_pct_elegido=None):
     variable = df_ext_var["Neto_normalizado"].sum()
@@ -1257,53 +1244,6 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
         st.write(f"Ingreso necesario para alcanzar Punto de Equilibrio: **${ingreso_ebt_0:,.2f}**")
         construir_tabla(ingreso_ebt_0, coss_pro, gadmn_pro, nuevo_oh, intereses, id_tab=2)
 
-        st.markdown("#### 📊 Punto de Equilibrio por Proyecto (Histórico)")
-
-        if "Proyecto_A" in df_sum.columns:
-            # --- Agrupar ingresos históricos por proyecto ---
-            df_hist = df_sum.groupby("Proyecto_A", as_index=False)["Neto_A"].sum()
-            total_ingresos = df_hist["Neto_A"].sum()
-
-            # --- Peso relativo de cada proyecto ---
-            df_hist["Peso_Ingreso"] = df_hist["Neto_A"] / total_ingresos
-
-            # --- Calcular ingreso de equilibrio proporcional ---
-            df_hist["Ingreso_Equilibrio"] = df_hist["Peso_Ingreso"] * ingreso_ebt_0
-
-            # --- Brecha entre ingreso actual y equilibrio ---
-            df_hist["Brecha_vs_Actual"] = df_hist["Ingreso_Equilibrio"] - df_hist["Neto_A"]
-
-            # --- Construir tabla en el mismo estilo ---
-            resumen_eq = pd.DataFrame({
-                "Concepto": [
-                    "Proyecto",
-                    "Ingreso Histórico",
-                    "Ingreso Equilibrio (EBT=0)",
-                    "Brecha vs Actual",
-                    "Participación"
-                ],
-                "Valor": [
-                    "", "", "", "", ""
-                ]
-            })
-
-            # Reemplazar por filas dinámicas tipo DataFrame expandido
-            filas = []
-            for _, row in df_hist.iterrows():
-                filas.append({
-                    "Concepto": f"Proyecto {int(row['Proyecto_A'])}",
-                    "Valor": f"Ingreso actual: ${row['Neto_A']:,.2f} | Equilibrio: ${row['Ingreso_Equilibrio']:,.2f} | Brecha: ${row['Brecha_vs_Actual']:,.2f} | Peso: {row['Peso_Ingreso']:.1%}"
-                })
-
-            df_equilibrio = pd.DataFrame(filas)
-
-            # Mostrar usando el mismo formato estilizado
-            mostrar_tabla_estilizada(df_equilibrio, id="equilibrio_proy")
-
-        else:
-            st.warning("⚠️ No se encontró la columna 'Proyecto_A' en df_sum; no se puede calcular el punto de equilibrio por proyecto.")
-        
-
     # Tab: Ingreso manual
     with tab3:
         ingreso_manual = st.number_input("💰 Ingreso Manual", value=float(ingreso_pro_fut), step=500000.0, format="%.2f")
@@ -1332,6 +1272,9 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
     with tab1:
         st.write("Proyección Original")
         construir_tabla(ingreso_pro_fut, coss_pro_ori, gadmn_pro_ori, oh_pro, intereses, id_tab=5)
+
+
+
 
         
 init_session_state()
@@ -1408,7 +1351,7 @@ else:
         if st.sidebar.button("🔄 Recargar datos"):
             st.cache_data.clear()
             st.rerun()
-    if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Roman" or st.session_state["username"] == "Fernanda":
+    if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Roman":
         link_360 = "https://drive.google.com/file/d/1ZQkWXHE9sakW9NL7eUfz8gOh8dg1L5w2/view?usp=sharing"
         def get_direct_link(shareable_link):
             # Extraer el ID del enlace compartido
@@ -1462,8 +1405,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido",
-                 "CeCo", "", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","PorProyectos","OH"],
-
+                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial"],
         icons = [
                 "house",                # Resumen
                 "clipboard-data",       # Estado de Resultado
@@ -1648,7 +1590,7 @@ else:
 
 
 
-            st.subheader("📊 Análisis Visual del Estado de  por Proyecto")
+            st.subheader("📊 Análisis Visual del Estado de Resultados por Proyecto")
             # --- Filtro de proyecto ---
             proyectos_disponibles = [col for col in df_tabla.columns if col != "Proyecto"]
             proyecto_default = "ESGARI" if "ESGARI" in proyectos_disponibles else proyectos_disponibles[0]
@@ -3045,16 +2987,20 @@ else:
 
         col1, col2 = st.columns(2)
         ceco_codigo, ceco_nombre = filtro_ceco(col1)
+        proyecto_codigo, proyecto_nombre = filtro_pro(st)
 
         df_cecos = df_2025.copy()
         df_cecos["CeCo_A"] = df_cecos["CeCo_A"].astype(str)
         df_cecos = df_cecos[df_cecos["CeCo_A"].isin(ceco_codigo)]
+        df_cecos = df_cecos[df_cecos["Proyecto_A"].isin(proyecto_codigo)]
         df_cecos_ly = df_ly.copy()
         df_cecos_ly["CeCo_A"] = df_cecos_ly["CeCo_A"].astype(str)
         df_cecos_ly = df_cecos_ly[df_cecos_ly["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ly = df_cecos_ly[df_cecos_ly["Proyecto_A"].isin(proyecto_codigo)]
         df_cecos_ppt = df_ppt.copy()
         df_cecos_ppt["CeCo_A"] = df_cecos_ppt["CeCo_A"].astype(str)
         df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["Proyecto_A"].isin(proyecto_codigo)]
 
         def tabla_expandible_comp(df, df_ly, df_ppt, cat, mes, ceco, key_prefix):
             columnas = ['Cuenta_Nombre_A', 'Categoria_A']
@@ -3129,7 +3075,7 @@ else:
             df_comb_or = pd.concat([df_comb_or, total_cat], ignore_index=True, sort=False)
             AgGrid(df_comb_or, gridOptions=gb.build(), enable_enterprise_modules=True,
                 allow_unsafe_jscode=True, theme="streamlit", height=400,
-                key=f"{key_prefix}_{cat}_{ceco}_{mes}")
+                key=f"{key_prefix}_{cat}_{ceco}_{mes}_{proyecto_codigo}")
 
             df_sin_total = df_comb_or[df_comb_or["Cuenta_Nombre_A"] != ""]
 
@@ -3385,7 +3331,7 @@ else:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            st.subheader("📋 Tabla de ")
+            st.subheader("📋 Tabla de resultados")
             st.dataframe(df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
@@ -3965,175 +3911,6 @@ else:
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
 
-def tabla_PorProyectos(tipo_com, df_agrid, df_2025, df_ly, proyecto_codigo, mes_seleccionado, titulo):
-    st.subheader(titulo)
-
-    columnas = ['Cuenta_Nombre_A', 'Categoria_A', 'Clasificacion_A']
-
-    # Diccionario meses abreviados español -> número
-    meses_espanol = {
-        'ene.': 1, 'feb.': 2, 'mar.': 3, 'abr.': 4, 'may.': 5, 'jun.': 6,
-        'jul.': 7, 'ago.': 8, 'sep.': 9, 'oct.': 10, 'nov.': 11, 'dic.': 12
-    }
-
-    mes_sel_num = meses_espanol.get(mes_seleccionado.lower())
-    if not mes_sel_num:
-        st.error(f"Mes seleccionado '{mes_seleccionado}' no válido")
-        return
-
-    mes_anterior_num = mes_sel_num - 1 if mes_sel_num > 1 else 12
-    meses_inv = {v: k for k, v in meses_espanol.items()}
-    mes_anterior_str = meses_inv[mes_anterior_num]
-
-    # Asegurar minúsculas en columnas de mes
-    for df in [df_2025, df_agrid, df_ly]:
-        df['Mes_A'] = df['Mes_A'].astype(str).str.lower()
-
-    # Filtrar y agrupar por proyecto y mes
-    df_pres = df_agrid[
-        (df_agrid['Mes_A'] == mes_seleccionado) &
-        (df_agrid['Proyecto_A'].isin(proyecto_codigo))
-    ].copy()
-    df_pres = df_pres.groupby(columnas, as_index=False)['Neto_A'].sum()
-    df_pres.rename(columns={'Neto_A': f'{tipo_com}'}, inplace=True)
-
-    df_real = df_2025[
-        (df_2025['Mes_A'] == mes_seleccionado) &
-        (df_2025['Proyecto_A'].isin(proyecto_codigo))
-    ].copy()
-    df_real = df_real.groupby(columnas, as_index=False)['Neto_A'].sum()
-    df_real.rename(columns={'Neto_A': 'REAL'}, inplace=True)
-
-    df_ly_f = df_ly[
-        (df_ly['Mes_A'] == mes_seleccionado) &
-        (df_ly['Proyecto_A'].isin(proyecto_codigo))
-    ].copy()
-    df_ly_f = df_ly_f.groupby(columnas, as_index=False)['Neto_A'].sum()
-    df_ly_f.rename(columns={'Neto_A': 'LY'}, inplace=True)
-
-    df_lm = df_2025[
-        (df_2025['Mes_A'] == mes_anterior_str) &
-        (df_2025['Proyecto_A'].isin(proyecto_codigo))
-    ].copy()
-    df_lm = df_lm.groupby(columnas, as_index=False)['Neto_A'].sum()
-    df_lm.rename(columns={'Neto_A': 'LM'}, inplace=True)
-
-    # Unir todo y calcular variaciones
-    df_compara = pd.merge(df_pres, df_real, on=columnas, how='outer').fillna(0)
-    df_compara = pd.merge(df_compara, df_ly_f, on=columnas, how='outer').fillna(0)
-    df_compara = pd.merge(df_compara, df_lm, on=columnas, how='outer').fillna(0)
-
-    df_compara['Var % vs Presupuesto'] = np.where(
-        df_compara[f'{tipo_com}'] != 0,
-        ((df_compara['REAL'] / df_compara[f'{tipo_com}']) - 1) * 100,
-        0
-    )
-    df_compara['Var % vs LY'] = np.where(
-        df_compara['LY'] != 0,
-        ((df_compara['REAL'] / df_compara['LY']) - 1) * 100,
-        0
-    )
-    df_compara['Var % vs LM'] = np.where(
-        df_compara['LM'] != 0,
-        ((df_compara['REAL'] / df_compara['LM']) - 1) * 100,
-        0
-    )
-
-    df_compara = df_compara.sort_values(by=['Clasificacion_A', 'Categoria_A', 'Cuenta_Nombre_A'])
-
-    # Generador de tabla agrupada visualmente
-    def generar_tabla_agrupada(df):
-        filas = []
-        for categoria, grupo in df.groupby('Categoria_A'):
-            # Fila de encabezado de grupo
-            filas.append({
-                'Group': categoria,
-                'Cuenta_Nombre_A': '',
-                **{col: '' for col in df.columns if col not in ['Categoria_A', 'Cuenta_Nombre_A']}
-            })
-
-            # Filas de cuentas
-            for _, row in grupo.iterrows():
-                fila = {'Group': '', 'Cuenta_Nombre_A': row['Cuenta_Nombre_A']}
-                for col in df.columns:
-                    if col not in ['Categoria_A', 'Cuenta_Nombre_A']:
-                        fila[col] = row[col]
-                filas.append(fila)
-
-        df_final = pd.DataFrame(filas)
-        return df_final
-
-    # Mostrar por Clasificación
-    clasificaciones = df_compara['Clasificacion_A'].unique()
-
-    for clasificacion in clasificaciones:
-        df_clas = df_compara[df_compara['Clasificacion_A'] == clasificacion].copy()
-        df_clas = df_clas.drop(columns=['Clasificacion_A'])  # Ocultar columna en tabla
-        df_clas = df_clas.reset_index(drop=True)             # Eliminar índice numérico
-
-        with st.expander(clasificacion.upper(), expanded=False):
-            try:
-                df_grouped = generar_tabla_agrupada(df_clas)  # <- corregido
-                st.dataframe(df_grouped, use_container_width=True)
-            except TypeError:
-                st.dataframe(df_clas)
-
-    # Totales
-    total_pres = df_compara[f'{tipo_com}'].sum()
-    total_real = df_compara['REAL'].sum()
-    total_ly = df_compara['LY'].sum()
-    total_lm = df_compara['LM'].sum()
-
-    var_pres = ((total_real / total_pres) - 1) * 100 if total_pres != 0 else 0
-    var_ly = ((total_real / total_ly) - 1) * 100 if total_ly != 0 else 0
-    var_lm = ((total_real / total_lm) - 1) * 100 if total_lm != 0 else 0
-
-if selected == "PorProyectos":
-    st.title("📊 Análisis por proyectos")
-
-    col1, col2 = st.columns(2)
-    meses = [
-        "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
-    ]
-    mes_seleccionado = col1.selectbox("Selecciona un mes", meses)
-    proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-    
-    if mes_seleccionado:
-        titulo = f"📊 Comparativa general — Proyecto {proyecto_nombre}"
-        tabla_PorProyectos(
-            tipo_com="Presupuesto",
-            df_agrid=df_ppt,
-            df_2025=df_2025,
-            df_ly=df_ly,
-            proyecto_codigo=proyecto_codigo,
-            mes_seleccionado=mes_seleccionado,
-            titulo=titulo
-        )
-    else:
-        st.warning("⚠️ Debes seleccionar un mes para continuar.")
-
-
-cecos['ceco'] = cecos['ceco'].astype(str).str.strip()
-cecos['nombre'] = cecos['nombre'].astype(str).str.strip()
-map_ceco_nombre = dict(zip(cecos['ceco'], cecos['nombre']))
-
-# Aplicar mapeo a todos los DataFrames
-for df in [df_2025, df_ppt, df_ly]:
-    if 'CeCo_A' in df.columns:
-        df['CeCo_A'] = df['CeCo_A'].astype(str).str.strip()
-        df['CeCo_Nombre'] = df['CeCo_A'].map(map_ceco_nombre)
-    else:
-        st.error(f"La columna 'CeCo_A' no está presente en el DataFrame: {df}")
-        st.write(df.columns)
-        
-import plotly.express as px
-import pandas as pd
-import streamlit as st
-
-import plotly.express as px
-import pandas as pd
-import streamlit as st
 
 def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
     import plotly.express as px
@@ -4420,6 +4197,7 @@ if selected == "OH":
 
 
     
+
 
 
 
