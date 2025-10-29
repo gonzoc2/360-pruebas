@@ -3244,11 +3244,11 @@ else:
 
         er_label_to_key = {
             "Ingreso": "ingreso_proyecto",
-            "COSS": "coss_pro",
+            "COSS": "coss_pro", "mal_coss"
             "PATIO": "patio_pro",
             "COSS total": "coss_total",
             "Utilidad bruta": "utilidad_bruta",
-            "G.ADMN": "gadmn_pro",
+            "G.ADMN": "gadmn_pro", "mal_gadmn"
             "Utilidad operativa": "utilidad_operativa",
             "OH": "oh_pro",
             "EBIT": "ebit",
@@ -4454,6 +4454,7 @@ if selected == "OH":
 
 
     
+
 
 
 
