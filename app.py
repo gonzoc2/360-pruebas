@@ -326,8 +326,8 @@ def ingreso_fin (df, meses, codigo_pro, pro, lista_proyectos):
 
     return ingreso_fin, mal_clasificados, oh_ingreso_fin
 
-def estado_resultado(df_2025, meses_seleccionado, proyecto_nombre, proyecto_codigo, lista_proyectos):
-    estado_resultado = {}
+def estado_(df_2025, meses_seleccionado, proyecto_nombre, proyecto_codigo, lista_proyectos):
+    estado_ = {}
 
     por_ingre = porcentaje_ingresos(df_2025, meses_seleccionado, proyecto_nombre, proyecto_codigo)
     ingreso_proyecto = ingreso(df_2025, meses_seleccionado, proyecto_codigo, proyecto_nombre)
@@ -3328,77 +3328,46 @@ else:
                 })
 
         resultados = []
-
         for proyecto, codigos in dic_proyectos.items():
             if not isinstance(codigos, list):
                 codigos = [codigos]
             for mes in meses_sel:
-                # 🔹 Filtrar correctamente por proyecto y mes
-                df_mes = df_2025[
-                    (df_2025["Mes_A"] == mes) &
-                    (df_2025["Proyecto_A"].isin(codigos))
-                ].copy()
-
-                # 🔹 Ajustar signos (los gastos van negativos)
-                df_mes.loc[
-                    df_mes["Clasificacion_A"].isin(["COSS", "G.ADMN", "OH", "PATIO"]),
-                    "Neto_A"
-                ] *= -1
-
-                # 🔹 Determinar si se necesita el estado de resultados
-                necesita_er = any(
-                    cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER"
-                    for cfg in ratio_config
-                )
+                df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))]
+        
+                necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 er_vals = {}
                 if necesita_er:
                     er_vals = estado_resultado(df_2025, [mes], proyecto, codigos, lista_proyectos_local)
-
-                # 🔹 Calcular cada ratio configurado
+        
                 for config in ratio_config:
-                    # ---- Numerador ----
                     if config["campo_num"] == "ER":
                         num = float(er_vals.get(er_label_to_key[config["valor_num"]], 0))
                     else:
-                        mask_num1 = df_mes[config["campo_num"]] == config["valor_num"]
+                        num = float(df_mes[df_mes[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
                         if config["extra_num"]:
-                            mask_num2 = df_mes[config["extra_num"]["campo"]] == config["extra_num"]["valor"]
-                            mask_num = mask_num1 | mask_num2
-                        else:
-                            mask_num = mask_num1
-                        num = df_mes.loc[mask_num, "Neto_A"].sum()
-
-                    # ---- Denominador ----
+                            num += float(df_mes[df_mes[config["extra_num"]["campo"]] == config["extra_num"]["valor"]]["Neto_A"].sum())
+        
                     if config["campo_den"] == "ER":
                         den = float(er_vals.get(er_label_to_key[config["valor_den"]], 0))
                     else:
-                        mask_den1 = df_mes[config["campo_den"]] == config["valor_den"]
+                        den = float(df_mes[df_mes[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
                         if config["extra_den"]:
-                            mask_den2 = df_mes[config["extra_den"]["campo"]] == config["extra_den"]["valor"]
-                            mask_den = mask_den1 | mask_den2
-                        else:
-                            mask_den = mask_den1
-                        den = df_mes.loc[mask_den, "Neto_A"].sum()
-
-                    # ---- Calcular ratio ----
+                            den += float(df_mes[df_mes[config["extra_den"]["campo"]] == config["extra_den"]["valor"]]["Neto_A"].sum())
+        
                     ratio = num / den if den != 0 else 0
-
                     resultados.append({
                         "Mes": mes,
                         "Proyecto": proyecto,
-                        "Ratio": ratio,
                         "Nombre": config["nombre"],
-                        "Numerador": num,
-                        "Denominador": den
+                        "Numerador": f"${num:,.2f}",       # 💵 Formato moneda MXN
+                        "Denominador": f"${den:,.2f}",     # 💵 Formato moneda MXN
+                        "Ratio": f"{ratio:.2%}"            # 📊 Formato porcentaje
                     })
-
-                # 🔎 (Opcional: Debug en pantalla para verificar cálculo)
-                # st.write(f"🧮 {proyecto} | {mes} → Numerador={num:.2f} | Denominador={den:.2f} | Ratio={ratio:.4f}")
-
-        # 🔹 Crear DataFrame final de ratios
+        
         df_result = pd.DataFrame(resultados)
         df_result["Mes"] = pd.Categorical(df_result["Mes"], categories=meses_ordenados, ordered=True)
         df_result = df_result.sort_values(["Nombre", "Proyecto", "Mes"])
+
 
         if not df_result.empty:
             st.subheader("📈 Evolución de Ratios")
@@ -4454,6 +4423,7 @@ if selected == "OH":
 
 
     
+
 
 
 
