@@ -4116,7 +4116,10 @@ else:
         st.title("📊 Composición Overhead (OH)")
 
         col1, col2 = st.columns(2)
-        meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+
+        # --- Selector de meses ---
+        meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                 "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
         meses_seleccionados = col1.multiselect(
             "Selecciona uno o más meses",
@@ -4124,14 +4127,32 @@ else:
             default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
         )
 
-        lista_cecos = sorted(df_2025["ceco_nombre"].dropna().unique())
-        ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", ["ESGARI"] + lista_cecos)
+        # --- Detección automática de columna CeCo ---
+        ceco_cols = [c for c in df_2025.columns if c.lower().replace(" ", "").startswith("ceco")]
+        if not ceco_cols:
+            st.error("❌ No se encontró ninguna columna de Centro de Costos en el dataset.")
+            return
+        col_ceco = ceco_cols[0]
 
+        # --- Filtro de CeCo robusto ---
+        cecos_unicos = sorted(df_2025[col_ceco].dropna().astype(str).unique().tolist())
+        if "cecos" in st.session_state and isinstance(st.session_state["cecos"], list):
+            if st.session_state["cecos"] == ["ESGARI"]:
+                opciones_ceco = ["ESGARI"] + cecos_unicos
+                ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", opciones_ceco, index=0)
+            else:
+                opciones_ceco = cecos_unicos
+                ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", opciones_ceco)
+        else:
+            ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", ["ESGARI"] + cecos_unicos)
+
+        # --- Tipo de dato a mostrar ---
         tipo_dato = st.selectbox(
             "Selecciona el tipo de información a mostrar:",
             options=["OH", "Presupuesto", "LY"]
         )
 
+        # --- Mostrar tablas ---
         if meses_seleccionados:
             titulo = f"OH {tipo_dato}"
             tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato)
@@ -4139,8 +4160,8 @@ else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
 
-
     
+
 
 
 
