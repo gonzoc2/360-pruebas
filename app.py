@@ -4053,15 +4053,18 @@ else:
         def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, codigos_ceco, tipo_dato):
             st.subheader(titulo)
 
-            # Normalización de campos
+            # 🔹 Normalización de campos (nombres + contenido)
             for df in [df_2025, df_ppt, df_ly]:
                 if df is None or df.empty:
                     continue
-                for col in ["Mes_A", "Proyecto_A", "Clasificacion_A", "CeCo_A"]:
+                # Convertir nombres de columnas a minúsculas uniformes
+                df.columns = df.columns.str.strip().str.lower()
+                # Normalizar los valores de columnas clave
+                for col in ["mes_a", "proyecto_a", "clasificacion_a", "ceco_a"]:
                     if col in df.columns:
                         df[col] = df[col].astype(str).str.strip().str.lower()
-                if "Neto_A" in df.columns:
-                    df["Neto_A"] = pd.to_numeric(df["Neto_A"], errors="coerce").fillna(0)
+                if "neto_a" in df.columns:
+                    df["neto_a"] = pd.to_numeric(df["neto_a"], errors="coerce").fillna(0)
 
             # Filtros base
             codigos_oh = ["8002", "8004"]
@@ -4074,13 +4077,14 @@ else:
                     return pd.DataFrame()
 
                 df_filt = df[
-                    (df["Mes_A"].isin(meses_filtrados))
-                    & (df["Proyecto_A"].isin(codigos_oh))
-                    & (df["Clasificacion_A"].isin(clasificaciones_validas))
+                    (df["mes_a"].isin(meses_filtrados))
+                    & (df["proyecto_a"].isin(codigos_oh))
+                    & (df["clasificacion_a"].isin(clasificaciones_validas))
                 ]
 
+                # 🔹 Aplicar filtro CeCo
                 if codigos_ceco and "ceco_a" in df.columns:
-                    df_filt = df_filt[df_filt["ceco_a"].isin(codigos_ceco)]
+                    df_filt = df_filt[df_filt["ceco_a"].isin([c.lower() for c in codigos_ceco])]
 
                 return df_filt
 
@@ -4096,13 +4100,13 @@ else:
             # --- Agrupar por mes ---
             def resumir(df, nombre_col):
                 if df.empty:
-                    return pd.DataFrame({"Mes_A": meses_filtrados, nombre_col: [0] * len(meses_filtrados)})
+                    return pd.DataFrame({"mes_a": meses_filtrados, nombre_col: [0] * len(meses_filtrados)})
                 return (
-                    df.groupby("Mes_A")["Neto_A"]
+                    df.groupby("mes_a")["neto_a"]
                     .sum()
                     .reindex(meses_filtrados, fill_value=0)
                     .reset_index()
-                    .rename(columns={"Neto_A": nombre_col})
+                    .rename(columns={"neto_a": nombre_col})
                 )
 
             resumen_real = resumir(df_real, "OH_Real")
@@ -4120,7 +4124,7 @@ else:
                 return
 
             # --- Unir datos y calcular diferencias ---
-            resumen = resumen_real.merge(comparativo, on="Mes_A", how="outer").fillna(0)
+            resumen = resumen_real.merge(comparativo, on="mes_a", how="outer").fillna(0)
             resumen["Diferencia"] = resumen["OH_Real"] - resumen[col_compara]
             resumen["% Diferencia"] = resumen.apply(
                 lambda x: (x["Diferencia"] / x[col_compara]) if x[col_compara] != 0 else 0, axis=1
@@ -4136,7 +4140,7 @@ else:
             st.markdown(f"#### 📊 Resultados para CeCo: `{ceco_seleccionado}`")
             st.dataframe(
                 resumen_fmt.rename(columns={
-                    "Mes_A": "Mes",
+                    "mes_a": "Mes",
                     "OH_Real": "Real (MXN)",
                     col_compara: label_compara,
                     "Diferencia": "Diferencia (MXN)",
@@ -4149,7 +4153,7 @@ else:
             # --- Gráfico ---
             fig = px.bar(
                 resumen,
-                x="Mes_A",
+                x="mes_a",
                 y=["OH_Real", col_compara],
                 barmode="group",
                 labels={"value": "Monto (MXN)", "variable": "Tipo"},
@@ -4172,8 +4176,8 @@ else:
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
-
     
+
 
 
 
