@@ -4003,37 +4003,87 @@ else:
 
         import plotly.express as px
 
-        def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato):
+        # --- Filtro CeCo igual que Comercial ---
+        def filtro_ceco(col):
+            cecos_visibles = cecos[cecos["ceco"].astype(str).isin(st.session_state.get("cecos", []))]
+            nombre_a_codigo = dict(zip(cecos_visibles["nombre"], cecos_visibles["ceco"].astype(str)))
+            cecos_dict = {}
+
+            if st.session_state.get("cecos", ["ESGARI"]) == ["ESGARI"]:
+                opciones = ["ESGARI"] + cecos["nombre"].tolist()
+                seleccionados = col.multiselect("Selecciona Centro(s) de Costo (CeCo)", opciones, default=["ESGARI"])
+                if "ESGARI" in seleccionados:
+                    codigos_todos = cecos["ceco"].astype(str).tolist()
+                    cecos_dict["ESGARI"] = codigos_todos
+                seleccion_otros = [s for s in seleccionados if s != "ESGARI"]
+                for nombre in seleccion_otros:
+                    codigo = cecos[cecos["nombre"] == nombre]["ceco"].astype(str).iloc[0]
+                    cecos_dict[nombre] = codigo
+            else:
+                seleccionados = col.multiselect("Selecciona Centro(s) de Costo (CeCo)", list(nombre_a_codigo.keys()))
+                for nombre in seleccionados:
+                    cecos_dict[nombre] = nombre_a_codigo[nombre]
+            return cecos_dict
+
+        # --- Llamada al filtro de CeCo ---
+        st.title("📊 Composición Overhead (OH)")
+        col1, col2 = st.columns(2)
+        ceco_dict = filtro_ceco(col2)
+
+        # Extraer códigos seleccionados
+        lista_cecos_local = []
+        for _nombre, _cod in ceco_dict.items():
+            if isinstance(_cod, list):
+                lista_cecos_local.extend(_cod)
+            else:
+                lista_cecos_local.append(_cod)
+
+        # --- Selector de meses ---
+        meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                 "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+        meses_seleccionados = col1.multiselect(
+            "Selecciona uno o más meses",
+            meses,
+            default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
+        )
+
+        # --- Tipo de dato ---
+        tipo_dato = st.selectbox(
+            "Selecciona el tipo de información a mostrar:",
+            options=["OH", "Presupuesto", "LY"]
+        )
+
+        # --- Función principal ---
+        def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, codigos_ceco, tipo_dato):
             st.subheader(titulo)
 
-            # --- Preprocesamiento común ---
+            # Normalización
             for df in [df_2025, df_ppt, df_ly]:
                 if df is None or df.empty:
                     continue
-                for col in ["Mes_A", "Proyecto_A", "Clasificacion_A"]:
+                for col in ["Mes_A", "Proyecto_A", "Clasificacion_A", "CeCo_A"]:
                     if col in df.columns:
                         df[col] = df[col].astype(str).str.strip().str.lower()
                 if "Neto_A" in df.columns:
                     df["Neto_A"] = pd.to_numeric(df["Neto_A"], errors="coerce").fillna(0)
 
             codigos_oh = ["8002", "8004"]
-            clasificaciones_validas = ['COSS', 'G.ADMN']
+            clasificaciones_validas = ['coss', 'g.admn']
             meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
-            # --- Función auxiliar de filtrado ---
+            # --- Filtro por CeCo y Proyecto ---
             def filtrar_datos(df):
                 if df is None or df.empty:
                     return pd.DataFrame()
                 df_filt = df[
                     (df["Mes_A"].isin(meses_filtrados)) &
                     (df["Proyecto_A"].isin(codigos_oh)) &
-                    (df["Clasificacion_A"].isin([c.lower() for c in clasificaciones_validas]))
+                    (df["Clasificacion_A"].isin(clasificaciones_validas))
                 ]
-                if ceco_seleccionado != "ESGARI" and "ceco_nombre" in df.columns:
-                    df_filt = df_filt[df_filt["ceco_nombre"] == ceco_seleccionado]
+                if codigos_ceco and "ceco_a" in df.columns:
+                    df_filt = df_filt[df_filt["ceco_a"].isin(codigos_ceco)]
                 return df_filt
 
-            # --- Filtrar datasets ---
             df_real = filtrar_datos(df_2025)
             df_ppt_filt = filtrar_datos(df_ppt)
             df_ly_filt = filtrar_datos(df_ly)
@@ -4042,125 +4092,47 @@ else:
                 st.warning("⚠️ No hay datos reales para los filtros seleccionados.")
                 return
 
-            # --- Agregar por mes ---
+            # --- Resumen por mes ---
             def resumir(df, nombre_col):
                 if df.empty:
                     return pd.DataFrame({"Mes_A": meses_filtrados, nombre_col: [0] * len(meses_filtrados)})
-                return (
-                    df.groupby("Mes_A")["Neto_A"].sum().reindex(meses_filtrados, fill_value=0).reset_index().rename(columns={"Neto_A": nombre_col})
-                )
+                return df.groupby("Mes_A")["Neto_A"].sum().reindex(meses_filtrados, fill_value=0).reset_index().rename(columns={"Neto_A": nombre_col})
 
             resumen_real = resumir(df_real, "OH_Real")
             resumen_ppt = resumir(df_ppt_filt, "OH_Presupuesto")
             resumen_ly = resumir(df_ly_filt, "OH_LY")
 
-            # --- Determinar comparativo ---
             tipo = tipo_dato.strip().upper()
             if tipo in ["OH", "PRESUPUESTO"]:
                 comparativo, col_compara, label_compara = resumen_ppt, "OH_Presupuesto", "Presupuesto (MXN)"
             elif tipo == "LY":
                 comparativo, col_compara, label_compara = resumen_ly, "OH_LY", "Año Anterior (LY)"
             else:
-                st.warning("Selecciona 'OH', 'Presupuesto' o 'LY' para mostrar la comparación.")
+                st.warning("Selecciona 'OH', 'Presupuesto' o 'LY'.")
                 return
 
-            # --- Unir datos y calcular diferencias ---
             resumen = resumen_real.merge(comparativo, on="Mes_A", how="outer").fillna(0)
-            resumen["Mes"] = resumen["Mes_A"]
             resumen["Diferencia"] = resumen["OH_Real"] - resumen[col_compara]
             resumen["% Diferencia"] = resumen.apply(
                 lambda x: (x["Diferencia"] / x[col_compara]) if x[col_compara] != 0 else 0, axis=1
             )
 
-            # --- Formato visual ---
-            resumen_fmt = resumen.copy()
-            for col in ["OH_Real", col_compara, "Diferencia"]:
-                resumen_fmt[col] = resumen_fmt[col].apply(lambda x: f"${x:,.2f}")
-            resumen_fmt["% Diferencia"] = resumen_fmt["% Diferencia"].apply(lambda x: f"{x:.1%}")
-
-            # --- Mostrar tabla final ---
-            st.dataframe(
-                resumen_fmt.rename(columns={
-                    "Mes": "Mes",
-                    "OH_Real": "Real (MXN)",
-                    col_compara: label_compara,
-                    "Diferencia": "Diferencia (MXN)",
-                    "% Diferencia": "% Diferencia"
-                })[["Mes", "Real (MXN)", label_compara, "Diferencia (MXN)", "% Diferencia"]],
-                use_container_width=True,
-                hide_index=True
-            )
-
-            # --- Gráfico comparativo ---
-            fig = px.bar(
-                resumen,
-                x="Mes",
-                y=["OH_Real", col_compara],
-                barmode="group",
-                labels={"value": "Monto (MXN)", "variable": "Tipo"},
-                title=f"Comparativa Overhead: Real vs {label_compara.replace('(MXN)', '').strip()}",
-                height=420
-            )
-            fig.update_traces(texttemplate="%{y:,.0f}", textposition="outside")
-            fig.update_layout(
-                template="plotly_white",
-                xaxis=dict(title="Mes", tickangle=-45),
-                yaxis=dict(title="Monto (MXN)", tickformat=","),
-                showlegend=True
-            )
+            # --- Mostrar tabla y gráfico ---
+            st.dataframe(resumen, use_container_width=True, hide_index=True)
+            fig = px.bar(resumen, x="Mes_A", y=["OH_Real", col_compara], barmode="group",
+                         labels={"value": "Monto (MXN)", "variable": "Tipo"},
+                         title=f"Comparativa OH: Real vs {label_compara}")
             st.plotly_chart(fig, use_container_width=True)
 
-        # =============================
-        # INTERFAZ PRINCIPAL STREAMLIT
-        # =============================
-        st.title("📊 Composición Overhead (OH)")
-
-        col1, col2 = st.columns(2)
-
-        # --- Selector de meses ---
-        meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                 "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-
-        meses_seleccionados = col1.multiselect(
-            "Selecciona uno o más meses",
-            meses,
-            default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
-        )
-
-        # --- Detección automática de columna CeCo ---
-        ceco_cols = [c for c in df_2025.columns if c.lower().replace(" ", "").startswith("ceco")]
-        if not ceco_cols:
-            st.error("❌ No se encontró ninguna columna de Centro de Costos en el dataset.")
-            return
-        col_ceco = ceco_cols[0]
-
-        # --- Filtro de CeCo robusto ---
-        cecos_unicos = sorted(df_2025[col_ceco].dropna().astype(str).unique().tolist())
-        if "cecos" in st.session_state and isinstance(st.session_state["cecos"], list):
-            if st.session_state["cecos"] == ["ESGARI"]:
-                opciones_ceco = ["ESGARI"] + cecos_unicos
-                ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", opciones_ceco, index=0)
-            else:
-                opciones_ceco = cecos_unicos
-                ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", opciones_ceco)
-        else:
-            ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", ["ESGARI"] + cecos_unicos)
-
-        # --- Tipo de dato a mostrar ---
-        tipo_dato = st.selectbox(
-            "Selecciona el tipo de información a mostrar:",
-            options=["OH", "Presupuesto", "LY"]
-        )
-
-        # --- Mostrar tablas ---
+        # --- Llamada final ---
         if meses_seleccionados:
             titulo = f"OH {tipo_dato}"
-            tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, ceco_seleccionado, tipo_dato)
+            tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, lista_cecos_local, tipo_dato)
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
-
     
+
 
 
 
