@@ -4040,7 +4040,7 @@ else:
 
         # --- Selector de meses ---
         meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                 "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_seleccionados = col1.multiselect(
             "Selecciona uno o más meses",
             meses,
@@ -4071,7 +4071,7 @@ else:
             clasificaciones_validas = ['coss', 'g.admn']
             meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
-            # --- Filtro por CeCo y Proyecto ---
+            # --- Filtro por Proyecto y CeCo ---
             def filtrar_datos(df):
                 if df is None or df.empty:
                     return pd.DataFrame()
@@ -4084,6 +4084,7 @@ else:
                     df_filt = df_filt[df_filt["ceco_a"].isin(codigos_ceco)]
                 return df_filt
 
+            # --- Filtrar datasets ---
             df_real = filtrar_datos(df_2025)
             df_ppt_filt = filtrar_datos(df_ppt)
             df_ly_filt = filtrar_datos(df_ly)
@@ -4096,7 +4097,13 @@ else:
             def resumir(df, nombre_col):
                 if df.empty:
                     return pd.DataFrame({"Mes_A": meses_filtrados, nombre_col: [0] * len(meses_filtrados)})
-                return df.groupby("Mes_A")["Neto_A"].sum().reindex(meses_filtrados, fill_value=0).reset_index().rename(columns={"Neto_A": nombre_col})
+                return (
+                    df.groupby("Mes_A")["Neto_A"]
+                    .sum()
+                    .reindex(meses_filtrados, fill_value=0)
+                    .reset_index()
+                    .rename(columns={"Neto_A": nombre_col})
+                )
 
             resumen_real = resumir(df_real, "OH_Real")
             resumen_ppt = resumir(df_ppt_filt, "OH_Presupuesto")
@@ -4111,17 +4118,50 @@ else:
                 st.warning("Selecciona 'OH', 'Presupuesto' o 'LY'.")
                 return
 
+            # --- Unir datos y calcular diferencias ---
             resumen = resumen_real.merge(comparativo, on="Mes_A", how="outer").fillna(0)
             resumen["Diferencia"] = resumen["OH_Real"] - resumen[col_compara]
             resumen["% Diferencia"] = resumen.apply(
-                lambda x: (x["Diferencia"] / x[col_compara]) if x[col_compara] != 0 else 0, axis=1
+                lambda x: (x["Diferencia"] / x[col_compara]) if x[col_compara] != 0 else 0,
+                axis=1
             )
 
-            # --- Mostrar tabla y gráfico ---
-            st.dataframe(resumen, use_container_width=True, hide_index=True)
-            fig = px.bar(resumen, x="Mes_A", y=["OH_Real", col_compara], barmode="group",
-                         labels={"value": "Monto (MXN)", "variable": "Tipo"},
-                         title=f"Comparativa OH: Real vs {label_compara}")
+            # --- Formato visual ---
+            resumen_fmt = resumen.copy()
+            for col in ["OH_Real", col_compara, "Diferencia"]:
+                resumen_fmt[col] = resumen_fmt[col].apply(lambda x: f"${x:,.2f}")
+            resumen_fmt["% Diferencia"] = resumen["% Diferencia"].apply(lambda x: f"{x:.2%}")  # ✅ porcentaje
+
+            # --- Mostrar tabla ---
+            st.dataframe(
+                resumen_fmt.rename(columns={
+                    "Mes_A": "Mes",
+                    "OH_Real": "Real (MXN)",
+                    col_compara: label_compara,
+                    "Diferencia": "Diferencia (MXN)",
+                    "% Diferencia": "% Diferencia"
+                })[["Mes", "Real (MXN)", label_compara, "Diferencia (MXN)", "% Diferencia"]],
+                use_container_width=True,
+                hide_index=True
+            )
+
+            # --- Gráfico ---
+            fig = px.bar(
+                resumen,
+                x="Mes_A",
+                y=["OH_Real", col_compara],
+                barmode="group",
+                labels={"value": "Monto (MXN)", "variable": "Tipo"},
+                title=f"Comparativa OH: Real vs {label_compara}",
+                height=420
+            )
+            fig.update_traces(texttemplate="%{y:,.0f}", textposition="outside")
+            fig.update_layout(
+                template="plotly_white",
+                xaxis=dict(title="Mes", tickangle=-45),
+                yaxis=dict(title="Monto (MXN)", tickformat=","),
+                showlegend=True
+            )
             st.plotly_chart(fig, use_container_width=True)
 
         # --- Llamada final ---
@@ -4131,7 +4171,9 @@ else:
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
+
     
+
 
 
 
