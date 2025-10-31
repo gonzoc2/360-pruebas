@@ -4137,7 +4137,6 @@ else:
             resumen_fmt["% Diferencia"] = resumen["% Diferencia"].apply(lambda x: f"{x:.2%}")
 
             # --- Mostrar tabla ---
-            st.markdown(f"#### 📊 Resultados para CeCo: `{ceco_seleccionado}`")
             st.dataframe(
                 resumen_fmt.rename(columns={
                     "mes_a": "Mes",
@@ -4177,6 +4176,7 @@ else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
     
+
 
 
 
