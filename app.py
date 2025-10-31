@@ -4029,8 +4029,8 @@ else:
                     (df["Proyecto_A"].isin(codigos_oh)) &
                     (df["Clasificacion_A"].isin([c.lower() for c in clasificaciones_validas]))
                 ]
-                if ceco_seleccionado != "ESGARI" and "CeCo_Nombre" in df.columns:
-                    df_filt = df_filt[df_filt["CeCo_Nombre"] == ceco_seleccionado]
+                if ceco_seleccionado != "ESGARI" and "ceco_nombre" in df.columns:
+                    df_filt = df_filt[df_filt["ceco_nombre"] == ceco_seleccionado]
                 return df_filt
 
             # --- Filtrar datasets ---
@@ -4124,7 +4124,7 @@ else:
             default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
         )
 
-        lista_cecos = sorted(df_2025["CeCo_Nombre"].dropna().unique())
+        lista_cecos = sorted(df_2025["ceco_nombre"].dropna().unique())
         ceco_seleccionado = col2.selectbox("Selecciona un Centro de Costo (CeCo):", ["ESGARI"] + lista_cecos)
 
         tipo_dato = st.selectbox(
@@ -4141,6 +4141,7 @@ else:
 
 
     
+
 
 
 
