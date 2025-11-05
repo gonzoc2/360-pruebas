@@ -4034,14 +4034,13 @@ else:
         meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
                  "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
-        # 🔹 Detectar último mes con información en df_2025
+        # 🔹 Autoselección de meses hasta el último con datos
         try:
             df_tmp = df_2025.copy()
             df_tmp["Mes_A"] = df_tmp["Mes_A"].astype(str).str.strip().str.lower()
             meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
                            "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
-            # Obtener los meses que tienen algún valor distinto de 0
             meses_disponibles = [
                 m for m in meses_orden
                 if m.lower() in df_tmp["Mes_A"].unique() and df_tmp.loc[df_tmp["Mes_A"] == m.lower(), "Neto_A"].sum() != 0
@@ -4185,6 +4184,26 @@ else:
                     continue
 
                 with st.expander(f" {clasif.upper()}"):
+
+                    # 🔹 Tabla de totales mensuales por clasificación
+                    df_total = (
+                        df_clas.groupby("mes_a", as_index=False)["neto_a"].sum()
+                        .sort_values("mes_a")
+                        .set_index("mes_a")
+                        .T
+                    )
+                    df_total["TOTAL"] = df_total.sum(axis=1)
+                    df_total.reset_index(inplace=True)
+                    df_total.rename(columns={"index": "Clasificación"}, inplace=True)
+                    df_total["Clasificación"] = clasif.upper()
+
+                    # Formato visual
+                    for col in df_total.columns[1:]:
+                        df_total[col] = df_total[col].apply(lambda x: f"${x:,.2f}")
+
+                    st.dataframe(df_total, use_container_width=True, hide_index=True)
+
+                    # 🔹 Desglose por categoría y cuenta
                     df_clas["cuenta_nombre_a"] = df_clas["cuenta_nombre_a"].str.upper()
                     df_group = (
                         df_clas.groupby(["categoria_a", "cuenta_nombre_a", "mes_a"], as_index=False)["neto_a"].sum()
@@ -4229,6 +4248,7 @@ else:
             tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, lista_cecos_local, tipo_dato)
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
+
 
 
 
