@@ -4032,12 +4032,34 @@ else:
         ceco_seleccionado, lista_cecos_local = filtro_ceco(col2)
 
         meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                 "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+
+        # 🔹 Detectar último mes con información en df_2025
+        try:
+            df_tmp = df_2025.copy()
+            df_tmp["Mes_A"] = df_tmp["Mes_A"].astype(str).str.strip().str.lower()
+            meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+
+            # Obtener los meses que tienen algún valor distinto de 0
+            meses_disponibles = [
+                m for m in meses_orden
+                if m.lower() in df_tmp["Mes_A"].unique() and df_tmp.loc[df_tmp["Mes_A"] == m.lower(), "Neto_A"].sum() != 0
+            ]
+
+            if meses_disponibles:
+                ultimo_mes_idx = max(meses_orden.index(m) for m in meses_disponibles)
+                meses_default = meses_orden[:ultimo_mes_idx + 1]
+            else:
+                meses_default = ["ene."]
+
+        except Exception:
+            meses_default = ["ene."]
 
         meses_seleccionados = col1.multiselect(
             "Selecciona uno o más meses",
             meses,
-            default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
+            default=meses_default
         )
 
         tipo_dato = st.selectbox(
@@ -4064,7 +4086,7 @@ else:
             codigos_oh = ["8002", "8004"]
             clasificaciones_validas = ["coss", "g.admn"]
             meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
             meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
             # --- Filtrar datos ---
@@ -4163,7 +4185,6 @@ else:
                     continue
 
                 with st.expander(f" {clasif.upper()}"):
-                    # Sumar netos por cuenta y categoría
                     df_clas["cuenta_nombre_a"] = df_clas["cuenta_nombre_a"].str.upper()
                     df_group = (
                         df_clas.groupby(["categoria_a", "cuenta_nombre_a", "mes_a"], as_index=False)["neto_a"].sum()
