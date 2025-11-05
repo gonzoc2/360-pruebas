@@ -4000,17 +4000,15 @@ else:
         st.plotly_chart(fig, use_container_width=True)
 
     elif selected == "OH":
-
         import plotly.express as px
 
         # --- Filtro de CeCo (solo uno a la vez) ---
         def filtro_ceco(col):
             cecos_visibles = cecos.copy()
-            cecos_visibles["ceco"] = cecos_visibles["ceco"].astype(str).str.strip().str.lower()
+            cecos_visibles["ceco"] = cecos_visibles["ceco"].astype(str).str.strip()
             cecos_visibles["nombre"] = cecos_visibles["nombre"].astype(str).str.strip()
 
             opciones = ["ESGARI"] + sorted(cecos_visibles["nombre"].tolist())
-
             ceco_seleccionado = col.selectbox(
                 "Selecciona un Centro de Costo (CeCo):", opciones, index=0
             )
@@ -4023,7 +4021,6 @@ else:
                 ].tolist()
 
             return ceco_seleccionado, codigos_ceco
-
 
         # --- Interfaz principal ---
         st.title("📊 Composición Overhead (OH)")
@@ -4045,17 +4042,16 @@ else:
             options=["OH", "Presupuesto", "LY"]
         )
 
-
         # --- Función principal ---
         def tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, codigos_ceco, tipo_dato):
             st.subheader(titulo)
 
-            # 🔹 Normalización
+            # Normalización
             for df in [df_2025, df_ppt, df_ly]:
                 if df is None or df.empty:
                     continue
                 df.columns = df.columns.str.strip().str.lower()
-                for col in ["mes_a", "proyecto_a", "clasificacion_a", "ceco_a"]:
+                for col in ["mes_a", "proyecto_a", "clasificacion_a", "categoria_a", "cuenta_nombre_a", "ceco_a"]:
                     if col in df.columns:
                         df[col] = df[col].astype(str).str.strip().str.lower()
                 if "neto_a" in df.columns:
@@ -4065,7 +4061,7 @@ else:
             clasificaciones_validas = ["coss", "g.admn"]
             meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
-            # --- Filtrado principal ---
+            # Filtro principal
             def filtrar_datos(df):
                 if df is None or df.empty:
                     return pd.DataFrame()
@@ -4086,7 +4082,7 @@ else:
                 st.warning("⚠️ No hay datos reales para los filtros seleccionados.")
                 return
 
-            # --- Resumen general por mes ---
+            # Agregados mensuales
             def resumir(df, nombre_col):
                 if df.empty:
                     return pd.DataFrame({"mes_a": meses_filtrados, nombre_col: [0] * len(meses_filtrados)})
@@ -4111,13 +4107,14 @@ else:
                 st.warning("Selecciona 'OH', 'Presupuesto' o 'LY'.")
                 return
 
+            # Merge y cálculo de diferencia
             resumen = resumen_real.merge(comparativo, on="mes_a", how="outer").fillna(0)
             resumen["Diferencia"] = resumen["OH_Real"] - resumen[col_compara]
             resumen["% Diferencia"] = resumen.apply(
                 lambda x: (x["Diferencia"] / x[col_compara]) if x[col_compara] != 0 else 0, axis=1
             )
 
-            # --- Tabla principal ---
+            # Tabla principal
             resumen_fmt = resumen.copy()
             for col in ["OH_Real", col_compara, "Diferencia"]:
                 resumen_fmt[col] = resumen_fmt[col].apply(lambda x: f"${x:,.2f}")
@@ -4135,7 +4132,7 @@ else:
                 hide_index=True
             )
 
-            # --- Gráfico comparativo ---
+            # Gráfico comparativo
             fig = px.bar(
                 resumen,
                 x="mes_a",
@@ -4154,63 +4151,65 @@ else:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # --- Expanders por Clasificación ---
-            for clasificacion in ["coss", "g.admn"]:
-                df_clas = df_real[df_real["clasificacion_a"] == clasificacion]
+            # --- NUEVO BLOQUE: Detalle de Clasificaciones (COSS / G.ADMN) ---
+            for clasif in ["coss", "g.admn"]:
+                df_clas = df_real[df_real["clasificacion_a"] == clasif]
                 if df_clas.empty:
                     continue
 
-                with st.expander(f"{clasificacion.upper()}"):
-                    # Agrupar por categoría y cuenta + mes
+                with st.expander(f"📂 {clasif.upper()}"):
+                    # Agrupar por categoría y cuenta
                     df_group = (
                         df_clas.groupby(["categoria_a", "cuenta_nombre_a", "mes_a"], as_index=False)["neto_a"]
                         .sum()
                     )
 
-                    # Pivotar con meses seleccionados
+                    # Tabla dinámica
                     df_pivot = df_group.pivot_table(
                         index=["categoria_a", "cuenta_nombre_a"],
                         columns="mes_a",
                         values="neto_a",
-                        fill_value=0
-                    ).reset_index()
+                        fill_value=0,
+                    )
+                    df_pivot["Total"] = df_pivot.sum(axis=1)
+                    df_pivot.reset_index(inplace=True)
 
-                    # Agregar total
-                    df_pivot["total"] = df_pivot[[c for c in meses_filtrados if c in df_pivot.columns]].sum(axis=1)
-
-                    # Reordenar columnas
-                    columnas_finales = ["categoria_a", "cuenta_nombre_a"] + [m for m in meses_filtrados if m in df_pivot.columns] + ["total"]
-                    df_pivot = df_pivot[columnas_finales]
-
-                    # Mostrar tabla agrupada por categoría
-                    for categoria in df_pivot["categoria_a"].unique():
-                        df_cat = df_pivot[df_pivot["categoria_a"] == categoria]
-                        subtotal = df_cat[[m for m in meses_filtrados if m in df_cat.columns] + ["total"]].sum().to_dict()
-
-                        # Fila subtotal
-                        fila_subtotal = pd.DataFrame([{
-                            "categoria_a": categoria.upper(),
-                            "cuenta_nombre_a": "TOTAL CATEGORÍA",
-                            **{m: subtotal[m] for m in subtotal}
-                        }])
-
-                        # Concatenar subtotal arriba
-                        df_final = pd.concat([fila_subtotal, df_cat], ignore_index=True)
-
-                        # Formatear montos
-                        for col in [m for m in meses_filtrados if m in df_final.columns] + ["total"]:
-                            df_final[col] = df_final[col].apply(lambda x: f"${x:,.2f}")
-
-                        # Mostrar tabla
-                        st.dataframe(
-                            df_final.rename(columns={
-                                "categoria_a": "Grupo",
-                                "cuenta_nombre_a": "Cuenta"
-                            }),
-                            use_container_width=True,
-                            hide_index=True
+                    # Crear filas de totales por categoría
+                    filas = []
+                    for cat in df_pivot["categoria_a"].unique():
+                        df_cat = df_pivot[df_pivot["categoria_a"] == cat]
+                        subtotal = df_cat.drop(columns=["categoria_a", "cuenta_nombre_a"]).sum()
+                        filas.append(
+                            {"Categoria": cat.upper(), "Cuenta": "", **{col: subtotal[col] for col in subtotal.index}}
                         )
+                        for _, row in df_cat.iterrows():
+                            filas.append(
+                                {
+                                    "Categoria": "",
+                                    "Cuenta": row["cuenta_nombre_a"],
+                                    **{col: row[col] for col in subtotal.index},
+                                }
+                            )
+                    df_final = pd.DataFrame(filas)
 
+                    # Formatear columnas
+                    for col in df_final.columns[2:]:
+                        df_final[col] = df_final[col].apply(lambda x: f"${x:,.2f}")
+
+                    # Fila total general
+                    total_general = (
+                        df_pivot.drop(columns=["categoria_a", "cuenta_nombre_a"])
+                        .sum()
+                        .to_dict()
+                    )
+                    total_general = {
+                        "Categoria": "TOTAL GENERAL",
+                        "Cuenta": "",
+                        **{k: f"${v:,.2f}" for k, v in total_general.items()},
+                    }
+                    df_final = pd.concat([df_final, pd.DataFrame([total_general])], ignore_index=True)
+
+                    st.dataframe(df_final, use_container_width=True, hide_index=True)
 
         # --- Llamada final ---
         if meses_seleccionados:
@@ -4218,7 +4217,7 @@ else:
             tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, lista_cecos_local, tipo_dato)
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
-    
+
 
 
 
