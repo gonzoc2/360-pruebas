@@ -4032,33 +4032,12 @@ else:
         ceco_seleccionado, lista_cecos_local = filtro_ceco(col2)
 
         meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                 "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-
-        # 🔹 Autoselección de meses hasta el último con datos
-        try:
-            df_tmp = df_2025.copy()
-            df_tmp["Mes_A"] = df_tmp["Mes_A"].astype(str).str.strip().str.lower()
-            meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-
-            meses_disponibles = [
-                m for m in meses_orden
-                if m.lower() in df_tmp["Mes_A"].unique() and df_tmp.loc[df_tmp["Mes_A"] == m.lower(), "Neto_A"].sum() != 0
-            ]
-
-            if meses_disponibles:
-                ultimo_mes_idx = max(meses_orden.index(m) for m in meses_disponibles)
-                meses_default = meses_orden[:ultimo_mes_idx + 1]
-            else:
-                meses_default = ["ene."]
-
-        except Exception:
-            meses_default = ["ene."]
+                "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
         meses_seleccionados = col1.multiselect(
             "Selecciona uno o más meses",
             meses,
-            default=meses_default
+            default=["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul."]
         )
 
         tipo_dato = st.selectbox(
@@ -4085,7 +4064,7 @@ else:
             codigos_oh = ["8002", "8004"]
             clasificaciones_validas = ["coss", "g.admn"]
             meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
             meses_filtrados = [m.lower().strip() for m in meses_seleccionados]
 
             # --- Filtrar datos ---
@@ -4184,26 +4163,27 @@ else:
                     continue
 
                 with st.expander(f" {clasif.upper()}"):
-
-                    # 🔹 Tabla de totales mensuales por clasificación
+                    # 🔹 Totales por mes de la clasificación
                     df_total = (
                         df_clas.groupby("mes_a", as_index=False)["neto_a"].sum()
-                        .sort_values("mes_a")
-                        .set_index("mes_a")
-                        .T
                     )
-                    df_total["TOTAL"] = df_total.sum(axis=1)
-                    df_total.reset_index(inplace=True)
-                    df_total.rename(columns={"index": "Clasificación"}, inplace=True)
-                    df_total["Clasificación"] = clasif.upper()
+                    df_total["mes_a"] = pd.Categorical(df_total["mes_a"], categories=meses_orden, ordered=True)
+                    df_total = df_total.sort_values("mes_a")
 
-                    # Formato visual
-                    for col in df_total.columns[1:]:
-                        df_total[col] = df_total[col].apply(lambda x: f"${x:,.2f}")
+                    total_row = pd.DataFrame([{
+                        "mes_a": "TOTAL",
+                        "neto_a": df_total["neto_a"].sum()
+                    }])
+                    df_total = pd.concat([df_total, total_row], ignore_index=True)
 
-                    st.dataframe(df_total, use_container_width=True, hide_index=True)
+                    df_total["neto_a"] = df_total["neto_a"].apply(lambda x: f"${x:,.2f}")
+                    st.dataframe(
+                        df_total.rename(columns={"mes_a": "Mes", "neto_a": "Total (MXN)"}),
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
-                    # 🔹 Desglose por categoría y cuenta
+                    # 🔹 Detalle de Categorías y Cuentas
                     df_clas["cuenta_nombre_a"] = df_clas["cuenta_nombre_a"].str.upper()
                     df_group = (
                         df_clas.groupby(["categoria_a", "cuenta_nombre_a", "mes_a"], as_index=False)["neto_a"].sum()
@@ -4214,7 +4194,7 @@ else:
                         values="neto_a",
                         fill_value=0
                     )
-                    df_pivot = df_pivot[[m for m in meses if m in df_pivot.columns]]
+                    df_pivot = df_pivot[[m for m in meses_orden if m in df_pivot.columns]]
                     df_pivot["Total"] = df_pivot.sum(axis=1)
                     df_pivot.reset_index(inplace=True)
 
@@ -4248,6 +4228,8 @@ else:
             tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, lista_cecos_local, tipo_dato)
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
+
+
 
 
 
