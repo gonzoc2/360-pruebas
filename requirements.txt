@@ -32,12 +32,14 @@ Pillow==9.5.0
 
 gspread
 oauth2client
+socket
 
 google-auth==2.35.0
 google-auth-oauthlib==1.2.0
 google-auth-httplib2==0.2.0
 google-api-core==2.19.2
 google-api-python-client==2.153.0
+
 
 
 
