@@ -4287,24 +4287,28 @@ else:
 
         # --- Si no hay credenciales, permitir conexión ---
         if not creds:
-            if conectar:
-                try:
-                    flow = InstalledAppFlow.from_client_config(
-                        CLIENT_CONFIG,
-                        scopes=["https://www.googleapis.com/auth/gmail.readonly"]
-                    )
+            try:
+                flow = InstalledAppFlow.from_client_config(
+                    CLIENT_CONFIG,
+                    scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+                )
+
+                # Detectar entorno headless
+                if os.environ.get("STREAMLIT_SERVER_HEADLESS", "false") == "true":
+                    st.info("🔐 Ejecutando autenticación en modo consola...")
                     creds = flow.run_console()
+                else:
+                    creds = flow.run_local_server(port=8501)
 
-                    # Guardar token
-                    with open("token.json", "w") as token_file:
-                        token_file.write(creds.to_json())
+                # Guardar token
+                with open("token.json", "w") as token_file:
+                    token_file.write(creds.to_json())
 
-                    st.success("✅ Conectado correctamente con Gmail API")
+                st.success("✅ Conectado correctamente con Gmail API")
 
-                except Exception as e:
-                    st.error(f"❌ Error al autenticar: {e}")
-            else:
-                st.info("Conéctate con Gmail para ver el último boletín.")
+            except Exception as e:
+                st.error(f"❌ Error al autenticar: {e}")
+
         else:
             st.success("✅ Ya estás autenticado con Gmail")
 
@@ -4376,6 +4380,7 @@ else:
 
             except Exception as e:
                 st.error(f"❌ Error al obtener el correo: {e}")
+
 
 
 
