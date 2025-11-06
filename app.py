@@ -4401,7 +4401,6 @@ else:
                     soup = BeautifulSoup(response.text, "html.parser")
 
                     with placeholder.container():
-                        st.info("✅ Documento actualizado correctamente.")
                         for element in soup.find_all(["h1", "h2", "h3", "h4", "h5", "p", "ul", "ol", "li", "img"]):
                             if element.name.startswith("h"):
                                 st.markdown(f"## {element.get_text(strip=True)}")
@@ -4418,14 +4417,6 @@ else:
             except Exception as e:
                 st.error(f"⚠️ Error al cargar el documento: {e}")
 
-        # --- Mostrar contenido inicial o recargar cuando se presione el botón ---
-        if recargar or "pnl_cargado" not in st.session_state:
-            st.session_state["pnl_cargado"] = True
-            placeholder.empty()  # limpia contenido anterior
-            mostrar_documento()
-        else:
-            # Mostrar contenido actual almacenado (sin recargar)
-            placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
 
 
 
