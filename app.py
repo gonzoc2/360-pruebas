@@ -1489,7 +1489,7 @@ else:
                 "speedometer" ,         # Dashboard
                 "trophy",
                 "sliders",
-                "building",            
+                "briefcase",            
                 "currency-dollar",
                 "house-door",
                 "flag",
@@ -4427,6 +4427,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
