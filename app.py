@@ -4276,7 +4276,6 @@ else:
             }
         }
 
-        # --- Verificar token existente ---
         creds = None
         if os.path.exists("token.json"):
             creds = Credentials.from_authorized_user_file("token.json")
@@ -4286,18 +4285,7 @@ else:
             st.markdown("### 📧 Gmail")
             conectar = st.button("🔗 Conectar con Gmail", use_container_width=True)
 
-        def get_free_port(start_port=8080):
-            """Busca un puerto libre para evitar conflicto con Streamlit."""
-            for port in range(start_port, start_port + 50):
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    try:
-                        s.bind(("localhost", port))
-                        return port
-                    except OSError:
-                        continue
-            raise RuntimeError("No hay puertos libres disponibles.")
-
-        # --- Si no hay credenciales, permitir conexión ---
+        # --- Autenticación 100 % manual ---
         if not creds:
             if conectar:
                 try:
@@ -4306,19 +4294,24 @@ else:
                         scopes=["https://www.googleapis.com/auth/gmail.readonly"]
                     )
 
-                    # Detectar si el entorno es headless (sin navegador)
-                    if os.environ.get("STREAMLIT_SERVER_HEADLESS", "false") == "true":
-                        st.info("🔐 Ejecutando autenticación en modo consola...")
-                        creds = flow.run_console()
-                    else:
-                        free_port = get_free_port(8080)
-                        creds = flow.run_local_server(port=free_port)
+                    # 1️⃣ Generar URL de autenticación
+                    auth_url, _ = flow.authorization_url(prompt="consent")
+                    st.markdown(f"🔗 [Haz clic aquí para autorizar Gmail]({auth_url})")
+                    st.info("Tras iniciar sesión, copia el **código de verificación** que te muestra Google y pégalo abajo.")
 
-                    # Guardar token
-                    with open("token.json", "w") as token_file:
-                        token_file.write(creds.to_json())
+                    # 2️⃣ Campo para pegar el código
+                    auth_code = st.text_input("📥 Pega aquí el código de autorización:")
 
-                    st.success("✅ Conectado correctamente con Gmail API")
+                    # 3️⃣ Intercambiar código por token
+                    if auth_code:
+                        flow.fetch_token(code=auth_code)
+                        creds = flow.credentials
+
+                        # Guardar token para futuras sesiones
+                        with open("token.json", "w") as token_file:
+                            token_file.write(creds.to_json())
+
+                        st.success("✅ Conectado correctamente con Gmail API")
 
                 except Exception as e:
                     st.error(f"❌ Error al autenticar: {e}")
@@ -4326,16 +4319,12 @@ else:
                 st.info("Conéctate con Gmail para ver el último boletín.")
         else:
             st.success("✅ Ya estás autenticado con Gmail")
-            
+
             try:
                 # Crear servicio Gmail
                 service = build("gmail", "v1", credentials=creds)
-
-                # Obtener el último correo
                 results = service.users().messages().list(
-                    userId="me",
-                    maxResults=1,
-                    labelIds=["INBOX"]
+                    userId="me", maxResults=1, labelIds=["INBOX"]
                 ).execute()
                 messages = results.get("messages", [])
 
@@ -4343,21 +4332,17 @@ else:
                     st.warning("No hay correos en la bandeja de entrada.")
                 else:
                     msg = service.users().messages().get(
-                        userId="me",
-                        id=messages[0]["id"],
-                        format="full"
+                        userId="me", id=messages[0]["id"], format="full"
                     ).execute()
                     payload = msg["payload"]
                     headers = payload["headers"]
 
-                    # Obtener asunto y remitente
                     subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(Sin asunto)")
                     sender = next((h["value"] for h in headers if h["name"] == "From"), "(Remitente desconocido)")
 
                     st.markdown(f"### ✉️ {subject}")
                     st.caption(f"De: {sender}")
 
-                    # --- Función para procesar todas las partes del correo ---
                     def get_parts(parts):
                         for part in parts:
                             if part.get("parts"):
@@ -4368,33 +4353,14 @@ else:
                     for part in get_parts(payload.get("parts", [])):
                         mime_type = part.get("mimeType")
                         data = part["body"].get("data")
-
                         if mime_type == "text/plain" and data:
-                            text = base64.urlsafe_b64decode(data).decode("utf-8")
-                            st.write(text)
-
-                        elif mime_type.startswith("image/") and data:
-                            image_bytes = base64.urlsafe_b64decode(data)
-                            st.image(image_bytes, caption="Imagen del correo")
-
-                    # --- Botón para descargar el correo completo en HTML ---
-                    html_data = next(
-                        (base64.urlsafe_b64decode(p["body"]["data"]).decode("utf-8")
-                        for p in get_parts(payload.get("parts", []))
-                        if p.get("mimeType") == "text/html"),
-                        None
-                    )
-
-                    if html_data:
-                        st.download_button(
-                            label="⬇️ Descargar correo completo",
-                            data=html_data,
-                            file_name="ultimo_correo.html",
-                            mime="text/html"
-                        )
+                            st.write(base64.urlsafe_b64decode(data).decode("utf-8"))
+                        elif mime_type and mime_type.startswith("image/") and data:
+                            st.image(base64.urlsafe_b64decode(data), caption="Imagen del correo")
 
             except Exception as e:
                 st.error(f"❌ Error al obtener el correo: {e}")
+
 
 
 
