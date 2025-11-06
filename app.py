@@ -4293,7 +4293,7 @@ else:
                         CLIENT_CONFIG,
                         scopes=["https://www.googleapis.com/auth/gmail.readonly"]
                     )
-                    creds = flow.run_local_server(port=0)
+                    creds = flow.run_console()
 
                     # Guardar token
                     with open("token.json", "w") as token_file:
@@ -4376,6 +4376,7 @@ else:
 
             except Exception as e:
                 st.error(f"❌ Error al obtener el correo: {e}")
+
 
 
 
