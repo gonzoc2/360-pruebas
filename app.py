@@ -4185,13 +4185,19 @@ else:
 
                 with st.expander(f" {clasif.upper()}"):
 
-                    # 🔹 Tabla de totales mensuales por clasificación
+                    # 🔹 Tabla de totales mensuales por clasificación (orden ene.-dic.)
+                    meses_orden = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                                   "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+
                     df_total = (
                         df_clas.groupby("mes_a", as_index=False)["neto_a"].sum()
-                        .sort_values("mes_a")
-                        .set_index("mes_a")
-                        .T
                     )
+
+                    # Ordenar correctamente los meses
+                    df_total["mes_a"] = pd.Categorical(df_total["mes_a"], categories=[m.lower() for m in meses_orden], ordered=True)
+                    df_total = df_total.sort_values("mes_a")
+
+                    df_total = df_total.set_index("mes_a").T
                     df_total["TOTAL"] = df_total.sum(axis=1)
                     df_total.reset_index(inplace=True)
                     df_total.rename(columns={"index": "Clasificación"}, inplace=True)
@@ -4203,7 +4209,7 @@ else:
 
                     st.dataframe(df_total, use_container_width=True, hide_index=True)
 
-                    # 🔹 Desglose por categoría y cuenta
+                    # 🔹 Desglose por categoría y cuenta (sin cambios)
                     df_clas["cuenta_nombre_a"] = df_clas["cuenta_nombre_a"].str.upper()
                     df_group = (
                         df_clas.groupby(["categoria_a", "cuenta_nombre_a", "mes_a"], as_index=False)["neto_a"].sum()
@@ -4248,6 +4254,7 @@ else:
             tabla_OH_2(df_2025, df_ppt, df_ly, meses_seleccionados, titulo, lista_cecos_local, tipo_dato)
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
+
 
 
 
