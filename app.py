@@ -15,6 +15,7 @@ from google.oauth2.credentials import Credentials
 import base64
 import os
 import json
+import socket
 
 
 st.set_page_config(
@@ -4394,6 +4395,7 @@ else:
 
             except Exception as e:
                 st.error(f"❌ Error al obtener el correo: {e}")
+
 
 
 
