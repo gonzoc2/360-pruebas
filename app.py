@@ -4416,6 +4416,16 @@ else:
                     st.error("❌ No se pudo acceder al documento. Verifica permisos de compartición.")
             except Exception as e:
                 st.error(f"⚠️ Error al cargar el documento: {e}")
+                
+        # --- Mostrar contenido inicial o recargar cuando se presione el botón ---
+        if recargar or "pnl_cargado" not in st.session_state:
+            st.session_state["pnl_cargado"] = True
+            placeholder.empty()  # limpia contenido anterior
+            mostrar_documento()
+        else:
+            # Mostrar contenido actual almacenado (sin recargar)
+            placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
