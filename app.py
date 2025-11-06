@@ -4366,11 +4366,9 @@ else:
 
     elif selected == "P&L2":
 
+        st.title("P&L SEMANAL")
 
-        st.title("📄 Visualizador de Google Docs - P&L2")
-
-        # --- URL del documento a mostrar ---
-        # 🔹 Sustituye este enlace por el de tu documento (debe estar compartido como “Cualquiera con el enlace”)
+        # --- Configuración del enlace del documento ---
         url = "https://docs.google.com/document/d/1FlwqzokJW2z_HqUmwrJjQ3xnAFlctUaN/edit?usp=sharing&ouid=101175782095158984544&rtpof=true&sd=true"
 
         # --- Función para convertir el enlace en formato exportable ---
@@ -4383,32 +4381,51 @@ else:
             except Exception:
                 return None
 
-        # --- Generar link de exportación y leer documento ---
-        export_link = get_export_link(url)
+        # --- Contenedor dinámico para mostrar el contenido ---
+        placeholder = st.empty()
 
-        if export_link:
-            st.info("⏳ Cargando contenido del documento...")
+        with st.sidebar:
+            st.markdown("### 🔄 Recargar documento")
+            recargar = st.button("📥 Actualizar contenido", use_container_width=True)
+
+        # --- Función para obtener y mostrar el contenido del documento ---
+        def mostrar_documento():
+            export_link = get_export_link(url)
+            if not export_link:
+                st.warning("⚠️ Enlace inválido o mal formateado.")
+                return
+
             try:
                 response = requests.get(export_link)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.text, "html.parser")
 
-                    # --- Mostrar texto e imágenes ---
-                    for element in soup.find_all(["h1", "h2", "h3", "h4", "h5", "p", "ul", "ol", "li", "img"]):
-                        if element.name.startswith("h"):
-                            st.markdown(f"## {element.get_text(strip=True)}")
-                        elif element.name in ["p", "li"]:
-                            st.write(element.get_text(strip=True))
-                        elif element.name == "img":
-                            img_src = element.get("src")
-                            if img_src:
-                                st.image(img_src, use_container_width=True)
+                    with placeholder.container():
+                        st.info("✅ Documento actualizado correctamente.")
+                        for element in soup.find_all(["h1", "h2", "h3", "h4", "h5", "p", "ul", "ol", "li", "img"]):
+                            if element.name.startswith("h"):
+                                st.markdown(f"## {element.get_text(strip=True)}")
+                            elif element.name in ["p", "li"]:
+                                texto = element.get_text(strip=True)
+                                if texto:
+                                    st.write(texto)
+                            elif element.name == "img":
+                                img_src = element.get("src")
+                                if img_src:
+                                    st.image(img_src, use_container_width=True)
                 else:
-                    st.error("❌ No se pudo acceder al documento. Asegúrate de que sea público o compartido con 'Cualquiera con el enlace'.")
+                    st.error("❌ No se pudo acceder al documento. Verifica permisos de compartición.")
             except Exception as e:
                 st.error(f"⚠️ Error al cargar el documento: {e}")
+
+        # --- Mostrar contenido inicial o recargar cuando se presione el botón ---
+        if recargar or "pnl_cargado" not in st.session_state:
+            st.session_state["pnl_cargado"] = True
+            placeholder.empty()  # limpia contenido anterior
+            mostrar_documento()
         else:
-            st.warning("⚠️ Enlace de documento inválido o formato incorrecto.")
+            # Mostrar contenido actual almacenado (sin recargar)
+            placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
 
 
 
