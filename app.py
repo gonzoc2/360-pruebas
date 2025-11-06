@@ -9,6 +9,12 @@ import plotly.express as px
 from plotly import graph_objects as go
 import numpy as np
 from st_aggrid.shared import JsCode
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+import base64
+import os
+import json
 
 st.set_page_config(
     page_title="Esgari 360",
@@ -1462,7 +1468,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido",
-                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","PorProyectos","OH"],
+                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","OH","P&L"],
 
         icons = [
                 "house",                # Resumen
@@ -4255,6 +4261,120 @@ else:
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
+    elif selected == "P&L":
+        st.subheader("📰 Último correo recibido (Boletín)")
+
+        CLIENT_CONFIG = {
+            "installed": {
+                "client_id": st.secrets["gmail"]["client_id"],
+                "client_secret": st.secrets["gmail"]["client_secret"],
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+                "redirect_uris": ["http://localhost"]
+            }
+        }
+
+        # --- Verificar token existente ---
+        creds = None
+        if os.path.exists("token.json"):
+            creds = Credentials.from_authorized_user_file("token.json")
+
+        # --- Botón en la barra lateral ---
+        with st.sidebar:
+            st.markdown("### 📧 Gmail")
+            conectar = st.button("🔗 Conectar con Gmail", use_container_width=True)
+
+        # --- Si no hay credenciales, permitir conexión ---
+        if not creds:
+            if conectar:
+                try:
+                    flow = InstalledAppFlow.from_client_config(
+                        CLIENT_CONFIG,
+                        scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+                    )
+                    creds = flow.run_local_server(port=0)
+
+                    # Guardar token
+                    with open("token.json", "w") as token_file:
+                        token_file.write(creds.to_json())
+
+                    st.success("✅ Conectado correctamente con Gmail API")
+
+                except Exception as e:
+                    st.error(f"❌ Error al autenticar: {e}")
+            else:
+                st.info("Conéctate con Gmail para ver el último boletín.")
+        else:
+            st.success("✅ Ya estás autenticado con Gmail")
+
+            try:
+                # Crear servicio Gmail
+                service = build("gmail", "v1", credentials=creds)
+
+                # Obtener el último correo
+                results = service.users().messages().list(
+                    userId="me",
+                    maxResults=1,
+                    labelIds=["INBOX"]
+                ).execute()
+                messages = results.get("messages", [])
+
+                if not messages:
+                    st.warning("No hay correos en la bandeja de entrada.")
+                else:
+                    msg = service.users().messages().get(
+                        userId="me",
+                        id=messages[0]["id"],
+                        format="full"
+                    ).execute()
+                    payload = msg["payload"]
+                    headers = payload["headers"]
+
+                    # Obtener asunto y remitente
+                    subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(Sin asunto)")
+                    sender = next((h["value"] for h in headers if h["name"] == "From"), "(Remitente desconocido)")
+
+                    st.markdown(f"### ✉️ {subject}")
+                    st.caption(f"De: {sender}")
+
+                    # --- Función para procesar todas las partes del correo ---
+                    def get_parts(parts):
+                        for part in parts:
+                            if part.get("parts"):
+                                yield from get_parts(part["parts"])
+                            else:
+                                yield part
+
+                    for part in get_parts(payload.get("parts", [])):
+                        mime_type = part.get("mimeType")
+                        data = part["body"].get("data")
+
+                        if mime_type == "text/plain" and data:
+                            text = base64.urlsafe_b64decode(data).decode("utf-8")
+                            st.write(text)
+
+                        elif mime_type.startswith("image/") and data:
+                            image_bytes = base64.urlsafe_b64decode(data)
+                            st.image(image_bytes, caption="Imagen del correo")
+
+                    # --- Botón para descargar el correo completo en HTML ---
+                    html_data = next(
+                        (base64.urlsafe_b64decode(p["body"]["data"]).decode("utf-8")
+                        for p in get_parts(payload.get("parts", []))
+                        if p.get("mimeType") == "text/html"),
+                        None
+                    )
+
+                    if html_data:
+                        st.download_button(
+                            label="⬇️ Descargar correo completo",
+                            data=html_data,
+                            file_name="ultimo_correo.html",
+                            mime="text/html"
+                        )
+
+            except Exception as e:
+                st.error(f"❌ Error al obtener el correo: {e}")
 
 
 
