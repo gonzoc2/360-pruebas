@@ -1472,7 +1472,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido",
-                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","OH","P&L","P&L2"],
+                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","OH","Comentarios"],
 
         icons = [
                 "house",                # Resumen
@@ -1490,21 +1490,23 @@ else:
                 "trophy",
                 "sliders",
                 "dollar",
+                "house-door",
+                "flag",
             ],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "director" or st.session_state["rol"] == "admin":
         selected = option_menu(
         menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Ratios", "Comercial","P&L2"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "graph-up", "person-gear", "percent"],
+        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Ratios", "Comercial","OH","Comentarios"],
+        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "graph-up", "person-gear", "percent","dollar","house-door","flag"],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "gerente":
         selected = option_menu(
         menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Comercial","P&L2"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "graph-up", "person-gear"],
+        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Comercial","Comentarios"],
+        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "graph-up", "person-gear","dollar","flag"],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "ceco":
@@ -1518,7 +1520,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=[ "Comercial"],
-        icons=["bar-chart"],
+        icons=["dollar"],
         default_index=0,
         orientation="horizontal",)   
 
@@ -4364,9 +4366,9 @@ else:
             except Exception as e:
                 st.error(f"❌ Error al obtener el correo: {e}")
 
-    elif selected == "P&L2":
+    elif selected == "Comentarios":
 
-        st.title("P&L SEMANAL")
+        st.title("Análisis Semanal")
 
         # --- Configuración del enlace del documento ---
         url = "https://docs.google.com/document/d/1FlwqzokJW2z_HqUmwrJjQ3xnAFlctUaN/edit?usp=sharing&ouid=101175782095158984544&rtpof=true&sd=true"
@@ -4385,7 +4387,6 @@ else:
         placeholder = st.empty()
 
         with st.sidebar:
-            st.markdown("### 🔄 Recargar documento")
             recargar = st.button("📥 Actualizar contenido", use_container_width=True)
 
         # --- Función para obtener y mostrar el contenido del documento ---
@@ -4425,6 +4426,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
