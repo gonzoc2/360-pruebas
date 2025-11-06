@@ -4285,33 +4285,47 @@ else:
             st.markdown("### 📧 Gmail")
             conectar = st.button("🔗 Conectar con Gmail", use_container_width=True)
 
+        def get_free_port(start_port=8080):
+            """Busca un puerto libre para evitar conflicto con Streamlit."""
+            for port in range(start_port, start_port + 50):
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    try:
+                        s.bind(("localhost", port))
+                        return port
+                    except OSError:
+                        continue
+            raise RuntimeError("No hay puertos libres disponibles.")
+
         # --- Si no hay credenciales, permitir conexión ---
         if not creds:
-            try:
-                flow = InstalledAppFlow.from_client_config(
-                    CLIENT_CONFIG,
-                    scopes=["https://www.googleapis.com/auth/gmail.readonly"]
-                )
+            if conectar:
+                try:
+                    flow = InstalledAppFlow.from_client_config(
+                        CLIENT_CONFIG,
+                        scopes=["https://www.googleapis.com/auth/gmail.readonly"]
+                    )
 
-                # Detectar entorno headless
-                if os.environ.get("STREAMLIT_SERVER_HEADLESS", "false") == "true":
-                    st.info("🔐 Ejecutando autenticación en modo consola...")
-                    creds = flow.run_console()
-                else:
-                    creds = flow.run_local_server(port=8501)
+                    # Detectar si el entorno es headless (sin navegador)
+                    if os.environ.get("STREAMLIT_SERVER_HEADLESS", "false") == "true":
+                        st.info("🔐 Ejecutando autenticación en modo consola...")
+                        creds = flow.run_console()
+                    else:
+                        free_port = get_free_port(8080)
+                        creds = flow.run_local_server(port=free_port)
 
-                # Guardar token
-                with open("token.json", "w") as token_file:
-                    token_file.write(creds.to_json())
+                    # Guardar token
+                    with open("token.json", "w") as token_file:
+                        token_file.write(creds.to_json())
 
-                st.success("✅ Conectado correctamente con Gmail API")
+                    st.success("✅ Conectado correctamente con Gmail API")
 
-            except Exception as e:
-                st.error(f"❌ Error al autenticar: {e}")
-
+                except Exception as e:
+                    st.error(f"❌ Error al autenticar: {e}")
+            else:
+                st.info("Conéctate con Gmail para ver el último boletín.")
         else:
             st.success("✅ Ya estás autenticado con Gmail")
-
+            
             try:
                 # Crear servicio Gmail
                 service = build("gmail", "v1", credentials=creds)
@@ -4380,6 +4394,7 @@ else:
 
             except Exception as e:
                 st.error(f"❌ Error al obtener el correo: {e}")
+
 
 
 
