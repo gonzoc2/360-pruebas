@@ -16,6 +16,8 @@ import base64
 import os
 import json
 import socket
+from bs4 import BeautifulSoup
+from urllib.parse import urlparse, parse_qs
 
 
 st.set_page_config(
@@ -1470,7 +1472,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido",
-                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","OH","P&L"],
+                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","OH","P&L","P&L2"],
 
         icons = [
                 "house",                # Resumen
@@ -4361,6 +4363,53 @@ else:
 
             except Exception as e:
                 st.error(f"❌ Error al obtener el correo: {e}")
+
+    elif selected == "P&L2":
+
+        # --- Entrada del enlace ---
+        st.markdown("### 🔗 Ingresa el enlace del documento de Google Docs")
+        url = st.text_input("Enlace del documento", 
+                            placeholder="https://docs.google.com/document/d/ID_DEL_DOC/edit?usp=sharing")
+
+        def get_export_link(doc_url: str):
+            """Convierte un enlace de Google Docs en su formato exportable HTML."""
+            try:
+                parsed = urlparse(doc_url)
+                doc_id = parsed.path.split("/d/")[1].split("/")[0]
+                return f"https://docs.google.com/document/d/{doc_id}/export?format=html"
+            except Exception:
+                return None
+
+        if url:
+            export_link = get_export_link(url)
+
+            if export_link:
+                st.info("⏳ Cargando contenido del documento...")
+                try:
+                    response = requests.get(export_link)
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.text, "html.parser")
+
+                        # --- Mostrar contenido (texto e imágenes) ---
+                        for element in soup.find_all(["p", "h1", "h2", "h3", "h4", "h5", "img"]):
+                            if element.name.startswith("h"):
+                                st.markdown(f"## {element.get_text(strip=True)}")
+                            elif element.name == "p":
+                                st.write(element.get_text(strip=True))
+                            elif element.name == "img":
+                                img_src = element.get("src")
+                                if img_src.startswith("data:image"):
+                                    st.image(img_src, use_container_width=True)
+                                else:
+                                    st.image(img_src, use_container_width=True)
+                    else:
+                        st.error("❌ No se pudo acceder al documento. Verifica que el enlace sea público o compartido con 'Cualquiera con el enlace'.")
+                except Exception as e:
+                    st.error(f"⚠️ Error al cargar el documento: {e}")
+            else:
+                st.warning("⚠️ El enlace ingresado no parece ser válido. Asegúrate de usar el formato correcto.")
+        else:
+            st.info("👆 Ingresa un enlace de Google Docs para mostrar su contenido.")
 
 
 
