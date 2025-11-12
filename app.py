@@ -3217,7 +3217,11 @@ else:
     elif selected == "Ratios":
         st.title("📊 Análisis de Ratios Personalizados")
 
+        # --- Filtro de proyectos ---
         def filtro_pro_ratios(col):
+            if "proyectos" not in st.session_state:
+                st.session_state["proyectos"] = ["ESGARI"]
+
             df_visibles = proyectos[proyectos["proyectos"].astype(str).isin(st.session_state["proyectos"])]
             nombre_a_codigo = dict(zip(df_visibles["nombre"], df_visibles["proyectos"].astype(str)))
             proyectos_dict = {}
@@ -3230,7 +3234,7 @@ else:
                     proyectos_dict["ESGARI"] = codigos_todos
                 seleccion_otros = [s for s in seleccionados if s != "ESGARI"]
                 for nombre in seleccion_otros:
-                    codigo = proyectos[proyectos["nombre"] == nombre]["proyectos"].astype(str).iloc[0]
+                    codigo = proyectos.loc[proyectos["nombre"] == nombre, "proyectos"].astype(str).iloc[0]
                     proyectos_dict[nombre] = codigo
             else:
                 seleccionados = col.multiselect("Selecciona proyecto(s)", list(nombre_a_codigo.keys()))
@@ -3240,6 +3244,7 @@ else:
 
         dic_proyectos = filtro_pro_ratios(st)
 
+        # --- Lista total de códigos de proyectos seleccionados ---
         lista_proyectos_local = []
         for _nombre, _cod in dic_proyectos.items():
             if isinstance(_cod, list):
@@ -3247,24 +3252,21 @@ else:
             else:
                 lista_proyectos_local.append(_cod)
 
+        # --- Filtro de meses ---
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
                         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
 
+        # --- Número de ratios ---
         num_ratios = st.number_input("¿Cuántos ratios deseas analizar?", min_value=1, max_value=4, value=1, step=1)
 
+        # --- Mapas de campos ---
         campo_map = {
             "Clasificación": "Clasificacion_A",
             "Categoría": "Categoria_A",
             "Cuenta": "Cuenta_Nombre_A",
             "Estado de Resultado": "ER",
-        }
-
-        campo_map_ly = {
-            "Clasificación ly": "Clasificacion_A",
-            "Categoría ly": "Categoria_A",
-            "Cuenta ly": "Cuenta_Nombre_A",
         }
 
         er_label_to_key = {
@@ -3284,6 +3286,7 @@ else:
         }
         er_labels = list(er_label_to_key.keys())
 
+        # --- Configuración de ratios ---
         ratio_config = []
         for i in range(num_ratios):
             with st.expander(f"⚙️ Configuración del Ratio {i+1}", expanded=(i == 0)):
@@ -3346,6 +3349,7 @@ else:
                     "extra_den": den_extra,
                 })
 
+        # --- Cálculo de ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
             if not isinstance(codigos, list):
@@ -3356,66 +3360,85 @@ else:
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 er_vals = {}
+                er_vals_ly = {}
                 if necesita_er:
                     er_vals = estado_resultado(df_2025, [mes], proyecto, codigos, lista_proyectos_local)
+                    er_vals_ly = estado_resultado(base_ly, [mes], proyecto, codigos, lista_proyectos_local)
 
                 for config in ratio_config:
-                    # Numerador
+                    # Numerador actual
                     if config["campo_num"] == "ER":
                         num = float(er_vals.get(er_label_to_key[config["valor_num"]], 0))
+                        num_ly = float(er_vals_ly.get(er_label_to_key[config["valor_num"]], 0))
                     else:
                         num = float(df_mes[df_mes[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
                         num_ly = float(df_mes_ly[df_mes_ly[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
-                        num += num_ly
                         if config["extra_num"]:
                             num += float(df_mes[df_mes[config["extra_num"]["campo"]] == config["extra_num"]["valor"]]["Neto_A"].sum())
+                            num_ly += float(df_mes_ly[df_mes_ly[config["extra_num"]["campo"]] == config["extra_num"]["valor"]]["Neto_A"].sum())
 
-                    # Denominador
+                    # Denominador actual
                     if config["campo_den"] == "ER":
                         den = float(er_vals.get(er_label_to_key[config["valor_den"]], 0))
+                        den_ly = float(er_vals_ly.get(er_label_to_key[config["valor_den"]], 0))
                     else:
                         den = float(df_mes[df_mes[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
                         den_ly = float(df_mes_ly[df_mes_ly[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
-                        den += den_ly
                         if config["extra_den"]:
                             den += float(df_mes[df_mes[config["extra_den"]["campo"]] == config["extra_den"]["valor"]]["Neto_A"].sum())
+                            den_ly += float(df_mes_ly[df_mes_ly[config["extra_den"]["campo"]] == config["extra_den"]["valor"]]["Neto_A"].sum())
 
                     ratio = num / den if den != 0 else 0
+                    ratio_ly = num_ly / den_ly if den_ly != 0 else 0
+
                     resultados.append({
                         "Mes": mes,
                         "Proyecto": proyecto,
-                        "Ratio": ratio,
-                        "Nombre": config["nombre"]
+                        "Nombre": config["nombre"],
+                        "Numerador": num,
+                        "Denominador": den,
+                        "Ratio (%)": ratio * 100,
+                        "Numerador_LY": num_ly,
+                        "Denominador_LY": den_ly,
+                        "Ratio_LY (%)": ratio_ly * 100,
                     })
 
+        # --- Resultados finales ---
         df_result = pd.DataFrame(resultados)
         df_result["Mes"] = pd.Categorical(df_result["Mes"], categories=meses_ordenados, ordered=True)
         df_result = df_result.sort_values(["Nombre", "Proyecto", "Mes"])
 
         if not df_result.empty:
-            st.subheader("📈 Evolución de Ratios")
+            st.subheader("📈 Evolución de Ratios vs LY")
+            df_plot = df_result.melt(
+                id_vars=["Mes", "Proyecto", "Nombre"],
+                value_vars=["Ratio (%)", "Ratio_LY (%)"],
+                var_name="Tipo",
+                value_name="Valor"
+            )
+
             fig = px.line(
-                df_result,
+                df_plot,
                 x="Mes",
-                y="Ratio",
+                y="Valor",
                 color="Nombre",
-                line_dash="Proyecto",
+                line_dash="Tipo",
                 markers=True,
-                title="Ratios por mes y proyecto"
+                title="Ratios actuales vs LY (%)"
             )
             fig.update_layout(
                 height=500,
-                legend_title_text="Ratio",
+                legend_title_text="Tipo de Ratio",
                 xaxis_title="Mes",
-                yaxis_title="Valor del ratio"
+                yaxis_title="Valor (%)"
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            st.subheader("📋 Tabla de resultados")
+            st.subheader("📋 Tabla de resultados (Actual vs LY)")
             st.dataframe(df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
-
+            
     elif selected == "Dashboard":
         st.title("📊 Dashboard Ejecutivo")
 
@@ -4406,6 +4429,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
