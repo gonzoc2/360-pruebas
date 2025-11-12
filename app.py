@@ -3254,7 +3254,6 @@ else:
 
         num_ratios = st.number_input("¿Cuántos ratios deseas analizar?", min_value=1, max_value=4, value=1, step=1)
 
-        # 🟩 Mapas extendidos para incluir Clasificación, Categoría y versiones LY
         campo_map = {
             "Clasificación": "Clasificacion_A",
             "Categoría": "Categoria_A",
@@ -3291,7 +3290,7 @@ else:
                 nombre = st.text_input(f"Nombre del Ratio {i+1}", value=f"Ratio {i+1}", key=f"ratio_name_{i}")
                 col1, col2 = st.columns(2)
 
-                # 🟦 Numerador
+                # Numerador
                 tipo_num = col1.selectbox("Campo Numerador", list(campo_map.keys()), key=f"tipo_num_{i}")
                 if campo_map[tipo_num] == "ER":
                     valor_num = col1.selectbox("Valor Numerador", er_labels, key=f"val_num_{i}")
@@ -3314,7 +3313,7 @@ else:
                     else:
                         num_extra = None
 
-                # 🟥 Denominador
+                # Denominador
                 tipo_den = col2.selectbox("Campo Denominador", list(campo_map.keys()), key=f"tipo_den_{i}")
                 if campo_map[tipo_den] == "ER":
                     valor_den = col2.selectbox("Valor Denominador", er_labels, key=f"val_den_{i}")
@@ -3353,7 +3352,7 @@ else:
                 codigos = [codigos]
             for mes in meses_sel:
                 df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))]
-                df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]  # 🟩 Datos LY
+                df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 er_vals = {}
@@ -3361,18 +3360,17 @@ else:
                     er_vals = estado_resultado(df_2025, [mes], proyecto, codigos, lista_proyectos_local)
 
                 for config in ratio_config:
-                    # 🟦 Numerador
+                    # Numerador
                     if config["campo_num"] == "ER":
                         num = float(er_vals.get(er_label_to_key[config["valor_num"]], 0))
                     else:
                         num = float(df_mes[df_mes[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
-                        # Si existe LY, usarlo como complemento (opcional)
                         num_ly = float(df_mes_ly[df_mes_ly[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
-                        num += num_ly  # se puede ajustar la ponderación si se desea
+                        num += num_ly
                         if config["extra_num"]:
                             num += float(df_mes[df_mes[config["extra_num"]["campo"]] == config["extra_num"]["valor"]]["Neto_A"].sum())
 
-                    # 🟥 Denominador
+                    # Denominador
                     if config["campo_den"] == "ER":
                         den = float(er_vals.get(er_label_to_key[config["valor_den"]], 0))
                     else:
@@ -4408,6 +4406,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
