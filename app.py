@@ -3288,7 +3288,7 @@ else:
 
         # --- Filtro de meses ---
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
 
@@ -3345,7 +3345,6 @@ else:
         # --- Calcular Estado de Resultados y Ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
-            # 🔧 Asegurar que 'codigos' siempre sea lista
             if isinstance(codigos, str):
                 codigos = [codigos]
             elif isinstance(codigos, (list, tuple)) and len(codigos) == 1 and isinstance(codigos[0], (list, tuple)):
@@ -3358,7 +3357,7 @@ else:
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 if necesita_er:
                     # --- Estado de Resultados 2025 ---
-                    ingreso_proyecto = ingreso(df_mes, [mes], proyecto)
+                    ingreso_proyecto = ingreso(df_mes, [mes], proyecto, proyecto)
                     coss_pro, _ = coss(df_mes, [mes], proyecto, proyecto, codigos)
                     patio_pro = patio(df_mes, [mes], proyecto, proyecto)
                     coss_total = coss_pro + patio_pro
@@ -3389,7 +3388,7 @@ else:
                     }
 
                     # --- Estado de Resultados LY ---
-                    ingreso_proyecto_ly = ingreso(df_mes_ly, [mes], proyecto)
+                    ingreso_proyecto_ly = ingreso(df_mes_ly, [mes], proyecto, proyecto)
                     coss_pro_ly, _ = coss(df_mes_ly, [mes], proyecto, proyecto, codigos)
                     patio_pro_ly = patio(df_mes_ly, [mes], proyecto, proyecto)
                     coss_total_ly = coss_pro_ly + patio_pro_ly
@@ -3451,7 +3450,7 @@ else:
                         "Δ Ratio (%)": (ratio - ratio_ly) * 100
                     })
 
-        # --- Mostrar resultados finales ---
+        # --- Mostrar resultados ---
         df_result = pd.DataFrame(resultados)
         if not df_result.empty:
             df_result["Mes"] = pd.Categorical(df_result["Mes"], categories=meses_ordenados, ordered=True)
@@ -4477,6 +4476,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
