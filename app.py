@@ -3214,10 +3214,10 @@ else:
             use_container_width=True
     )
 
-    elif selected == "Ratios": 
+    elif selected == "Ratios":
         st.title("📊 Análisis de Ratios Personalizados")
 
-        # --- Cargar base LY ---
+        # --- Cargar base_ly si viene como URL ---
         if isinstance(base_ly, str):
             try:
                 response = requests.get(base_ly)
@@ -3228,7 +3228,7 @@ else:
                 st.error(f"❌ No se pudo cargar base_ly desde la URL: {e}")
                 st.stop()
 
-        # --- Normalizar meses ---
+        # --- Normalizar columnas clave ---
         def normalizar_mes(mes):
             if not isinstance(mes, str):
                 return mes
@@ -3263,6 +3263,7 @@ else:
 
             nombre_a_codigo = dict(zip(df_visibles["nombre"], df_visibles["proyectos"]))
             proyectos_dict = {}
+
             opciones = ["ESGARI"] + sorted(df_visibles["nombre"].unique().tolist())
             seleccionados = col.multiselect("Selecciona proyecto(s)", opciones, default=["ESGARI"])
 
@@ -3274,14 +3275,18 @@ else:
                     proyectos_dict[nombre] = [nombre_a_codigo[nombre]]
 
             for k, v in proyectos_dict.items():
-                proyectos_dict[k] = [str(x) for x in v] if isinstance(v, list) else [str(v)]
+                if isinstance(v, list):
+                    proyectos_dict[k] = [str(x) for x in v]
+                else:
+                    proyectos_dict[k] = [str(v)]
+
             return proyectos_dict
 
         dic_proyectos = filtro_pro_ratios(st)
 
         # --- Filtro de meses ---
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
 
@@ -3299,6 +3304,7 @@ else:
             "Gastos financieros", "Ingresos financieros", "Resultado financiero", "EBT"
         ]
 
+        # --- Configuración de ratios ---
         num_ratios = st.number_input("¿Cuántos ratios deseas analizar?", min_value=1, max_value=4, value=1, step=1)
         ratio_config = []
         for i in range(num_ratios):
@@ -3334,27 +3340,27 @@ else:
                     "valor_den": valor_den,
                 })
 
-        # --- Cálculo de ratios ---
+        # --- Calcular Estado de Resultados y Ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
             for mes in meses_sel:
                 df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))]
                 df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]
 
-                # Calcular ER solo si se necesita
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 if necesita_er:
-                    ingreso_proyecto = ingreso(df_2025, [mes], proyecto, proyecto)
-                    coss_pro, _ = coss(df_2025, [mes], proyecto, proyecto, codigos)
-                    patio_pro = patio(df_2025, [mes], proyecto, proyecto)
+                    # --- Estado de Resultados 2025 ---
+                    ingreso_proyecto = ingreso(df_mes, [mes], proyecto, codigos)
+                    coss_pro, _ = coss(df_mes, [mes], proyecto, proyecto, codigos)
+                    patio_pro = patio(df_mes, [mes], proyecto, proyecto)
                     coss_total = coss_pro + patio_pro
                     utilidad_bruta = ingreso_proyecto - coss_total
-                    gadmn_pro, _ = gadmn(df_2025, [mes], proyecto, proyecto, codigos)
+                    gadmn_pro, _ = gadmn(df_mes, [mes], proyecto, proyecto, codigos)
                     utilidad_operativa = utilidad_bruta - gadmn_pro
-                    oh_pro = oh(df_2025, [mes], proyecto, proyecto)
+                    oh_pro = oh(df_mes, [mes], proyecto, proyecto)
                     ebit = utilidad_operativa - oh_pro
-                    gasto_fin_pro, _, _ = gasto_fin(df_2025, [mes], proyecto, proyecto, codigos)
-                    ingreso_fin_pro, _, _ = ingreso_fin(df_2025, [mes], proyecto, proyecto, codigos)
+                    gasto_fin_pro, _, _ = gasto_fin(df_mes, [mes], proyecto, proyecto, codigos)
+                    ingreso_fin_pro, _, _ = ingreso_fin(df_mes, [mes], proyecto, proyecto, codigos)
                     resultado_fin = ingreso_fin_pro - gasto_fin_pro
                     ebt = ebit + resultado_fin
 
@@ -3374,17 +3380,18 @@ else:
                         "EBT": ebt
                     }
 
-                    ingreso_proyecto_ly = ingreso(base_ly, [mes], proyecto, proyecto)
-                    coss_pro_ly, _ = coss(base_ly, [mes], proyecto, proyecto, codigos)
-                    patio_pro_ly = patio(base_ly, [mes], proyecto, proyecto)
+                    # --- Estado de Resultados LY ---
+                    ingreso_proyecto_ly = ingreso(df_mes_ly, [mes], proyecto, codigos)
+                    coss_pro_ly, _ = coss(df_mes_ly, [mes], proyecto, proyecto, codigos)
+                    patio_pro_ly = patio(df_mes_ly, [mes], proyecto, proyecto)
                     coss_total_ly = coss_pro_ly + patio_pro_ly
                     utilidad_bruta_ly = ingreso_proyecto_ly - coss_total_ly
-                    gadmn_pro_ly, _ = gadmn(base_ly, [mes], proyecto, proyecto, codigos)
+                    gadmn_pro_ly, _ = gadmn(df_mes_ly, [mes], proyecto, proyecto, codigos)
                     utilidad_operativa_ly = utilidad_bruta_ly - gadmn_pro_ly
-                    oh_pro_ly = oh(base_ly, [mes], proyecto, proyecto)
+                    oh_pro_ly = oh(df_mes_ly, [mes], proyecto, proyecto)
                     ebit_ly = utilidad_operativa_ly - oh_pro_ly
-                    gasto_fin_pro_ly, _, _ = gasto_fin(base_ly, [mes], proyecto, proyecto, codigos)
-                    ingreso_fin_pro_ly, _, _ = ingreso_fin(base_ly, [mes], proyecto, proyecto, codigos)
+                    gasto_fin_pro_ly, _, _ = gasto_fin(df_mes_ly, [mes], proyecto, proyecto, codigos)
+                    ingreso_fin_pro_ly, _, _ = ingreso_fin(df_mes_ly, [mes], proyecto, proyecto, codigos)
                     resultado_fin_ly = ingreso_fin_pro_ly - gasto_fin_pro_ly
                     ebt_ly = ebit_ly + resultado_fin_ly
 
@@ -3404,9 +3411,8 @@ else:
                         "EBT": ebt_ly
                     }
 
-                # --- Ratios ---
+                # --- Cálculo de ratios ---
                 for config in ratio_config:
-                    # --- Numerador ---
                     if config["campo_num"] == "ER":
                         num = float(er_vals.get(config["valor_num"], 0))
                         num_ly = float(er_ly.get(config["valor_num"], 0))
@@ -3414,7 +3420,6 @@ else:
                         num = float(df_mes[df_mes[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
                         num_ly = float(df_mes_ly[df_mes_ly[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
 
-                    # --- Denominador ---
                     if config["campo_den"] == "ER":
                         den = float(er_vals.get(config["valor_den"], 0))
                         den_ly = float(er_ly.get(config["valor_den"], 0))
@@ -3422,7 +3427,6 @@ else:
                         den = float(df_mes[df_mes[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
                         den_ly = float(df_mes_ly[df_mes_ly[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
 
-                    # --- Calcular ratios ---
                     ratio = num / den if den != 0 else 0
                     ratio_ly = num_ly / den_ly if den_ly != 0 else 0
 
@@ -3439,7 +3443,7 @@ else:
                         "Δ Ratio (%)": (ratio - ratio_ly) * 100
                     })
 
-        # --- Gráfico y tabla de ratios (único para todos los casos) ---
+        # --- Mostrar resultados finales ---
         df_result = pd.DataFrame(resultados)
         if not df_result.empty:
             df_result["Mes"] = pd.Categorical(df_result["Mes"], categories=meses_ordenados, ordered=True)
@@ -3452,6 +3456,7 @@ else:
                 var_name="Tipo",
                 value_name="Valor"
             )
+
             fig = px.line(
                 df_plot,
                 x="Mes",
@@ -3473,6 +3478,7 @@ else:
             st.dataframe(df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
+
             
     elif selected == "Dashboard":
         st.title("📊 Dashboard Ejecutivo")
@@ -4464,6 +4470,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
