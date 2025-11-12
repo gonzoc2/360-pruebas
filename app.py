@@ -3368,6 +3368,22 @@ else:
                 er_vals = {}
                 if necesita_er:
                     er_vals = estado_resultado(df_2025, [mes], proyecto, codigos, codigos)
+                    er_ly = estado_resultado(base_ly, [mes], proyecto, codigos, codigos)
+
+                    st.markdown(f"### 📊 Comparativo ER {proyecto} — {mes.upper()}")
+
+                    def trend_card(label, actual, ly):
+                        col1, col2, col3 = st.columns(3)
+                        col1.metric("Concepto", label)
+                        col2.metric("Actual (2025)", f"${actual:,.0f}")
+                        col3.metric("vs LY", f"${actual - ly:,.0f}",
+                                    f"{((actual / ly) - 1) * 100:.1f}%" if ly != 0 else "N/A")
+
+                    trend_card("Ingreso", er_vals.get("ingreso_proyecto", 0), er_ly.get("ingreso_proyecto", 0))
+                    trend_card("COSS", er_vals.get("coss_total", 0), er_ly.get("coss_total", 0))
+                    trend_card("G.ADMN", er_vals.get("gadmn_pro", 0), er_ly.get("gadmn_pro", 0))
+                    trend_card("Gasto Financiero", er_vals.get("gasto_fin_pro", 0), er_ly.get("gasto_fin_pro", 0))
+                    trend_card("EBT", er_vals.get("ebt", 0), er_ly.get("ebt", 0))
 
                 for config in ratio_config:
                     if config["campo_num"] == "ER":
@@ -4426,6 +4442,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
