@@ -3255,38 +3255,29 @@ else:
 
         # --- Filtro de proyectos ---
         def filtro_pro_ratios(col):
-            try:
-                if "proyectos" not in st.session_state:
-                    st.session_state["proyectos"] = ["ESGARI"]
+            df_visibles = proyectos.copy()
+            df_visibles["proyectos"] = df_visibles["proyectos"].astype(str)
+            df_visibles["nombre"] = df_visibles["nombre"].astype(str)
 
-                df_visibles = proyectos.copy()
-                df_visibles["proyectos"] = df_visibles["proyectos"].astype(str)
-                df_visibles["nombre"] = df_visibles["nombre"].astype(str)
+            nombre_a_codigo = dict(zip(df_visibles["nombre"], df_visibles["proyectos"]))
+            proyectos_dict = {}
 
-                nombre_a_codigo = dict(zip(df_visibles["nombre"], df_visibles["proyectos"]))
-                proyectos_dict = {}
+            opciones = ["ESGARI"] + sorted(df_visibles["nombre"].unique().tolist())
+            seleccionados = col.multiselect("Selecciona proyecto(s)", opciones, default=["ESGARI"])
 
-                opciones = ["ESGARI"] + sorted(df_visibles["nombre"].unique().tolist())
-                seleccionados = col.multiselect("Selecciona proyecto(s)", opciones, default=["ESGARI"])
+            if "ESGARI" in seleccionados:
+                proyectos_dict["ESGARI"] = df_visibles["proyectos"].tolist()
 
-                if "ESGARI" in seleccionados:
-                    proyectos_dict["ESGARI"] = df_visibles["proyectos"].tolist()
+            for nombre in seleccionados:
+                if nombre != "ESGARI" and nombre in nombre_a_codigo:
+                    proyectos_dict[nombre] = [nombre_a_codigo[nombre]]
 
-                for nombre in seleccionados:
-                    if nombre != "ESGARI" and nombre in nombre_a_codigo:
-                        proyectos_dict[nombre] = [nombre_a_codigo[nombre]]
-
-                for k, v in proyectos_dict.items():
-                    if isinstance(v, list):
-                        proyectos_dict[k] = [str(x) for x in v]
-                    else:
-                        proyectos_dict[k] = [str(v)]
-
-                return proyectos_dict
-
-            except Exception as e:
-                st.error(f"❌ Error en filtro de proyectos: {e}")
-                return {}
+            for k, v in proyectos_dict.items():
+                if isinstance(v, list):
+                    proyectos_dict[k] = [str(x) for x in v]
+                else:
+                    proyectos_dict[k] = [str(v)]
+            return proyectos_dict
 
         dic_proyectos = filtro_pro_ratios(st)
 
@@ -3296,7 +3287,7 @@ else:
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
 
-        # --- Configuración de ratios ---
+        # --- Campos disponibles ---
         campo_map = {
             "Clasificación": "Clasificacion_A",
             "Categoría": "Categoria_A",
@@ -3304,22 +3295,11 @@ else:
             "Estado de Resultado": "ER",
         }
 
-        er_label_to_key = {
-            "Ingreso": "ingreso_proyecto",
-            "COSS": "coss_pro",
-            "PATIO": "patio_pro",
-            "COSS total": "coss_total",
-            "Utilidad bruta": "utilidad_bruta",
-            "G.ADMN": "gadmn_pro",
-            "Utilidad operativa": "utilidad_operativa",
-            "OH": "oh_pro",
-            "EBIT": "ebit",
-            "Gastos financieros": "gasto_fin_pro",
-            "Ingresos financieros": "ingreso_fin_pro",
-            "Resultado financiero": "resultado_fin",
-            "EBT": "ebt",
-        }
-        er_labels = list(er_label_to_key.keys())
+        er_labels = [
+            "Ingreso", "COSS", "PATIO", "COSS total", "Utilidad bruta",
+            "G.ADMN", "Utilidad operativa", "OH", "EBIT",
+            "Gastos financieros", "Ingresos financieros", "Resultado financiero", "EBT"
+        ]
 
         num_ratios = st.number_input("¿Cuántos ratios deseas analizar?", min_value=1, max_value=4, value=1, step=1)
 
@@ -3357,7 +3337,7 @@ else:
                     "valor_den": valor_den,
                 })
 
-        # --- Cálculo de ratios ---
+        # --- ER según funciones originales ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
             for mes in meses_sel:
@@ -3365,12 +3345,70 @@ else:
                 df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
-                er_vals = {}
                 if necesita_er:
-                    er_vals = estado_resultado(df_2025, [mes], proyecto, codigos, codigos)
-                    er_ly = estado_resultado(base_ly, [mes], proyecto, codigos, codigos)
+                    # --- Estado de resultados base 2025 ---
+                    ingreso_proyecto = ingreso(df_2025, [mes], proyecto, proyecto)
+                    coss_pro, _ = coss(df_2025, [mes], proyecto, proyecto, codigos)
+                    patio_pro = patio(df_2025, [mes], proyecto, proyecto)
+                    coss_total = coss_pro + patio_pro
+                    utilidad_bruta = ingreso_proyecto - coss_total
+                    gadmn_pro, _ = gadmn(df_2025, [mes], proyecto, proyecto, codigos)
+                    utilidad_operativa = utilidad_bruta - gadmn_pro
+                    oh_pro = oh(df_2025, [mes], proyecto, proyecto)
+                    ebit = utilidad_operativa - oh_pro
+                    gasto_fin_pro, _, _ = gasto_fin(df_2025, [mes], proyecto, proyecto, codigos)
+                    ingreso_fin_pro, _, _ = ingreso_fin(df_2025, [mes], proyecto, proyecto, codigos)
+                    resultado_fin = ingreso_fin_pro - gasto_fin_pro
+                    ebt = ebit + resultado_fin
 
-                    st.markdown(f"### 📊 Comparativo ER {proyecto} — {mes.upper()}")
+                    er_vals = {
+                        "Ingreso": ingreso_proyecto,
+                        "COSS": coss_pro,
+                        "PATIO": patio_pro,
+                        "COSS total": coss_total,
+                        "Utilidad bruta": utilidad_bruta,
+                        "G.ADMN": gadmn_pro,
+                        "Utilidad operativa": utilidad_operativa,
+                        "OH": oh_pro,
+                        "EBIT": ebit,
+                        "Gastos financieros": gasto_fin_pro,
+                        "Ingresos financieros": ingreso_fin_pro,
+                        "Resultado financiero": resultado_fin,
+                        "EBT": ebt
+                    }
+
+                    # --- Estado de resultados LY ---
+                    ingreso_proyecto_ly = ingreso(base_ly, [mes], proyecto, proyecto)
+                    coss_pro_ly, _ = coss(base_ly, [mes], proyecto, proyecto, codigos)
+                    patio_pro_ly = patio(base_ly, [mes], proyecto, proyecto)
+                    coss_total_ly = coss_pro_ly + patio_pro_ly
+                    utilidad_bruta_ly = ingreso_proyecto_ly - coss_total_ly
+                    gadmn_pro_ly, _ = gadmn(base_ly, [mes], proyecto, proyecto, codigos)
+                    utilidad_operativa_ly = utilidad_bruta_ly - gadmn_pro_ly
+                    oh_pro_ly = oh(base_ly, [mes], proyecto, proyecto)
+                    ebit_ly = utilidad_operativa_ly - oh_pro_ly
+                    gasto_fin_pro_ly, _, _ = gasto_fin(base_ly, [mes], proyecto, proyecto, codigos)
+                    ingreso_fin_pro_ly, _, _ = ingreso_fin(base_ly, [mes], proyecto, proyecto, codigos)
+                    resultado_fin_ly = ingreso_fin_pro_ly - gasto_fin_pro_ly
+                    ebt_ly = ebit_ly + resultado_fin_ly
+
+                    er_ly = {
+                        "Ingreso": ingreso_proyecto_ly,
+                        "COSS": coss_pro_ly,
+                        "PATIO": patio_pro_ly,
+                        "COSS total": coss_total_ly,
+                        "Utilidad bruta": utilidad_bruta_ly,
+                        "G.ADMN": gadmn_pro_ly,
+                        "Utilidad operativa": utilidad_operativa_ly,
+                        "OH": oh_pro_ly,
+                        "EBIT": ebit_ly,
+                        "Gastos financieros": gasto_fin_pro_ly,
+                        "Ingresos financieros": ingreso_fin_pro_ly,
+                        "Resultado financiero": resultado_fin_ly,
+                        "EBT": ebt_ly
+                    }
+
+                    st.markdown(f"### 📊 Estado de Resultados — {proyecto} ({mes.upper()})")
 
                     def trend_card(label, actual, ly):
                         col1, col2, col3 = st.columns(3)
@@ -3379,22 +3417,20 @@ else:
                         col3.metric("vs LY", f"${actual - ly:,.0f}",
                                     f"{((actual / ly) - 1) * 100:.1f}%" if ly != 0 else "N/A")
 
-                    trend_card("Ingreso", er_vals.get("ingreso_proyecto", 0), er_ly.get("ingreso_proyecto", 0))
-                    trend_card("COSS", er_vals.get("coss_total", 0), er_ly.get("coss_total", 0))
-                    trend_card("G.ADMN", er_vals.get("gadmn_pro", 0), er_ly.get("gadmn_pro", 0))
-                    trend_card("Gasto Financiero", er_vals.get("gasto_fin_pro", 0), er_ly.get("gasto_fin_pro", 0))
-                    trend_card("EBT", er_vals.get("ebt", 0), er_ly.get("ebt", 0))
+                    for label in er_labels:
+                        trend_card(label, er_vals.get(label, 0), er_ly.get(label, 0))
 
+                # --- Cálculo de ratios ---
                 for config in ratio_config:
                     if config["campo_num"] == "ER":
-                        num = float(er_vals.get(er_label_to_key[config["valor_num"]], 0))
+                        num = float(er_vals.get(config["valor_num"], 0))
                     else:
                         num = float(df_mes[df_mes[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
 
                     num_ly = float(df_mes_ly[df_mes_ly[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
 
                     if config["campo_den"] == "ER":
-                        den = float(er_vals.get(er_label_to_key[config["valor_den"]], 0))
+                        den = float(er_vals.get(config["valor_den"], 0))
                     else:
                         den = float(df_mes[df_mes[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
 
@@ -4442,6 +4478,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
