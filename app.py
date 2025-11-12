@@ -3232,14 +3232,6 @@ else:
                 if mes.startswith(k):
                     return v
             return mes
-
-        # Normalizar tipos y nombres
-        for df in [df_2025, base_ly]:
-            if "Proyecto_A" in df.columns:
-                df["Proyecto_A"] = df["Proyecto_A"].astype(str).str.strip()
-            if "Mes_A" in df.columns:
-                df["Mes_A"] = df["Mes_A"].astype(str).apply(normalizar_mes)
-
         # --- Filtro de proyectos ---
         def filtro_pro_ratios(col):
             try:
@@ -4419,6 +4411,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
