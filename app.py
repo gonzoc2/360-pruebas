@@ -3214,8 +3214,10 @@ else:
             use_container_width=True
     )
 
-    elif selected == "Ratios":
+    elif selected == "Ratios": 
         st.title("📊 Análisis de Ratios Personalizados")
+
+        # --- Cargar base LY ---
         if isinstance(base_ly, str):
             try:
                 response = requests.get(base_ly)
@@ -3226,7 +3228,7 @@ else:
                 st.error(f"❌ No se pudo cargar base_ly desde la URL: {e}")
                 st.stop()
 
-        # --- Normalizar columnas clave ---
+        # --- Normalizar meses ---
         def normalizar_mes(mes):
             if not isinstance(mes, str):
                 return mes
@@ -3261,7 +3263,6 @@ else:
 
             nombre_a_codigo = dict(zip(df_visibles["nombre"], df_visibles["proyectos"]))
             proyectos_dict = {}
-
             opciones = ["ESGARI"] + sorted(df_visibles["nombre"].unique().tolist())
             seleccionados = col.multiselect("Selecciona proyecto(s)", opciones, default=["ESGARI"])
 
@@ -3273,17 +3274,14 @@ else:
                     proyectos_dict[nombre] = [nombre_a_codigo[nombre]]
 
             for k, v in proyectos_dict.items():
-                if isinstance(v, list):
-                    proyectos_dict[k] = [str(x) for x in v]
-                else:
-                    proyectos_dict[k] = [str(v)]
+                proyectos_dict[k] = [str(x) for x in v] if isinstance(v, list) else [str(v)]
             return proyectos_dict
 
         dic_proyectos = filtro_pro_ratios(st)
 
         # --- Filtro de meses ---
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
 
@@ -3302,7 +3300,6 @@ else:
         ]
 
         num_ratios = st.number_input("¿Cuántos ratios deseas analizar?", min_value=1, max_value=4, value=1, step=1)
-
         ratio_config = []
         for i in range(num_ratios):
             with st.expander(f"⚙️ Configuración del Ratio {i+1}", expanded=(i == 0)):
@@ -3337,16 +3334,16 @@ else:
                     "valor_den": valor_den,
                 })
 
-        # --- ER según funciones originales ---
+        # --- Cálculo de ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
             for mes in meses_sel:
                 df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))]
                 df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]
 
+                # Calcular ER solo si se necesita
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 if necesita_er:
-                    # --- Estado de resultados base 2025 ---
                     ingreso_proyecto = ingreso(df_2025, [mes], proyecto, proyecto)
                     coss_pro, _ = coss(df_2025, [mes], proyecto, proyecto, codigos)
                     patio_pro = patio(df_2025, [mes], proyecto, proyecto)
@@ -3377,7 +3374,6 @@ else:
                         "EBT": ebt
                     }
 
-                    # --- Estado de resultados LY ---
                     ingreso_proyecto_ly = ingreso(base_ly, [mes], proyecto, proyecto)
                     coss_pro_ly, _ = coss(base_ly, [mes], proyecto, proyecto, codigos)
                     patio_pro_ly = patio(base_ly, [mes], proyecto, proyecto)
@@ -3408,19 +3404,7 @@ else:
                         "EBT": ebt_ly
                     }
 
-                    st.markdown(f"### 📊 Estado de Resultados — {proyecto} ({mes.upper()})")
-
-                    def trend_card(label, actual, ly):
-                        col1, col2, col3 = st.columns(3)
-                        col1.metric("Concepto", label)
-                        col2.metric("Actual (2025)", f"${actual:,.0f}")
-                        col3.metric("vs LY", f"${actual - ly:,.0f}",
-                                    f"{((actual / ly) - 1) * 100:.1f}%" if ly != 0 else "N/A")
-
-                    for label in er_labels:
-                        trend_card(label, er_vals.get(label, 0), er_ly.get(label, 0))
-
-                # --- Cálculo de ratios ---
+                # --- Ratios ---
                 for config in ratio_config:
                     if config["campo_num"] == "ER":
                         num = float(er_vals.get(config["valor_num"], 0))
@@ -3452,8 +3436,8 @@ else:
                         "Δ Ratio (%)": (ratio - ratio_ly) * 100
                     })
 
+        # --- Gráfico y tabla de ratios (único para todos los casos) ---
         df_result = pd.DataFrame(resultados)
-
         if not df_result.empty:
             df_result["Mes"] = pd.Categorical(df_result["Mes"], categories=meses_ordenados, ordered=True)
             df_result = df_result.sort_values(["Nombre", "Proyecto", "Mes"])
@@ -3465,7 +3449,6 @@ else:
                 var_name="Tipo",
                 value_name="Valor"
             )
-
             fig = px.line(
                 df_plot,
                 x="Mes",
@@ -4478,6 +4461,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
