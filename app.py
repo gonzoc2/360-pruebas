@@ -3275,7 +3275,9 @@ else:
                     proyectos_dict[nombre] = [nombre_a_codigo[nombre]]
 
             for k, v in proyectos_dict.items():
-                if isinstance(v, list):
+                if isinstance(v, str):
+                    proyectos_dict[k] = [v]
+                elif isinstance(v, list):
                     proyectos_dict[k] = [str(x) for x in v]
                 else:
                     proyectos_dict[k] = [str(v)]
@@ -3343,9 +3345,21 @@ else:
         # --- Calcular Estado de Resultados y Ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
+            # 🔧 Normalizar codigos a lista simple
+            if isinstance(codigos, str):
+                codigos = [codigos]
+            elif isinstance(codigos, (list, tuple)) and len(codigos) == 1 and isinstance(codigos[0], (list, tuple)):
+                codigos = codigos[0]
+
             for mes in meses_sel:
-                df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))]
-                df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]
+                df_mes = df_2025[
+                    (df_2025["Mes_A"] == mes)
+                    & (df_2025["Proyecto_A"].isin(codigos))
+                ]
+                df_mes_ly = base_ly[
+                    (base_ly["Mes_A"] == mes)
+                    & (base_ly["Proyecto_A"].isin(codigos))
+                ]
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 if necesita_er:
@@ -4470,6 +4484,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
