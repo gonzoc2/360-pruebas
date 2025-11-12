@@ -3406,20 +3406,23 @@ else:
 
                 # --- Ratios ---
                 for config in ratio_config:
+                    # --- Numerador ---
                     if config["campo_num"] == "ER":
                         num = float(er_vals.get(config["valor_num"], 0))
+                        num_ly = float(er_ly.get(config["valor_num"], 0))
                     else:
                         num = float(df_mes[df_mes[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
+                        num_ly = float(df_mes_ly[df_mes_ly[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
 
-                    num_ly = float(df_mes_ly[df_mes_ly[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
-
+                    # --- Denominador ---
                     if config["campo_den"] == "ER":
                         den = float(er_vals.get(config["valor_den"], 0))
+                        den_ly = float(er_ly.get(config["valor_den"], 0))
                     else:
                         den = float(df_mes[df_mes[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
+                        den_ly = float(df_mes_ly[df_mes_ly[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
 
-                    den_ly = float(df_mes_ly[df_mes_ly[config["campo_den"]] == config["valor_den"]]["Neto_A"].sum())
-
+                    # --- Calcular ratios ---
                     ratio = num / den if den != 0 else 0
                     ratio_ly = num_ly / den_ly if den_ly != 0 else 0
 
@@ -4461,6 +4464,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
