@@ -3216,22 +3216,43 @@ else:
 
     elif selected == "Ratios":
         st.title("📊 Análisis de Ratios Personalizados")
+        if isinstance(base_ly, str):
+            try:
+                response = requests.get(base_ly)
+                response.raise_for_status()
+                archivo_excel = BytesIO(response.content)
+                base_ly = pd.read_excel(archivo_excel, engine="openpyxl")
+            except Exception as e:
+                st.error(f"❌ No se pudo cargar base_ly desde la URL: {e}")
+                st.stop()
 
-        # --- Normalizar columnas de proyecto y mes en ambas bases ---
+        # --- Normalizar columnas clave ---
         def normalizar_mes(mes):
-            """Convierte mes a formato estándar: ene., feb., mar., ..."""
             if not isinstance(mes, str):
                 return mes
-            mes = mes.strip().lower().replace("é", "e").replace(" ", "")
+            mes = mes.strip().lower().replace("é", "e")
             mapa = {
-                "ene": "ene.", "feb": "feb.", "mar": "mar.", "abr": "abr.", "may": "may.",
-                "jun": "jun.", "jul": "jul.", "ago": "ago.", "sep": "sep.", "set": "sep.",
-                "oct": "oct.", "nov": "nov.", "dic": "dic."
+                "enero": "ene.", "ene": "ene.",
+                "febrero": "feb.", "feb": "feb.",
+                "marzo": "mar.", "mar": "mar.",
+                "abril": "abr.", "abr": "abr.",
+                "mayo": "may.", "may": "may.",
+                "junio": "jun.", "jun": "jun.",
+                "julio": "jul.", "jul": "jul.",
+                "agosto": "ago.", "ago": "ago.",
+                "septiembre": "sep.", "setiembre": "sep.", "sep": "sep.",
+                "octubre": "oct.", "oct": "oct.",
+                "noviembre": "nov.", "nov": "nov.",
+                "diciembre": "dic.", "dic": "dic."
             }
-            for k, v in mapa.items():
-                if mes.startswith(k):
-                    return v
-            return mes
+            return mapa.get(mes, mes)
+
+        for df in [df_2025, base_ly]:
+            if "Proyecto_A" in df.columns:
+                df["Proyecto_A"] = df["Proyecto_A"].astype(str).str.strip()
+            if "Mes_A" in df.columns:
+                df["Mes_A"] = df["Mes_A"].astype(str).apply(normalizar_mes)
+
         # --- Filtro de proyectos ---
         def filtro_pro_ratios(col):
             try:
@@ -3255,12 +3276,11 @@ else:
                     if nombre != "ESGARI" and nombre in nombre_a_codigo:
                         proyectos_dict[nombre] = [nombre_a_codigo[nombre]]
 
-                # Forzar todo a string
                 for k, v in proyectos_dict.items():
                     if isinstance(v, list):
-                        proyectos_dict[k] = [str(x).strip() for x in v]
+                        proyectos_dict[k] = [str(x) for x in v]
                     else:
-                        proyectos_dict[k] = [str(v).strip()]
+                        proyectos_dict[k] = [str(v)]
 
                 return proyectos_dict
 
@@ -3309,7 +3329,6 @@ else:
                 nombre = st.text_input(f"Nombre del Ratio {i+1}", value=f"Ratio {i+1}", key=f"ratio_name_{i}")
                 col1, col2 = st.columns(2)
 
-                # Numerador
                 tipo_num = col1.selectbox("Campo Numerador", list(campo_map.keys()), key=f"tipo_num_{i}")
                 if campo_map[tipo_num] == "ER":
                     valor_num = col1.selectbox("Valor Numerador", er_labels, key=f"val_num_{i}")
@@ -3320,7 +3339,6 @@ else:
                         key=f"val_num_{i}"
                     )
 
-                # Denominador
                 tipo_den = col2.selectbox("Campo Denominador", list(campo_map.keys()), key=f"tipo_den_{i}")
                 if campo_map[tipo_den] == "ER":
                     valor_den = col2.selectbox("Valor Denominador", er_labels, key=f"val_den_{i}")
@@ -3352,7 +3370,6 @@ else:
                     er_vals = estado_resultado(df_2025, [mes], proyecto, codigos, codigos)
 
                 for config in ratio_config:
-                    # --- Numerador ---
                     if config["campo_num"] == "ER":
                         num = float(er_vals.get(er_label_to_key[config["valor_num"]], 0))
                     else:
@@ -3360,7 +3377,6 @@ else:
 
                     num_ly = float(df_mes_ly[df_mes_ly[config["campo_num"]] == config["valor_num"]]["Neto_A"].sum())
 
-                    # --- Denominador ---
                     if config["campo_den"] == "ER":
                         den = float(er_vals.get(er_label_to_key[config["valor_den"]], 0))
                     else:
@@ -3384,7 +3400,6 @@ else:
                         "Δ Ratio (%)": (ratio - ratio_ly) * 100
                     })
 
-        # --- Mostrar resultados ---
         df_result = pd.DataFrame(resultados)
 
         if not df_result.empty:
@@ -3416,7 +3431,7 @@ else:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            st.subheader("📋 Tabla de resultados (Actual vs LY)")
+            st.subheader("📋 Tabla de resultados")
             st.dataframe(df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
@@ -4411,6 +4426,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
