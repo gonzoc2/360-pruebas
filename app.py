@@ -3214,7 +3214,7 @@ else:
             use_container_width=True
     )
 
-     elif selected == "Ratios":
+    elif selected == "Ratios":
         st.title("📊 Análisis de Ratios Personalizados")
 
         # --- Filtro de proyectos ---
@@ -4429,6 +4429,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
