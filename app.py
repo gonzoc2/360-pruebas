@@ -3345,26 +3345,20 @@ else:
         # --- Calcular Estado de Resultados y Ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
-            # 🔧 Normalizar codigos a lista simple
+            # 🔧 Asegurar que 'codigos' siempre sea lista
             if isinstance(codigos, str):
                 codigos = [codigos]
             elif isinstance(codigos, (list, tuple)) and len(codigos) == 1 and isinstance(codigos[0], (list, tuple)):
                 codigos = codigos[0]
 
             for mes in meses_sel:
-                df_mes = df_2025[
-                    (df_2025["Mes_A"] == mes)
-                    & (df_2025["Proyecto_A"].isin(codigos))
-                ]
-                df_mes_ly = base_ly[
-                    (base_ly["Mes_A"] == mes)
-                    & (base_ly["Proyecto_A"].isin(codigos))
-                ]
+                df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))]
+                df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 if necesita_er:
                     # --- Estado de Resultados 2025 ---
-                    ingreso_proyecto = ingreso(df_mes, [mes], proyecto, codigos)
+                    ingreso_proyecto = ingreso(df_mes, [mes], proyecto)
                     coss_pro, _ = coss(df_mes, [mes], proyecto, proyecto, codigos)
                     patio_pro = patio(df_mes, [mes], proyecto, proyecto)
                     coss_total = coss_pro + patio_pro
@@ -3395,7 +3389,7 @@ else:
                     }
 
                     # --- Estado de Resultados LY ---
-                    ingreso_proyecto_ly = ingreso(df_mes_ly, [mes], proyecto, codigos)
+                    ingreso_proyecto_ly = ingreso(df_mes_ly, [mes], proyecto)
                     coss_pro_ly, _ = coss(df_mes_ly, [mes], proyecto, proyecto, codigos)
                     patio_pro_ly = patio(df_mes_ly, [mes], proyecto, proyecto)
                     coss_total_ly = coss_pro_ly + patio_pro_ly
@@ -3492,7 +3486,6 @@ else:
             st.dataframe(df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
-
             
     elif selected == "Dashboard":
         st.title("📊 Dashboard Ejecutivo")
@@ -4484,6 +4477,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
