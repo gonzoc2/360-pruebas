@@ -3288,7 +3288,7 @@ else:
 
         # --- Filtro de meses ---
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
 
@@ -3345,21 +3345,26 @@ else:
         # --- Calcular Estado de Resultados y Ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
-            # 🔹 Asegurar que siempre sea lista
-            if not isinstance(codigos, (list, tuple)):
+            # 🔹 Forzar siempre lista válida de strings
+            if isinstance(codigos, str):
                 codigos = [codigos]
-            codigos = [str(c) for c in codigos if pd.notna(c)]
+            elif isinstance(codigos, (list, tuple)):
+                codigos = [str(c) for c in codigos if pd.notna(c)]
+            else:
+                codigos = [str(codigos)]
 
             for mes in meses_sel:
-                # 🔹 Evitar SettingWithCopyWarning
-                df_mes = df_2025[
+                # 🔹 Crear copias limpias (evita SettingWithCopyWarning)
+                df_mes = df_2025.loc[
                     (df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))
                 ].copy()
-                df_mes_ly = base_ly[
+
+                df_mes_ly = base_ly.loc[
                     (base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))
                 ].copy()
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
+
                 if necesita_er:
                     # --- Estado de Resultados 2025 ---
                     ingreso_proyecto = ingreso(df_mes, [mes], proyecto, proyecto)
@@ -4481,6 +4486,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
