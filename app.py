@@ -3345,14 +3345,19 @@ else:
         # --- Calcular Estado de Resultados y Ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
-            if isinstance(codigos, str):
+            # 🔹 Asegurar que siempre sea lista
+            if not isinstance(codigos, (list, tuple)):
                 codigos = [codigos]
-            elif isinstance(codigos, (list, tuple)) and len(codigos) == 1 and isinstance(codigos[0], (list, tuple)):
-                codigos = codigos[0]
+            codigos = [str(c) for c in codigos if pd.notna(c)]
 
             for mes in meses_sel:
-                df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))]
-                df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))]
+                # 🔹 Evitar SettingWithCopyWarning
+                df_mes = df_2025[
+                    (df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))
+                ].copy()
+                df_mes_ly = base_ly[
+                    (base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))
+                ].copy()
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
                 if necesita_er:
@@ -4476,6 +4481,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
