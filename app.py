@@ -3374,7 +3374,6 @@ else:
                     "valor_den": valor_den
                 })
 
-        # --- Cálculo de ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
             df_proyecto = df_2025.loc[df_2025["Proyecto_A"].isin(codigos)].copy()
@@ -3382,38 +3381,42 @@ else:
             er_vals = er_dict.get(proyecto, {})
 
             for config in ratio_config:
-                # Numerador
+                # --- Numerador ---
                 if config["campo_num"] == "ER":
                     num = er_vals["actual"][er_label_to_key[config["valor_num"]]]
                     num_ly = er_vals["ly"][er_label_to_key[config["valor_num"]]]
                 else:
-                    num = df_proyecto.loc[df_proyecto[campo_map[config["campo_num"]]] == config["valor_num"], "Neto_A"].sum()
-                    num_ly = df_proyecto_ly.loc[df_proyecto_ly[campo_map[config["campo_num"]]] == config["valor_num"], "Neto_A"].sum()
+                    num = df_proyecto.loc[df_proyecto[config["campo_num"]] == config["valor_num"], "Neto_A"].sum()
+                    num_ly = df_proyecto_ly.loc[df_proyecto_ly[config["campo_num"]] == config["valor_num"], "Neto_A"].sum()
 
-                # Denominador
+                # --- Denominador ---
                 if config["campo_den"] == "ER":
                     den = er_vals["actual"][er_label_to_key[config["valor_den"]]]
                     den_ly = er_vals["ly"][er_label_to_key[config["valor_den"]]]
                 else:
-                    den = df_proyecto.loc[df_proyecto[campo_map[config["campo_den"]]] == config["valor_den"], "Neto_A"].sum()
-                    den_ly = df_proyecto_ly.loc[df_proyecto_ly[campo_map[config["campo_den"]]] == config["valor_den"], "Neto_A"].sum()
+                    den = df_proyecto.loc[df_proyecto[config["campo_den"]] == config["valor_den"], "Neto_A"].sum()
+                    den_ly = df_proyecto_ly.loc[df_proyecto_ly[config["campo_den"]] == config["valor_den"], "Neto_A"].sum()
 
+                # --- Cálculo de ratios ---
                 ratio = num / den if den != 0 else 0
                 ratio_ly = num_ly / den_ly if den_ly != 0 else 0
+                delta = (ratio - ratio_ly) * 100
 
                 resultados.append({
                     "Proyecto": proyecto,
                     "Nombre": config["nombre"],
-                    "Ratio (%)": ratio,
-                    "Ratio_LY (%)": ratio_ly,
-                    "Δ Ratio (%)": (ratio - ratio_ly)
+                    "Ratio (%)": ratio * 100,
+                    "Ratio_LY (%)": ratio_ly * 100,
+                    "Δ Ratio (%)": delta
                 })
 
         # --- Mostrar resultados ---
         df_result = pd.DataFrame(resultados)
 
         if not df_result.empty:
-            st.subheader("📈 Evolución de Ratios vs LY")
+            st.subheader("📈 Comparativo de Ratios vs LY")
+
+            # --- Gráfico ---
             fig = px.bar(
                 df_result,
                 x="Proyecto",
@@ -3421,17 +3424,24 @@ else:
                 color="Nombre",
                 barmode="group",
                 text="Δ Ratio (%)",
-                title="Cambio en Ratios (%) vs LY"
+                title="Variación de Ratios vs LY (%)"
             )
             fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
-            fig.update_layout(height=500, xaxis_title="Proyecto", yaxis_title="Diferencia (%)")
+            fig.update_layout(
+                height=500,
+                xaxis_title="Proyecto",
+                yaxis_title="Δ Ratio (%)",
+                legend_title="Ratio"
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-            st.subheader("📋 Tabla de resultados")
-            df_result_formatted = df_result.copy()
+            # --- Tabla con formato ---
+            st.subheader("📋 Tabla de Resultados Detallada")
+            df_result_fmt = df_result.copy()
             for col in ["Ratio (%)", "Ratio_LY (%)", "Δ Ratio (%)"]:
-                df_result_formatted[col] = df_result_formatted[col].map("{:,.2f}%".format)
-            st.dataframe(df_result_formatted, use_container_width=True)
+                df_result_fmt[col] = df_result_fmt[col].map("{:,.2f}%".format)
+
+            st.dataframe(df_result_fmt, use_container_width=True)
 
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
@@ -4427,6 +4437,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
