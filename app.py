@@ -3274,11 +3274,12 @@ else:
                 if nombre != "ESGARI" and nombre in nombre_a_codigo:
                     proyectos_dict[nombre] = [nombre_a_codigo[nombre]]
 
+            # 🔹 Normalizar: asegurar siempre listas de strings
             for k, v in proyectos_dict.items():
                 if isinstance(v, str):
                     proyectos_dict[k] = [v]
-                elif isinstance(v, list):
-                    proyectos_dict[k] = [str(x) for x in v]
+                elif isinstance(v, (list, tuple)):
+                    proyectos_dict[k] = [str(x) for x in v if pd.notna(x)]
                 else:
                     proyectos_dict[k] = [str(v)]
 
@@ -3345,7 +3346,7 @@ else:
         # --- Calcular Estado de Resultados y Ratios ---
         resultados = []
         for proyecto, codigos in dic_proyectos.items():
-            # 🔹 Forzar siempre lista válida de strings
+            # 🔹 Asegurar que siempre sea lista válida
             if isinstance(codigos, str):
                 codigos = [codigos]
             elif isinstance(codigos, (list, tuple)):
@@ -3353,7 +3354,13 @@ else:
             else:
                 codigos = [str(codigos)]
 
+            # 🔍 DEPURACIÓN OPCIONAL:
+            st.write(f"🔎 Proyecto: {proyecto}")
+            st.write(f"Codigos usados: {codigos}")
+
             for mes in meses_sel:
+                # st.write(f"Mes actual: {mes}")
+
                 # 🔹 Crear copias limpias (evita SettingWithCopyWarning)
                 df_mes = df_2025.loc[
                     (df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(codigos))
@@ -3362,6 +3369,10 @@ else:
                 df_mes_ly = base_ly.loc[
                     (base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(codigos))
                 ].copy()
+
+                # 🔍 DEPURACIÓN OPCIONAL:
+                # st.write("Filtrado df_mes →", df_mes.shape)
+                # st.write("Filtrado df_mes_ly →", df_mes_ly.shape)
 
                 necesita_er = any(cfg["campo_num"] == "ER" or cfg["campo_den"] == "ER" for cfg in ratio_config)
 
@@ -3495,6 +3506,7 @@ else:
             st.dataframe(df_result, use_container_width=True)
         else:
             st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
+
             
     elif selected == "Dashboard":
         st.title("📊 Dashboard Ejecutivo")
@@ -4486,6 +4498,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
