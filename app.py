@@ -3229,6 +3229,33 @@ else:
                 st.error(f"❌ No se pudo cargar base_ly desde la URL: {e}")
                 st.stop()
 
+        # --- Normalizar columnas clave ---
+        def normalizar_mes(mes):
+            if not isinstance(mes, str):
+                return mes
+            mes = mes.strip().lower().replace("é", "e")
+            mapa = {
+                "enero": "ene.", "ene": "ene.",
+                "febrero": "feb.", "feb": "feb.",
+                "marzo": "mar.", "mar": "mar.",
+                "abril": "abr.", "abr": "abr.",
+                "mayo": "may.", "may": "may.",
+                "junio": "jun.", "jun": "jun.",
+                "julio": "jul.", "jul": "jul.",
+                "agosto": "ago.", "ago": "ago.",
+                "septiembre": "sep.", "setiembre": "sep.", "sep": "sep.",
+                "octubre": "oct.", "oct": "oct.",
+                "noviembre": "nov.", "nov": "nov.",
+                "diciembre": "dic.", "dic": "dic."
+            }
+            return mapa.get(mes, mes)
+
+        for df in [df_2025, base_ly]:
+            if "Proyecto_A" in df.columns:
+                df["Proyecto_A"] = df["Proyecto_A"].astype(str).str.strip()
+            if "Mes_A" in df.columns:
+                df["Mes_A"] = df["Mes_A"].astype(str).apply(normalizar_mes)
+
         # --- Filtro de proyectos ---
         def filtro_pro_ratios(col):
             df_visibles = proyectos.copy()
@@ -4393,6 +4420,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
