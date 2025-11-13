@@ -3214,6 +3214,7 @@ else:
             use_container_width=True
     )
 
+
     elif selected == "Ratios":
         st.title("📊 Análisis de Ratios Personalizados")
 
@@ -3289,7 +3290,7 @@ else:
 
         # --- Filtro de meses ---
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                           "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
         meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
 
@@ -3378,17 +3379,17 @@ else:
 
                 if necesita_er:
                     # --- Estado de Resultados 2025 ---
-                    ingreso_proyecto = ingreso(df_mes, [mes], proyecto, proyecto)
-                    coss_pro, _ = coss(df_mes, [mes], proyecto, proyecto, codigos)
-                    patio_pro = patio(df_mes, [mes], proyecto, proyecto)
+                    ingreso_proyecto = ingreso(df_mes, codigos, proyecto, proyecto)
+                    coss_pro, _ = coss(df_mes, codigos, proyecto, proyecto, codigos)
+                    patio_pro = patio(df_mes, codigos, proyecto, proyecto)
                     coss_total = coss_pro + patio_pro
                     utilidad_bruta = ingreso_proyecto - coss_total
-                    gadmn_pro, _ = gadmn(df_mes, [mes], proyecto, proyecto, codigos)
+                    gadmn_pro, _ = gadmn(df_mes, codigos, proyecto, proyecto, codigos)
                     utilidad_operativa = utilidad_bruta - gadmn_pro
-                    oh_pro = oh(df_mes, [mes], proyecto, proyecto)
+                    oh_pro = oh(df_mes, codigos, proyecto, proyecto)
                     ebit = utilidad_operativa - oh_pro
-                    gasto_fin_pro, _, _ = gasto_fin(df_mes, [mes], proyecto, proyecto, codigos)
-                    ingreso_fin_pro, _, _ = ingreso_fin(df_mes, [mes], proyecto, proyecto, codigos)
+                    gasto_fin_pro, _, _ = gasto_fin(df_mes, codigos, proyecto, proyecto, codigos)
+                    ingreso_fin_pro, _, _ = ingreso_fin(df_mes, codigos, proyecto, proyecto, codigos)
                     resultado_fin = ingreso_fin_pro - gasto_fin_pro
                     ebt = ebit + resultado_fin
 
@@ -3409,17 +3410,17 @@ else:
                     }
 
                     # --- Estado de Resultados LY ---
-                    ingreso_proyecto_ly = ingreso(df_mes_ly, [mes], proyecto, proyecto)
-                    coss_pro_ly, _ = coss(df_mes_ly, [mes], proyecto, proyecto, codigos)
-                    patio_pro_ly = patio(df_mes_ly, [mes], proyecto, proyecto)
+                    ingreso_proyecto_ly = ingreso(df_mes_ly, codigos, proyecto, proyecto)
+                    coss_pro_ly, _ = coss(df_mes_ly, codigos, proyecto, proyecto, codigos)
+                    patio_pro_ly = patio(df_mes_ly, codigos, proyecto, proyecto)
                     coss_total_ly = coss_pro_ly + patio_pro_ly
                     utilidad_bruta_ly = ingreso_proyecto_ly - coss_total_ly
-                    gadmn_pro_ly, _ = gadmn(df_mes_ly, [mes], proyecto, proyecto, codigos)
+                    gadmn_pro_ly, _ = gadmn(df_mes_ly, codigos, proyecto, proyecto, codigos)
                     utilidad_operativa_ly = utilidad_bruta_ly - gadmn_pro_ly
-                    oh_pro_ly = oh(df_mes_ly, [mes], proyecto, proyecto)
+                    oh_pro_ly = oh(df_mes_ly, codigos, proyecto, proyecto)
                     ebit_ly = utilidad_operativa_ly - oh_pro_ly
-                    gasto_fin_pro_ly, _, _ = gasto_fin(df_mes_ly, [mes], proyecto, proyecto, codigos)
-                    ingreso_fin_pro_ly, _, _ = ingreso_fin(df_mes_ly, [mes], proyecto, proyecto, codigos)
+                    gasto_fin_pro_ly, _, _ = gasto_fin(df_mes_ly, codigos, proyecto, proyecto, codigos)
+                    ingreso_fin_pro_ly, _, _ = ingreso_fin(df_mes_ly, codigos, proyecto, proyecto, codigos)
                     resultado_fin_ly = ingreso_fin_pro_ly - gasto_fin_pro_ly
                     ebt_ly = ebit_ly + resultado_fin_ly
 
@@ -4498,6 +4499,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
