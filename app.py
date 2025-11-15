@@ -3438,8 +3438,6 @@ else:
 
         st.subheader("📋 Tabla de resultados")
         st.dataframe(df_result, use_container_width=True)
-    else:
-        st.info("Selecciona al menos un proyecto y mes para calcular ratios.")
             
     elif selected == "Dashboard":
         st.title("📊 Dashboard Ejecutivo")
@@ -4431,6 +4429,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
