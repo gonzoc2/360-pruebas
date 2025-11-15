@@ -3294,9 +3294,15 @@ else:
 
             sel = col.multiselect("Selecciona proyecto(s)", opciones, default=["ESGARI"])
             out = {}
+            proyectos_unicos = df_2025["Proyecto_A"].astype(str).unique().tolist()
+            incluye_cero = "0" in proyectos_unicos
 
             if "ESGARI" in sel:
-                out["ESGARI"] = dfv["proyectos"].tolist()
+                lista_proyectos = dfv["proyectos"].tolist()
+                if incluye_cero and "0" not in lista_proyectos:
+                    lista_proyectos.append("0")
+
+                out["ESGARI"] = lista_proyectos
 
             for nombre in sel:
                 if nombre != "ESGARI":
@@ -4478,6 +4484,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
