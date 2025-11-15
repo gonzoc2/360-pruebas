@@ -3218,7 +3218,6 @@ else:
     elif selected == "Ratios":
 
         st.title("📊 Análisis de Ratios Personalizados")
-
         if isinstance(base_ly, str):
             try:
                 response = requests.get(base_ly)
@@ -3241,13 +3240,20 @@ else:
                 "septiembre": "sep.", "setiembre": "sep.", "sep": "sep.",
                 "octubre": "oct.", "oct": "oct.",
                 "noviembre": "nov.", "nov": "nov.",
-                "diciembre": "dic.", "dic": "dic."
+                "diciembre": "dic.", "dic": "dic.",
             }
             if isinstance(m, str):
-                m = m.lower().replace("é","e").strip()
+                m = m.lower().replace("é", "e").strip()
                 return mapa.get(m, m)
             return m
+
         df_2025["Mes_A"] = df_2025["Mes_A"].astype(str).apply(normalizar_mes)
+
+        # --- Validar/normalizar Mes_A en base_ly ---
+        if base_ly is None or not isinstance(base_ly, pd.DataFrame):
+            st.error("❌ base_ly no está cargado correctamente.")
+            st.stop()
+
         columnas_mes = ["Mes_A", "Mes", "mes", "MES", "Periodo", "periodo"]
         col_encontrada = next((c for c in columnas_mes if c in base_ly.columns), None)
 
@@ -3256,10 +3262,14 @@ else:
             base_ly["Mes_A"] = ""
         elif col_encontrada != "Mes_A":
             base_ly = base_ly.rename(columns={col_encontrada: "Mes_A"})
-        base_ly["Mes_A"] = base_ly["Mes_A"].astype(str).apply(normalizar_mes)
-        base_ly["Cuenta_Nombre_A"] = base_ly["Cuenta_Nombre_A"].astype(str)
 
-        campo_map = { 
+        base_ly["Mes_A"] = base_ly["Mes_A"].astype(str).apply(normalizar_mes)
+
+        # Aseguramos tipos string para comparaciones por proyecto
+        df_2025["Proyecto_A"] = df_2025["Proyecto_A"].astype(str)
+        base_ly["Proyecto_A"] = base_ly["Proyecto_A"].astype(str)
+        base_ly["Cuenta_Nombre_A"] = base_ly["Cuenta_Nombre_A"].astype(str)
+        campo_map = {
             "Clasificación": "Clasificacion_A",
             "Categoría": "Categoria_A",
             "Cuenta": "Cuenta_Nombre_A",
@@ -3281,9 +3291,7 @@ else:
             "Resultado financiero": "resultado_fin",
             "EBT": "ebt",
         }
-
         er_labels = list(er_label_to_key.keys())
-
         def filtro_pro_ratios(col):
             dfv = proyectos.copy()
             dfv["proyectos"] = dfv["proyectos"].astype(str)
@@ -3294,16 +3302,14 @@ else:
 
             sel = col.multiselect("Selecciona proyecto(s)", opciones, default=["ESGARI"])
             out = {}
-            proyectos_unicos = df_2025["Proyecto_A"].astype(str).unique().tolist()
-            incluye_cero = "0" in proyectos_unicos
 
+            # ESGARI = todos los proyectos + "0"
             if "ESGARI" in sel:
-                lista_proyectos = dfv["proyectos"].tolist()
-                if incluye_cero and "0" not in lista_proyectos:
-                    lista_proyectos.append("0")
+                codigos_todos = dfv["proyectos"].tolist()
+                codigos_esgari = codigos_todos + ["0"]  # aquí agregamos el proyecto 0
+                out["ESGARI"] = codigos_esgari
 
-                out["ESGARI"] = lista_proyectos
-
+            # Proyectos individuales -> sólo su código (sin 0)
             for nombre in sel:
                 if nombre != "ESGARI":
                     out[nombre] = [codigo[nombre]]
@@ -3311,27 +3317,34 @@ else:
             return out
 
         dic_proyectos = filtro_pro_ratios(st)
+        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                        "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
-        meses_ordenados = ["ene.","feb.","mar.","abr.","may.","jun.","jul.","ago.","sep.","oct.","nov.","dic."]
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
-        meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
-
+        meses_sel = st.multiselect("Selecciona meses a analizar",
+                                meses_disponibles,
+                                default=meses_disponibles)
         num_ratios = st.number_input("¿Cuántos ratios deseas analizar?", 1, 10, 1)
         ratio_config = []
 
         for i in range(num_ratios):
-
             with st.expander(f"⚙️ Configuración Ratio {i+1}", expanded=(i == 0)):
 
-                nombre = st.text_input(f"Nombre Ratio {i+1}", f"Ratio {i+1}", key=f"ratio_name_{i}")
+                nombre = st.text_input(f"Nombre Ratio {i+1}",
+                                    f"Ratio {i+1}",
+                                    key=f"ratio_name_{i}")
 
                 col1, col2 = st.columns(2)
 
-                # ======= NUMERADOR =======
-                tipo_num = col1.selectbox("Campo Numerador", list(campo_map.keys()), key=f"tipo_num_{i}")
+                # ===== NUMERADOR =====
+                tipo_num = col1.selectbox("Campo Numerador",
+                                        list(campo_map.keys()),
+                                        key=f"tipo_num_{i}")
 
                 if tipo_num == "Estado de Resultado":
-                    valor_num = col1.selectbox("Valor Numerador", er_labels, key=f"val_num_{i}")
+                    valor_num = col1.selectbox("Valor Numerador",
+                                            er_labels,
+                                            key=f"val_num_{i}")
                 else:
                     columna = campo_map[tipo_num]
                     valor_num = col1.selectbox(
@@ -3341,21 +3354,30 @@ else:
                     )
 
                 # Extra numerador
-                add_extra_num = col1.checkbox("➕ Agregar otro valor al numerador", key=f"extra_num_check_{i}")
+                add_extra_num = col1.checkbox("➕ Agregar otro valor al numerador",
+                                            key=f"extra_num_check_{i}")
                 extra_num = None
-
                 if add_extra_num:
-                    tipo2 = col1.selectbox("Campo adicional Numerador", list(campo_map.keys()), key=f"extra_num_tipo_{i}")
+                    tipo2 = col1.selectbox("Campo adicional Numerador",
+                                        list(campo_map.keys()),
+                                        key=f"extra_num_tipo_{i}")
                     if tipo2 == "Estado de Resultado":
-                        val2 = col1.selectbox("Valor adicional Numerador", er_labels, key=f"extra_num_val_{i}")
+                        val2 = col1.selectbox("Valor adicional Numerador",
+                                            er_labels,
+                                            key=f"extra_num_val_{i}")
                     else:
                         col2map = campo_map[tipo2]
-                        val2 = col1.selectbox("Valor adicional Numerador", sorted(df_2025[col2map].dropna().astype(str).unique()), key=f"extra_num_val2_{i}")
-
+                        val2 = col1.selectbox(
+                            "Valor adicional Numerador",
+                            sorted(df_2025[col2map].dropna().astype(str).unique()),
+                            key=f"extra_num_val2_{i}"
+                        )
                     extra_num = {"campo": tipo2, "valor": val2}
 
-                # ======= DENOMINADOR =======
-                tipo_den = col2.selectbox("Campo Denominador", list(campo_map.keys()), key=f"tipo_den_{i}")
+                # ===== DENOMINADOR =====
+                tipo_den = col2.selectbox("Campo Denominador",
+                                        list(campo_map.keys()),
+                                        key=f"tipo_den_{i}")
 
                 if tipo_den == "Estado de Resultado":
                     valor_den = col2.selectbox("Valor Denominador", er_labels, key=f"val_den_{i}")
@@ -3370,15 +3392,17 @@ else:
                 # Extra denominador
                 add_extra_den = col2.checkbox("➕ Agregar otro valor al denominador", key=f"extra_den_check_{i}")
                 extra_den = None
-
                 if add_extra_den:
                     tipo2 = col2.selectbox("Campo adicional Denominador", list(campo_map.keys()), key=f"extra_den_tipo_{i}")
                     if tipo2 == "Estado de Resultado":
                         val2 = col2.selectbox("Valor adicional Denominador", er_labels, key=f"extra_den_val_{i}")
                     else:
                         col2map = campo_map[tipo2]
-                        val2 = col2.selectbox("Valor adicional Denominador", sorted(df_2025[col2map].dropna().astype(str).unique()), key=f"extra_den_val2_{i}")
-
+                        val2 = col2.selectbox(
+                            "Valor adicional Denominador",
+                            sorted(df_2025[col2map].dropna().astype(str).unique()),
+                            key=f"extra_den_val2_{i}"
+                        )
                     extra_den = {"campo": tipo2, "valor": val2}
 
                 ratio_config.append({
@@ -3388,28 +3412,40 @@ else:
                     "extra_num": extra_num,
                     "campo_den": tipo_den,
                     "valor_den": valor_den,
-                    "extra_den": extra_den
+                    "extra_den": extra_den,
                 })
 
         resultados = []
+        lista_proyectos_global = proyectos["proyectos"].astype(str).tolist()
 
         for nombre_pro, proyecto_codigo in dic_proyectos.items():
 
-            lista_proyectos = proyecto_codigo
-
             for mes in meses_sel:
 
-                df_mes = df_2025[(df_2025["Mes_A"] == mes) & (df_2025["Proyecto_A"].isin(proyecto_codigo))].copy()
-                df_mes_ly = base_ly[(base_ly["Mes_A"] == mes) & (base_ly["Proyecto_A"].isin(proyecto_codigo))].copy()
+                df_mes = df_2025[
+                    (df_2025["Mes_A"] == mes) &
+                    (df_2025["Proyecto_A"].isin(proyecto_codigo))
+                ].copy()
+
+                df_mes_ly = base_ly[
+                    (base_ly["Mes_A"] == mes) &
+                    (base_ly["Proyecto_A"].isin(proyecto_codigo))
+                ].copy()
 
                 df_mes["Cuenta_Nombre_A"] = df_mes["Cuenta_Nombre_A"].astype(str)
                 df_mes_ly["Cuenta_Nombre_A"] = df_mes_ly["Cuenta_Nombre_A"].astype(str)
-                er_actual = estado_resultado(df_2025, [mes], nombre_pro, proyecto_codigo, lista_proyectos)
-                er_ly = estado_resultado(base_ly, [mes], nombre_pro, proyecto_codigo, lista_proyectos)
+
+                # Usamos tu estado_resultado original
+                er_actual = estado_resultado(
+                    df_2025, [mes], nombre_pro, proyecto_codigo, lista_proyectos_global
+                )
+                er_ly = estado_resultado(
+                    base_ly, [mes], nombre_pro, proyecto_codigo, lista_proyectos_global
+                )
 
                 for config in ratio_config:
 
-                    # ---- NUMERADOR ----
+                    # ----- NUMERADOR -----
                     if config["campo_num"] == "Estado de Resultado":
                         num = er_actual.get(er_label_to_key[config["valor_num"]], 0)
                         num_ly = er_ly.get(er_label_to_key[config["valor_num"]], 0)
@@ -3426,11 +3462,11 @@ else:
                             num += er_actual.get(er_label_to_key[val2], 0)
                             num_ly += er_ly.get(er_label_to_key[val2], 0)
                         else:
-                            colname = campo_map[tipo2]
-                            num += df_mes[df_mes[colname] == val2]["Neto_A"].sum()
-                            num_ly += df_mes_ly[df_mes_ly[colname] == val2]["Neto_A"].sum()
+                            colname_extra = campo_map[tipo2]
+                            num += df_mes[df_mes[colname_extra] == val2]["Neto_A"].sum()
+                            num_ly += df_mes_ly[df_mes_ly[colname_extra] == val2]["Neto_A"].sum()
 
-                    # ---- DENOMINADOR ----
+                    # ----- DENOMINADOR -----
                     if config["campo_den"] == "Estado de Resultado":
                         den = er_actual.get(er_label_to_key[config["valor_den"]], 0)
                         den_ly = er_ly.get(er_label_to_key[config["valor_den"]], 0)
@@ -3447,9 +3483,9 @@ else:
                             den += er_actual.get(er_label_to_key[val2], 0)
                             den_ly += er_ly.get(er_label_to_key[val2], 0)
                         else:
-                            colname = campo_map[tipo2]
-                            den += df_mes[df_mes[colname] == val2]["Neto_A"].sum()
-                            den_ly += df_mes_ly[df_mes_ly[colname] == val2]["Neto_A"].sum()
+                            colname_extra = campo_map[tipo2]
+                            den += df_mes[df_mes[colname_extra] == val2]["Neto_A"].sum()
+                            den_ly += df_mes_ly[df_mes_ly[colname_extra] == val2]["Neto_A"].sum()
 
                     ratio = num / den if den != 0 else 0
                     ratio_ly = num_ly / den_ly if den_ly != 0 else 0
@@ -3460,8 +3496,9 @@ else:
                         "Nombre": config["nombre"],
                         "Ratio (%)": ratio,
                         "Ratio_LY (%)": ratio_ly,
-                        "Δ Ratio (%)": ratio - ratio_ly
+                        "Δ Ratio (%)": ratio - ratio_ly,
                     })
+
         df_result = pd.DataFrame(resultados)
 
         if df_result.empty:
@@ -3477,22 +3514,23 @@ else:
             id_vars=["Mes", "Proyecto", "Nombre"],
             value_vars=["Ratio (%)", "Ratio_LY (%)"],
             var_name="Tipo",
-            value_name="Valor"
+            value_name="Valor",
         )
 
         fig = px.line(
             df_plot,
-            x="Mes", y="Valor",
+            x="Mes",
+            y="Valor",
             color="Nombre",
             line_dash="Tipo",
             markers=True,
-            title="Ratios actuales vs LY (%)"
+            title="Ratios actuales vs LY (%)",
         )
-
         st.plotly_chart(fig, use_container_width=True)
 
         st.subheader("📋 Tabla de resultados")
         st.dataframe(df_result, use_container_width=True)
+
             
     elif selected == "Dashboard":
         st.title("📊 Dashboard Ejecutivo")
@@ -4484,6 +4522,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
