@@ -3216,8 +3216,16 @@ else:
 
 
     elif selected == "Ratios":
-
         st.title("📊 Análisis de Ratios Personalizados")
+        if isinstance(base_ly, str):
+            try:
+                response = requests.get(base_ly)
+                response.raise_for_status()
+                archivo_excel = BytesIO(response.content)
+                base_ly = pd.read_excel(archivo_excel, engine="openpyxl")
+            except Exception as e:
+                st.error(f"❌ No se pudo cargar base_ly desde la URL: {e}")
+                base_ly = df_2025.copy() 
         def normalizar_mes(m):
             mapa = {
                 "enero": "ene.", "ene": "ene.",
@@ -4460,6 +4468,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
