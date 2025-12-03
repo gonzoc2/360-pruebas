@@ -9,16 +9,8 @@ import plotly.express as px
 from plotly import graph_objects as go
 import numpy as np
 from st_aggrid.shared import JsCode
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from google.oauth2.credentials import Credentials
-import base64
-import os
-import json
-import socket
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qs
-
 
 st.set_page_config(
     page_title="Esgari 360",
@@ -106,40 +98,22 @@ def filtro_pro(col):
     return proyecto_codigo, proyecto_nombre
 
 def filtro_meses(col, df_2025):
-    # Orden cronológico de los meses
-    meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
-                       "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-
-    # Detectar qué meses existen en el DataFrame
-    meses_disponibles = [mes for mes in meses_ordenados if mes in df_2025["Mes_A"].unique()]
-
-    # Si hay datos, seleccionar el último mes con información
-    mes_act = meses_disponibles[-1] if meses_disponibles else None
-    index_default = meses_disponibles.index(mes_act) if mes_act in meses_disponibles else 0
-
-    # Lógica por pantalla seleccionada
+    meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
     if selected == "Análisis":
-        mes_seleccionado = col.selectbox("Selecciona un mes", meses_disponibles or meses_ordenados, index=index_default)
-        meses_seleccionado = [mes_seleccionado]
+        meses_seleccionado = col.selectbox("Selecciona un mes", meses)
+        meses_seleccionado = [meses_seleccionado]
+    elif selected == "Mes Corregido" or selected == "Proyeccion":
+        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
-    elif selected in ["Mes Corregido", "Proyeccion"]:
+        meses_disponibles = [mes for mes in meses_ordenados if mes in df_2025["Mes_A"].unique()]
+        mes_act = meses_disponibles[-1] if meses_disponibles else None
+        index_default = meses_disponibles.index(mes_act) if mes_act in meses_disponibles else 0
+
         mes_seleccionado = col.selectbox("Selecciona un mes", meses_disponibles, index=index_default)
         meses_seleccionado = [mes_seleccionado]
-
     else:
-        # 👉 Por defecto, seleccionar todos los meses hasta el último con información
-        if mes_act:
-            idx_ultimo = meses_ordenados.index(mes_act) + 1
-            meses_por_defecto = meses_ordenados[:idx_ultimo]
-        else:
-            meses_por_defecto = [meses_ordenados[0]]
-
-        meses_seleccionado = col.multiselect(
-            "Selecciona uno o más meses",
-            meses_ordenados,
-            default=meses_por_defecto
-        )
-
+        meses_seleccionado = col.multiselect("Selecciona un mes", meses, default=[meses[0]])
     return meses_seleccionado
 
 def porcentaje_ingresos(df, meses, pro, codigo_pro):
@@ -427,7 +401,7 @@ def tabla_expandible(df, cat, mes, pro, proyecto_nombre, key_prefix, ceco):
     ingreso_total = estado_resultado(df, mes, proyecto_nombre, pro, list_pro).get("ingreso_proyecto", None)
     columnas = ['Cuenta_Nombre_A', 'Categoria_A']
 
-    ingreso_fin = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESO POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
+    ingreso_fin = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
 
     if not isinstance(pro, list):
         pro = [pro]
@@ -946,7 +920,7 @@ def seccion_analisis_especial_porcentual(df_actual, df_ly, ingreso, meses_selecc
             else:
                 return [''] * len(row)
 
-        (
+        st.dataframe(
             df_resultado.style
                 .apply(resaltar, axis=1)
                 .format({
@@ -1037,7 +1011,7 @@ def seccion_analisis_por_clasificacion(df_2025, df_ly, ingreso, meses_selecciona
 
         df_analsiis_cla = df_analsiis_cla.set_index("Clasificacion_A")
 
-        (
+        st.dataframe(
             df_analsiis_cla.style
             .apply(resaltar_clasificacion, axis=1)
             .format({
@@ -1108,7 +1082,7 @@ def mostrar_tabla_estilizada(df, id=1):
 
     # Formato condicional para celdas con $ y %
     df_tabla["Valor"] = df_tabla["Valor"].apply(
-        lambda x: f"${float(x.replace('$', '').replace(',', '')):,.2f}" if "$" in x else x
+        lambda x: f"${float(x.replace('$','').replace(',','')):,.2f}" if "$" in x else x
     )
     df_tabla["Valor"] = df_tabla["Valor"].apply(
         lambda x: f'<span style="color:#003366;">{x}</span>' if "%" in x else x
@@ -1162,7 +1136,6 @@ def mostrar_tabla_estilizada(df, id=1):
     html_table = df_tabla.to_html(index=False, escape=False, classes=f"tab-table-{id}")
     st.markdown(html_table, unsafe_allow_html=True)
     descargar_excel(df, nombre_archivo=f"proyeccion{id}.xlsx")
-
 
 def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro_ori, gadmn_pro_ori, oh_pct_elegido=None):
     variable = df_ext_var["Neto_normalizado"].sum()
@@ -1273,53 +1246,6 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
         st.write(f"Ingreso necesario para alcanzar Punto de Equilibrio: **${ingreso_ebt_0:,.2f}**")
         construir_tabla(ingreso_ebt_0, coss_pro, gadmn_pro, nuevo_oh, intereses, id_tab=2)
 
-        st.markdown("#### 📊 Punto de Equilibrio por Proyecto (Histórico)")
-
-        if "Proyecto_A" in df_sum.columns:
-            # --- Agrupar ingresos históricos por proyecto ---
-            df_hist = df_sum.groupby("Proyecto_A", as_index=False)["Neto_A"].sum()
-            total_ingresos = df_hist["Neto_A"].sum()
-
-            # --- Peso relativo de cada proyecto ---
-            df_hist["Peso_Ingreso"] = df_hist["Neto_A"] / total_ingresos
-
-            # --- Calcular ingreso de equilibrio proporcional ---
-            df_hist["Ingreso_Equilibrio"] = df_hist["Peso_Ingreso"] * ingreso_ebt_0
-
-            # --- Brecha entre ingreso actual y equilibrio ---
-            df_hist["Brecha_vs_Actual"] = df_hist["Ingreso_Equilibrio"] - df_hist["Neto_A"]
-
-            # --- Construir tabla en el mismo estilo ---
-            resumen_eq = pd.DataFrame({
-                "Concepto": [
-                    "Proyecto",
-                    "Ingreso Histórico",
-                    "Ingreso Equilibrio (EBT=0)",
-                    "Brecha vs Actual",
-                    "Participación"
-                ],
-                "Valor": [
-                    "", "", "", "", ""
-                ]
-            })
-
-            # Reemplazar por filas dinámicas tipo DataFrame expandido
-            filas = []
-            for _, row in df_hist.iterrows():
-                filas.append({
-                    "Concepto": f"Proyecto {int(row['Proyecto_A'])}",
-                    "Valor": f"Ingreso actual: ${row['Neto_A']:,.2f} | Equilibrio: ${row['Ingreso_Equilibrio']:,.2f} | Brecha: ${row['Brecha_vs_Actual']:,.2f} | Peso: {row['Peso_Ingreso']:.1%}"
-                })
-
-            df_equilibrio = pd.DataFrame(filas)
-
-            # Mostrar usando el mismo formato estilizado
-            mostrar_tabla_estilizada(df_equilibrio, id="equilibrio_proy")
-
-        else:
-            st.warning("⚠️ No se encontró la columna 'Proyecto_A' en df_sum; no se puede calcular el punto de equilibrio por proyecto.")
-        
-
     # Tab: Ingreso manual
     with tab3:
         ingreso_manual = st.number_input("💰 Ingreso Manual", value=float(ingreso_pro_fut), step=500000.0, format="%.2f")
@@ -1348,6 +1274,9 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
     with tab1:
         st.write("Proyección Original")
         construir_tabla(ingreso_pro_fut, coss_pro_ori, gadmn_pro_ori, oh_pro, intereses, id_tab=5)
+
+
+
 
         
 init_session_state()
@@ -1424,8 +1353,8 @@ else:
         if st.sidebar.button("🔄 Recargar datos"):
             st.cache_data.clear()
             st.rerun()
-    if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Roman" or st.session_state["username"] == "Fernanda":
-        link_360 = "https://drive.google.com/file/d/1On2H3wfbyPotl7A4jtN9zwldvC04L06Z/view?usp=sharing"
+    if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Fernanda":
+        link_360 = "https://drive.google.com/file/d/1ZQkWXHE9sakW9NL7eUfz8gOh8dg1L5w2/view?usp=sharing"
         def get_direct_link(shareable_link):
             # Extraer el ID del enlace compartido
             file_id = shareable_link.split("/d/")[1].split("/")[0]
@@ -1478,8 +1407,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido",
-                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial","OH","Comentarios"],
-
+                 "CeCo", "Ratios", "Dashboard", "Benchmark", "Simulador", "Gastos por Empresa", "Comercial", "OH", "Comentarios"],
         icons = [
                 "house",                # Resumen
                 "clipboard-data",       # Estado de Resultado
@@ -1505,14 +1433,14 @@ else:
     elif st.session_state["rol"] == "director" or st.session_state["rol"] == "admin":
         selected = option_menu(
         menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Ratios", "Comercial","OH","Comentarios"],
+        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Ratios", "Comercial", "OH", "Comentarios"],
         icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "graph-up", "person-gear", "percent", "dcurrency-dollar", "house-door", "flag"],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "gerente":
         selected = option_menu(
         menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Comercial","Comentarios"],
+        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Mes Corregido", "CeCo", "Comercial", "Comentarios"],
         icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "graph-up", "calendar", "person-gear", "currency-dollar", "flag"],
         default_index=0,
         orientation="horizontal",)
@@ -1667,7 +1595,7 @@ else:
 
 
 
-            st.subheader("📊 Análisis Visual del Estado de  por Proyecto")
+            st.subheader("📊 Análisis Visual del Estado de Resultados por Proyecto")
             # --- Filtro de proyecto ---
             proyectos_disponibles = [col for col in df_tabla.columns if col != "Proyecto"]
             proyecto_default = "ESGARI" if "ESGARI" in proyectos_disponibles else proyectos_disponibles[0]
@@ -2384,7 +2312,7 @@ else:
             
             gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
 
-            ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESO POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
+            ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
             intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
 
             utilidad_operativa = ingreso_pro_fut - coss_pro - gadmn_pro
@@ -2421,7 +2349,7 @@ else:
             
             gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
 
-            ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESO POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
+            ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
             intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
 
             utilidad_operativa = ingreso_pro_fut - coss_pro - gadmn_pro
@@ -2458,7 +2386,7 @@ else:
             
             gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
 
-            ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESO POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
+            ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
             intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
 
             utilidad_operativa = ingreso_pro_fut - coss_pro - gadmn_pro
@@ -2503,7 +2431,7 @@ else:
                 
                 gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
 
-                ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESO POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
+                ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
                 intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
 
                 if modo_oh_master == "Calcular como % de ingresos":
@@ -3064,21 +2992,25 @@ else:
 
         col1, col2 = st.columns(2)
         ceco_codigo, ceco_nombre = filtro_ceco(col1)
+        proyecto_codigo, proyecto_nombre = filtro_pro(st)
 
         df_cecos = df_2025.copy()
         df_cecos["CeCo_A"] = df_cecos["CeCo_A"].astype(str)
         df_cecos = df_cecos[df_cecos["CeCo_A"].isin(ceco_codigo)]
+        df_cecos = df_cecos[df_cecos["Proyecto_A"].isin(proyecto_codigo)]
         df_cecos_ly = df_ly.copy()
         df_cecos_ly["CeCo_A"] = df_cecos_ly["CeCo_A"].astype(str)
         df_cecos_ly = df_cecos_ly[df_cecos_ly["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ly = df_cecos_ly[df_cecos_ly["Proyecto_A"].isin(proyecto_codigo)]
         df_cecos_ppt = df_ppt.copy()
         df_cecos_ppt["CeCo_A"] = df_cecos_ppt["CeCo_A"].astype(str)
         df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["Proyecto_A"].isin(proyecto_codigo)]
 
         def tabla_expandible_comp(df, df_ly, df_ppt, cat, mes, ceco, key_prefix):
             columnas = ['Cuenta_Nombre_A', 'Categoria_A']
             ingreso_fin = [
-                'INGRESO POR REVALUACION CAMBIARIA', 'INGRESO POR INTERESES', 
+                'INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 
                 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE'
             ]
             # Filtrar según categoría
@@ -3148,7 +3080,7 @@ else:
             df_comb_or = pd.concat([df_comb_or, total_cat], ignore_index=True, sort=False)
             AgGrid(df_comb_or, gridOptions=gb.build(), enable_enterprise_modules=True,
                 allow_unsafe_jscode=True, theme="streamlit", height=400,
-                key=f"{key_prefix}_{cat}_{ceco}_{mes}")
+                key=f"{key_prefix}_{cat}_{ceco}_{mes}_{proyecto_codigo}")
 
             df_sin_total = df_comb_or[df_comb_or["Cuenta_Nombre_A"] != ""]
 
@@ -3213,7 +3145,6 @@ else:
                             .properties(title="Comparativo Global YTD vs LY"),
             use_container_width=True
     )
-
 
     elif selected == "Ratios":
 
@@ -3321,30 +3252,22 @@ else:
                         "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
         meses_disponibles = [m for m in meses_ordenados if m in df_2025["Mes_A"].unique()]
-        meses_sel = st.multiselect("Selecciona meses a analizar",
-                                meses_disponibles,
-                                default=meses_disponibles)
+        meses_sel = st.multiselect("Selecciona meses a analizar", meses_disponibles, default=meses_disponibles)
         num_ratios = st.number_input("¿Cuántos ratios deseas analizar?", 1, 10, 1)
         ratio_config = []
 
         for i in range(num_ratios):
             with st.expander(f"⚙️ Configuración Ratio {i+1}", expanded=(i == 0)):
 
-                nombre = st.text_input(f"Nombre Ratio {i+1}",
-                                    f"Ratio {i+1}",
-                                    key=f"ratio_name_{i}")
+                nombre = st.text_input(f"Nombre Ratio {i+1}", f"Ratio {i+1}", key=f"ratio_name_{i}")
 
                 col1, col2 = st.columns(2)
 
                 # ===== NUMERADOR =====
-                tipo_num = col1.selectbox("Campo Numerador",
-                                        list(campo_map.keys()),
-                                        key=f"tipo_num_{i}")
+                tipo_num = col1.selectbox("Campo Numerador", list(campo_map.keys()), key=f"tipo_num_{i}")
 
                 if tipo_num == "Estado de Resultado":
-                    valor_num = col1.selectbox("Valor Numerador",
-                                            er_labels,
-                                            key=f"val_num_{i}")
+                    valor_num = col1.selectbox("Valor Numerador", er_labels, key=f"val_num_{i}")
                 else:
                     columna = campo_map[tipo_num]
                     valor_num = col1.selectbox(
@@ -3352,19 +3275,12 @@ else:
                         sorted(df_2025[columna].dropna().astype(str).unique()),
                         key=f"val_val_{i}"
                     )
-
-                # Extra numerador
-                add_extra_num = col1.checkbox("➕ Agregar otro valor al numerador",
-                                            key=f"extra_num_check_{i}")
+                add_extra_num = col1.checkbox("➕ Agregar otro valor al numerador", key=f"extra_num_check_{i}")
                 extra_num = None
                 if add_extra_num:
-                    tipo2 = col1.selectbox("Campo adicional Numerador",
-                                        list(campo_map.keys()),
-                                        key=f"extra_num_tipo_{i}")
+                    tipo2 = col1.selectbox("Campo adicional Numerador", list(campo_map.keys()), key=f"extra_num_tipo_{i}")
                     if tipo2 == "Estado de Resultado":
-                        val2 = col1.selectbox("Valor adicional Numerador",
-                                            er_labels,
-                                            key=f"extra_num_val_{i}")
+                        val2 = col1.selectbox("Valor adicional Numerador", er_labels, key=f"extra_num_val_{i}")
                     else:
                         col2map = campo_map[tipo2]
                         val2 = col1.selectbox(
@@ -3373,11 +3289,7 @@ else:
                             key=f"extra_num_val2_{i}"
                         )
                     extra_num = {"campo": tipo2, "valor": val2}
-
-                # ===== DENOMINADOR =====
-                tipo_den = col2.selectbox("Campo Denominador",
-                                        list(campo_map.keys()),
-                                        key=f"tipo_den_{i}")
+                tipo_den = col2.selectbox("Campo Denominador", list(campo_map.keys()), key=f"tipo_den_{i}")
 
                 if tipo_den == "Estado de Resultado":
                     valor_den = col2.selectbox("Valor Denominador", er_labels, key=f"val_den_{i}")
@@ -3388,8 +3300,6 @@ else:
                         sorted(df_2025[columna].dropna().astype(str).unique()),
                         key=f"val2_val_{i}"
                     )
-
-                # Extra denominador
                 add_extra_den = col2.checkbox("➕ Agregar otro valor al denominador", key=f"extra_den_check_{i}")
                 extra_den = None
                 if add_extra_den:
@@ -3531,7 +3441,7 @@ else:
         st.subheader("📋 Tabla de resultados")
         st.dataframe(df_result, use_container_width=True)
 
-            
+
     elif selected == "Dashboard":
         st.title("📊 Dashboard Ejecutivo")
 
@@ -4363,105 +4273,6 @@ else:
         else:
             st.warning("⚠️ Debes seleccionar al menos un mes para continuar.")
 
-    elif selected == "P&L":
-        st.subheader("📰 Último correo recibido (Boletín)")
-
-        CLIENT_CONFIG = {
-            "installed": {
-                "client_id": st.secrets["gmail"]["client_id"],
-                "client_secret": st.secrets["gmail"]["client_secret"],
-                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                "token_uri": "https://oauth2.googleapis.com/token",
-                "auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs",
-                "redirect_uris": ["http://localhost"]
-            }
-        }
-
-        creds = None
-        if os.path.exists("token.json"):
-            creds = Credentials.from_authorized_user_file("token.json")
-
-        # --- Botón en la barra lateral ---
-        with st.sidebar:
-            st.markdown("### 📧 Gmail")
-            conectar = st.button("🔗 Conectar con Gmail", use_container_width=True)
-
-        # --- Autenticación 100 % manual ---
-        if not creds:
-            if conectar:
-                try:
-                    flow = InstalledAppFlow.from_client_config(
-                        CLIENT_CONFIG,
-                        scopes=["https://www.googleapis.com/auth/gmail.readonly"]
-                    )
-
-                    # 1️⃣ Generar URL de autenticación
-                    auth_url, _ = flow.authorization_url(prompt="consent")
-                    st.markdown(f"🔗 [Haz clic aquí para autorizar Gmail]({auth_url})")
-                    st.info("Tras iniciar sesión, copia el **código de verificación** que te muestra Google y pégalo abajo.")
-
-                    # 2️⃣ Campo para pegar el código
-                    auth_code = st.text_input("📥 Pega aquí el código de autorización:")
-
-                    # 3️⃣ Intercambiar código por token
-                    if auth_code:
-                        flow.fetch_token(code=auth_code)
-                        creds = flow.credentials
-
-                        # Guardar token para futuras sesiones
-                        with open("token.json", "w") as token_file:
-                            token_file.write(creds.to_json())
-
-                        st.success("✅ Conectado correctamente con Gmail API")
-
-                except Exception as e:
-                    st.error(f"❌ Error al autenticar: {e}")
-            else:
-                st.info("Conéctate con Gmail para ver el último boletín.")
-        else:
-            st.success("✅ Ya estás autenticado con Gmail")
-
-            try:
-                # Crear servicio Gmail
-                service = build("gmail", "v1", credentials=creds)
-                results = service.users().messages().list(
-                    userId="me", maxResults=1, labelIds=["INBOX"]
-                ).execute()
-                messages = results.get("messages", [])
-
-                if not messages:
-                    st.warning("No hay correos en la bandeja de entrada.")
-                else:
-                    msg = service.users().messages().get(
-                        userId="me", id=messages[0]["id"], format="full"
-                    ).execute()
-                    payload = msg["payload"]
-                    headers = payload["headers"]
-
-                    subject = next((h["value"] for h in headers if h["name"] == "Subject"), "(Sin asunto)")
-                    sender = next((h["value"] for h in headers if h["name"] == "From"), "(Remitente desconocido)")
-
-                    st.markdown(f"### ✉️ {subject}")
-                    st.caption(f"De: {sender}")
-
-                    def get_parts(parts):
-                        for part in parts:
-                            if part.get("parts"):
-                                yield from get_parts(part["parts"])
-                            else:
-                                yield part
-
-                    for part in get_parts(payload.get("parts", [])):
-                        mime_type = part.get("mimeType")
-                        data = part["body"].get("data")
-                        if mime_type == "text/plain" and data:
-                            st.write(base64.urlsafe_b64decode(data).decode("utf-8"))
-                        elif mime_type and mime_type.startswith("image/") and data:
-                            st.image(base64.urlsafe_b64decode(data), caption="Imagen del correo")
-
-            except Exception as e:
-                st.error(f"❌ Error al obtener el correo: {e}")
-
     elif selected == "Comentarios":
 
         st.title("Análisis Semanal")
@@ -4522,6 +4333,9 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
+
+
 
 
 
