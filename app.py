@@ -1354,7 +1354,7 @@ else:
             st.cache_data.clear()
             st.rerun()
     if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Fernanda":
-        link_360 = "https://drive.google.com/file/d/1ZQkWXHE9sakW9NL7eUfz8gOh8dg1L5w2/view?usp=sharing"
+        link_360 = "https://drive.google.com/file/d/1bQnGjeBD6ONI3x7ovhEwNl4F-QXa8GSV/view?usp=sharing"
         def get_direct_link(shareable_link):
             # Extraer el ID del enlace compartido
             file_id = shareable_link.split("/d/")[1].split("/")[0]
@@ -4333,6 +4333,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
