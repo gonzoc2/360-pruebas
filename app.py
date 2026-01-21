@@ -2415,6 +2415,86 @@ else:
                 oh_pct_elegido = None
 
             proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro, gadmn_pro, oh_pct_elegido)
+
+
+        elif promedio_variables == "YTD":
+            df_ext_var = df_2025[df_2025["Mes_A"] != mes_act]
+            df_ext_var = df_ext_var[df_ext_var["Categoria_A"].isin(costos_variables)]
+            if pro != "ESGARI":
+                df_ext_var = df_ext_var[df_ext_var["Proyecto_A"].isin(codigo_pro)]
+            ingreso_pro = df_ext_var[df_ext_var["Categoria_A"] == "INGRESO"]["Neto_A"].sum()
+            df_ext_var["Neto_normalizado"] = df_ext_var["Neto_A"] / ingreso_pro
+            df_ext_var = df_ext_var[~df_ext_var["Categoria_A"].isin(["INGRESO"])]
+             
+            df_ext_var["Neto_A"] = df_ext_var["Neto_normalizado"] * ingreso_pro_fut
+
+            variable = df_ext_var["Neto_normalizado"].sum()
+            
+            df_junto = pd.concat([df_ext_var, df_sum], ignore_index=True)
+
+            coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
+            
+            gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
+
+            ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
+            intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
+
+            utilidad_operativa = ingreso_pro_fut - coss_pro - gadmn_pro
+            por_uo = utilidad_operativa / ingreso_pro_fut if ingreso_pro_fut != 0 else 0 
+            ebit = utilidad_operativa - oh_pro
+            ebt = ebit - intereses
+            por_ebt = ebt / ingreso_pro_fut if ingreso_pro_fut != 0 else 0
+            
+            
+            if modo_oh_master == "Calcular como % de ingresos":
+                oh_pct_elegido = oh_pct_elegido  # ya estaba definido arriba
+            else:
+                oh_pct_elegido = None
+
+            proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro, gadmn_pro, oh_pct_elegido)
+
+            
+        elif promedio_variables == "TRES MESES":
+            # Identificamos los 3 meses anteriores al mes actual
+            idx_mes_act = meses_ordenados.index(mes_act)
+            meses_previos = meses_ordenados[max(0, idx_mes_act - 3):idx_mes_act]
+
+            # Filtramos gastos variables de los 3 meses anteriores
+            df_ext_var = df_2025[df_2025["Mes_A"].isin(meses_previos)]
+            df_ext_var = df_ext_var[df_ext_var["Categoria_A"].isin(costos_variables)]
+            if pro != "ESGARI":
+                df_ext_var = df_ext_var[df_ext_var["Proyecto_A"].isin(codigo_pro)]
+            numero_meses = df_ext_var['Mes_A'].nunique()
+            if numero_meses > 0:
+
+                ingreso_pro = df_ext_var[df_ext_var["Categoria_A"] == "INGRESO"]["Neto_A"].sum()
+                df_ext_var["Neto_normalizado"] = df_ext_var["Neto_A"] / ingreso_pro
+                df_ext_var = df_ext_var[~df_ext_var["Categoria_A"].isin(["INGRESO"])]
+                
+                df_ext_var["Neto_A"] = df_ext_var["Neto_normalizado"] * ingreso_pro_fut
+
+                variable = df_ext_var["Neto_normalizado"].sum()
+                
+                df_junto = pd.concat([df_ext_var, df_sum], ignore_index=True)
+
+                coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
+                
+                gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
+
+                ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
+                intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
+
+                if modo_oh_master == "Calcular como % de ingresos":
+                    oh_pct_elegido = oh_pct_elegido  # ya estaba definido arriba
+                else:
+                    oh_pct_elegido = None
+
+                proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro, gadmn_pro, oh_pct_elegido)
+
+
+            else:
+                st.warning("No hay suficientes meses anteriores para calcular el promedio de 3 meses.")  
+
     
     
     elif selected == "LY":
@@ -4281,6 +4361,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
