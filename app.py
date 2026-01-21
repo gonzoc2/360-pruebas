@@ -2106,7 +2106,7 @@ else:
         mes = filtro_meses(col1, df_mes)
         codigo_pro, pro = filtro_pro(col2)
 
-        # Toggle ingresos
+        ingreso_pro_fut = 0.0
         ingreso_lineal = st.toggle("ingreso lineal / ingreso por historico", value=True)
 
         if ingreso_lineal:
@@ -2120,77 +2120,66 @@ else:
         else:
             st.write("Proyección con historicos")
 
-            # --- 1) Cargar ambas fuentes históricas
             ingreso_sem_url = "https://docs.google.com/spreadsheets/d/14l6QLudSBpqxmfuwRqVxCXzhSFzRL0AqWJqVuIOaFFQ/export?format=xlsx"
             ingreso_ly_url  = "https://docs.google.com/spreadsheets/d/1p1Cg08JKCI3WdddArtI92kirHfVc_BfFoKjiOox-Nvg/export?format=xlsx"
 
             df_sem = cargar_datos(ingreso_sem_url)
             df_ly  = cargar_datos(ingreso_ly_url)
 
-            # --- 2) Selector de fuente
             fuente_hist = st.radio(
                 "Fuente para histórico de ingresos",
-                ["LM", "LY"],
+                ["SEM", "LY"],
                 horizontal=True,
                 key="fuente_hist_ing"
             )
-            df_hist = df_sem if fuente_hist == "LM" else df_ly
+            df_hist = df_sem if fuente_hist == "SEM" else df_ly
 
-            # --- 3) Tu lógica, pero usando df_hist (en lugar de df)
-            if selected == "INGRESO ACTUAL":
+            # --- OJO: aquí YA NO uses "if selected == 'INGRESO ACTUAL'"
+            df_hist = df_hist.copy()
+            df_hist["fecha"] = pd.to_datetime(df_hist["fecha"], errors="coerce")
+            df_hist = df_hist.dropna(subset=["fecha"])
 
-                # Normaliza tipos / columnas esperadas:
-                # df_hist debe traer: fecha, semana, proyecto, ingreso
-                df_hist = df_hist.copy()
-                df_hist["fecha"] = pd.to_datetime(df_hist["fecha"], errors="coerce")
-                df_hist = df_hist.dropna(subset=["fecha"])
+            df_hist["dia"] = df_hist["fecha"].dt.day
+            idx_cercano = (df_hist["dia"] - fecha_act).abs().idxmin()
+            dia_cercano = int(df_hist.loc[idx_cercano, "dia"])
 
-                df_hist["mes"] = df_hist["fecha"].dt.day
-                indice_mas_cercano = (df_hist["mes"] - fecha_act).abs().idxmin()
-                valor_mas_cercano = int(df_hist.loc[indice_mas_cercano, "mes"])
+            df_va = df_hist[df_hist["dia"] == dia_cercano].copy()
+            df_va["ingreso"] = df_va["ingreso"] / dia_cercano * fecha_act
+            df_va = df_va.drop(columns=["dia", "semana", "fecha"], errors="ignore")
 
-                df_va = df_hist[df_hist["mes"] == valor_mas_cercano].copy()
-                df_va["ingreso"] = df_va["ingreso"] / valor_mas_cercano * fecha_act
-                df_va = df_va.drop(columns=["mes", "semana", "fecha"], errors="ignore")
+            df_fin = df_hist[df_hist["semana"] == 4].copy()
+            df_fin = df_fin.drop(columns=["dia", "semana", "fecha"], errors="ignore")
 
-                df_fin = df_hist[df_hist["semana"] == 4].copy()
-                df_fin = df_fin.drop(columns=["mes", "semana", "fecha"], errors="ignore")
+            df_merged = pd.merge(df_va, df_fin, on="proyecto", suffixes=("_va", "_fin"), how="inner")
+            df_merged["ingreso_dividido"] = df_merged["ingreso_va"] / df_merged["ingreso_fin"]
 
-                df_merged = pd.merge(df_va, df_fin, on="proyecto", suffixes=("_va", "_fin"), how="inner")
-                df_merged["ingreso_dividido"] = df_merged["ingreso_va"] / df_merged["ingreso_fin"]
+            df_proyeccion = df_2025[df_2025["Mes_A"] == mes_act].copy()
+            df_proyeccion = df_proyeccion.groupby(["Proyecto_A", "Categoria_A"], as_index=False)["Neto_A"].sum()
+            df_proyeccion = df_proyeccion[df_proyeccion["Categoria_A"] == "INGRESO"].drop(columns=["Categoria_A"], errors="ignore")
 
-                df_proyeccion = df_2025[df_2025["Mes_A"] == mes_act].copy()
-                df_proyeccion = df_proyeccion.groupby(["Proyecto_A", "Categoria_A"], as_index=False)["Neto_A"].sum()
-                df_proyeccion = df_proyeccion[df_proyeccion["Categoria_A"] == "INGRESO"].drop(columns=["Categoria_A"], errors="ignore")
+            df_proyeccion["Proyecto_A"] = df_proyeccion["Proyecto_A"].astype(str).str.replace(".0", "", regex=False)
+            df_merged["proyecto"] = df_merged["proyecto"].astype(str).str.replace(".0", "", regex=False)
 
-                # Ojo: aquí estabas forzando float; mejor normalizar a string comparable
-                df_proyeccion["Proyecto_A"] = df_proyeccion["Proyecto_A"].astype(str).str.replace(".0", "", regex=False)
-                df_merged["proyecto"] = df_merged["proyecto"].astype(str).str.replace(".0", "", regex=False)
+            df_proyeccion = pd.merge(
+                df_proyeccion,
+                df_merged[["proyecto", "ingreso_dividido"]],
+                left_on="Proyecto_A",
+                right_on="proyecto",
+                how="left"
+            )
 
-                df_proyeccion = pd.merge(
-                    df_proyeccion,
-                    df_merged[["proyecto", "ingreso_dividido"]],
-                    left_on="Proyecto_A",
-                    right_on="proyecto",
-                    how="left"
-                )
+            df_proyeccion["ingreso_dividido"] = pd.to_numeric(df_proyeccion["ingreso_dividido"], errors="coerce")
+            df_proyeccion.loc[df_proyeccion["ingreso_dividido"].isna() | (df_proyeccion["ingreso_dividido"] == 0), "ingreso_dividido"] = 1
 
-                # Evitar divisiones por NaN/0
-                df_proyeccion["ingreso_dividido"] = pd.to_numeric(df_proyeccion["ingreso_dividido"], errors="coerce")
-                df_proyeccion.loc[df_proyeccion["ingreso_dividido"].isna() | (df_proyeccion["ingreso_dividido"] == 0), "ingreso_dividido"] = 1
+            df_proyeccion["Neto_A"] = df_proyeccion["Neto_A"] / df_proyeccion["ingreso_dividido"]
+            df_proyeccion = df_proyeccion.drop(columns=["proyecto", "ingreso_dividido"], errors="ignore")
 
-                df_proyeccion["Neto_A"] = df_proyeccion["Neto_A"] / df_proyeccion["ingreso_dividido"]
-                df_proyeccion = df_proyeccion.drop(columns=["proyecto", "ingreso_dividido"], errors="ignore")
-
-                # --- 4) Suma final: ESGARI = todos; si no, filtra por codigo_pro
-                if pro == "ESGARI":
-                    ingreso_pro_fut = df_proyeccion["Neto_A"].sum()
-                else:
-                    cods = [str(x).replace(".0","") for x in (codigo_pro or [])]
-                    ingreso_pro_fut = df_proyeccion[df_proyeccion["Proyecto_A"].isin(cods)]["Neto_A"].sum()
-
-
-
+            if pro == "ESGARI":
+                ingreso_pro_fut = float(df_proyeccion["Neto_A"].sum())
+            else:
+                cods = [str(x).replace(".0", "") for x in (codigo_pro or [])]
+                ingreso_pro_fut = float(df_proyeccion[df_proyeccion["Proyecto_A"].isin(cods)]["Neto_A"].sum())
+                # --- SIEMPRE inicializa (fallback) para evitar NameError
 
         if promedio_fijo == "LM":
             
@@ -4361,6 +4350,7 @@ else:
         else:
             # Mostrar contenido actual almacenado (sin recargar)
             placeholder.info("Presiona el botón en la barra lateral para recargar el documento.")
+
 
 
 
