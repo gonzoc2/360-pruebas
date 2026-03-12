@@ -74,6 +74,7 @@ else:
         st.session_state["logged_in"] = False
         st.session_state["username"] = ""
         st.rerun()
+
     # Conectar a Google Sheets
     def authenticate_gsheet(spreadsheet_name):
         scope = [
@@ -345,7 +346,7 @@ else:
     # ================================
     # 📦 CONFIGURACIÓN GENERAL
     # ================================
-    proyectos_default = df_provisiones['Proyecto_A'].unique().tolist()
+    proyectos_default = df_provisiones['Proyecto_A'].unique().tolist() + [0]
 
     # ================================
     # 🔍 FILTRO POR CATEGORÍAS
@@ -394,7 +395,6 @@ else:
     st.subheader("🔍 Filtro por Cuentas")
 
     cue_pro = df_provisiones['Cuenta_Nombre_A'].dropna().unique().tolist()
-    
     cue_default = [
         "COMBUSTIBLE / DIESEL", "RENTA DE REMOLQUES", "DAÑOS", "DIF DE KILOMETRAJE",
         "LIMPIEZA DE UNIDADES", "REPARACIONES A EQUIPO DE TRANSPORTE", "RENTA DE CAMION",
@@ -431,10 +431,12 @@ else:
     # 🧮 HISTÓRICOS
     # ================================
     st.subheader("📊 Agregado de Históricos")
-
+    
     df_base['Mes_A'] = df_base['Mes_A'].map(orden_meses_invertido)
-    mes_seleccionado_his = mes_seleccionado - 1
-
+    
+    # ✅ ÚNICO CAMBIO: si mes actual es enero (1), histórico = diciembre (12)
+    mes_seleccionado_his = 12 if mes_seleccionado == 1 else mes_seleccionado - 1
+    
     dias_meses = {
         1: 31, 2: 28, 3: 31, 4: 30, 5: 31, 6: 30, 7: 31,
         8: 31, 9: 30, 10: 31, 11: 30, 12: 31
@@ -446,11 +448,11 @@ else:
         max_value=31,
         value=datetime.now().day
     )
-
+    
     cuentas_hist = df_base[df_base['Mes_A'] == mes_seleccionado_his]['Cuenta_Nombre_A'].unique().tolist()
     df_filtrado_num = df_filtrado.copy()
     df_filtrado_num['Mes_A'] = df_filtrado_num['Mes_A'].map(orden_meses_invertido)
-
+    
     fal_nom = list(
         set(df_base[
             (df_base['Mes_A'] == mes_seleccionado_his) &
@@ -461,44 +463,46 @@ else:
             (df_filtrado_num['Categoria_A'].isin(['NOMINA OPERADORES', 'NOMINA ADMINISTRATIVOS']))
         ]['Cuenta_Nombre_A'])
     )
-
+    
     cuentas_hist_sel = st.multiselect("Cuentas históricas", options=cuentas_hist, default=fal_nom)
     pro_hist = st.multiselect("Proyectos históricos", options=proyectos_default, default=proyectos_default)
-
+    
     df_agregado_hist = df_base[
         (df_base['Mes_A'] == mes_seleccionado_his) &
         (df_base['Cuenta_Nombre_A'].isin(cuentas_hist_sel)) &
         (df_base['Proyecto_A'].isin(pro_hist))
     ]
-
+    
     df_agregado_hist = df_agregado_hist.groupby([
         'Mes_A', 'Empresa_A', 'CeCo_A', 'Proyecto_A', 'Cuenta_A',
         'Clasificacion_A', 'Cuenta_Nombre_A', 'Categoria_A', 'Usuario_A'
     ])[columnas_a_sumar].sum().reset_index()
-
+    
     df_agregado_hist['Neto_A'] = df_agregado_hist['Neto_A'] / dias_mes_ant * dias_mes_actual
     df_agregado_hist['Mes_A'] = mes_seleccionado
     df_agregado_hist['Mes_A'] = df_agregado_hist['Mes_A'].map(orden_meses)
-
+    
     df_base_sin_mes = df_base[df_base['Mes_A'] != mes_seleccionado]
     df_base_sin_mes['Mes_A'] = df_base_sin_mes['Mes_A'].map(orden_meses)
-
+    
     df_junto_his = pd.concat([df_junto, df_agregado_hist, df_base_sin_mes], ignore_index=True)
-
+    
     df_junto_his = df_junto_his.groupby([
         'Mes_A', 'Empresa_A', 'CeCo_A', 'Proyecto_A', 'Cuenta_A',
         'Clasificacion_A', 'Cuenta_Nombre_A', 'Categoria_A', 'Usuario_A'
     ])[columnas_a_sumar].sum().reset_index()
-
+    
     df_junto_his['Usuario_A'] = 'Sistema'
     df_junto_his.insert(0, 'ID_A', range(1, len(df_junto_his) + 1))
-
+    
     column_order = [
         "ID_A", "Mes_A", "Empresa_A", "CeCo_A", "Proyecto_A", "Cuenta_A",
         "Clasificacion_A", "Cuenta_Nombre_A", "Importe_PPTO_A",
         "Categoria_A", "Usuario_A", "Debit_A", "Credit_A", "Neto_A"
     ]
-    df_junto_his = df_junto_his[column_order]
+    for c in ["Debit_A", "Credit_A", "Neto_A", "Importe_PPTO_A"]:
+        if c in df_junto_his.columns:
+            df_junto_his[c] = pd.to_numeric(df_junto_his[c], errors="coerce")
 
     ###Nomina
     st.subheader("💼 Nómina")
@@ -530,8 +534,8 @@ else:
     
     # Aplicar multiplicación SOLO a la columna 'Neto_A' donde Categoria_A coincide
     df_junto_his.loc[
-        df_junto_his['Categoria_A'].isin(cat_nomina) & df_junto_his['Mes_A'] == mes_seleccionado, 
-        'Neto_A'
+        (df_junto_his["Categoria_A"].isin(cat_nomina)) & (df_junto_his["Mes_A"] == mes_seleccionado),
+        "Neto_A"
     ] *= cambio_nomina
 
     
@@ -603,6 +607,8 @@ else:
             st.cache_data.clear()
             st.cache_resource.clear()
             st.rerun()
+
+
 
 
 
