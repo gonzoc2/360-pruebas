@@ -1882,39 +1882,6 @@ else:
             st.markdown(tabla_html, unsafe_allow_html=True)
             df_grafico = df_compara.copy()
 
-### CAMBIAR ORDEN ---------------------------------------------------------------------------------------------------------------------
-
-            if st.session_state['rol'] == "director" or st.session_state['rol'] == "admin":
-                ventanas = ['INGRESO', 'COSS', 'G.ADMN', 'GASTOS FINANCIEROS', 'INGRESO FINANCIERO']
-                tabs = st.tabs(ventanas)
-                with tabs[0]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Categoria_A", "INGRESO", "Tabla de Ingresos")
-
-                with tabs[1]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "COSS", "Tabla de COSS")
-                    
-                with tabs[2]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "G.ADMN", "Tabla de G.ADMN")
-                    
-                with tabs[3]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "GASTOS FINANCIEROS", "Tabla de Gastos Financieros")
-                    
-                with tabs[4]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Categoria_A", "INGRESO POR REVALUACION CAMBIARIA", "Tabla de Ingreso Financiero")
-            else:
-                ventanas = ['INGRESO', 'COSS', 'G.ADMN']
-                tabs = st.tabs(ventanas)
-                with tabs[0]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Categoria_A", "INGRESO", "Tabla de Ingresos")
-
-                with tabs[1]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "COSS", "Tabla de COSS")
-                    
-                with tabs[2]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "G.ADMN", "Tabla de G.ADMN")  
-
-
-
             tabs = st.tabs(["📊 Gráfico de barras", "📈 Grafico Mensual"])
             with tabs[1]:
                 # === GRÁFICO LINEAL DE COMPARACIÓN MENSUAL POR MÉTRICA ===
@@ -2043,9 +2010,36 @@ else:
                 )
                 fig_var.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
 
-                st.plotly_chart(fig_var, use_container_width=True) 
+                st.plotly_chart(fig_var, use_container_width=True)
 
-                
+            if st.session_state['rol'] == "director" or st.session_state['rol'] == "admin":
+                ventanas = ['INGRESO', 'COSS', 'G.ADMN', 'GASTOS FINANCIEROS', 'INGRESO FINANCIERO']
+                tabs = st.tabs(ventanas)
+                with tabs[0]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Categoria_A", "INGRESO", "Tabla de Ingresos")
+
+                with tabs[1]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "COSS", "Tabla de COSS")
+                    
+                with tabs[2]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "G.ADMN", "Tabla de G.ADMN")
+                    
+                with tabs[3]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "GASTOS FINANCIEROS", "Tabla de Gastos Financieros")
+                    
+                with tabs[4]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Categoria_A", "INGRESO POR REVALUACION CAMBIARIA", "Tabla de Ingreso Financiero")
+            else:
+                ventanas = ['INGRESO', 'COSS', 'G.ADMN']
+                tabs = st.tabs(ventanas)
+                with tabs[0]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Categoria_A", "INGRESO", "Tabla de Ingresos")
+
+                with tabs[1]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "COSS", "Tabla de COSS")
+                    
+                with tabs[2]:
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "G.ADMN", "Tabla de G.ADMN")                               
 
     elif selected == "Análisis":
         st.write("Bienvenido a la sección de Análisis. Aquí puedes realizar un análisis detallado de los datos.")
@@ -3312,23 +3306,26 @@ else:
             st.warning("Selecciona al menos un mes.")
             st.stop()
 
+        ceco_codigo = [str(x).strip() for x in ceco_codigo]
+        proyecto_codigo = [str(x).strip() for x in proyecto_codigo]
+
         df_cecos = df_2025.copy()
         df_cecos["CeCo_A"] = df_cecos["CeCo_A"].astype(str).str.strip()
         df_cecos["Proyecto_A"] = df_cecos["Proyecto_A"].astype(str).str.strip()
-        df_cecos = df_cecos[df_cecos["CeCo_A"].isin([str(x).strip() for x in ceco_codigo])]
-        df_cecos = df_cecos[df_cecos["Proyecto_A"].isin([str(x).strip() for x in proyecto_codigo])]
+        df_cecos = df_cecos[df_cecos["CeCo_A"].isin(ceco_codigo)]
+        df_cecos = df_cecos[df_cecos["Proyecto_A"].isin(proyecto_codigo)]
 
         df_cecos_ly = df_ly.copy()
         df_cecos_ly["CeCo_A"] = df_cecos_ly["CeCo_A"].astype(str).str.strip()
         df_cecos_ly["Proyecto_A"] = df_cecos_ly["Proyecto_A"].astype(str).str.strip()
-        df_cecos_ly = df_cecos_ly[df_cecos_ly["CeCo_A"].isin([str(x).strip() for x in ceco_codigo])]
-        df_cecos_ly = df_cecos_ly[df_cecos_ly["Proyecto_A"].isin([str(x).strip() for x in proyecto_codigo])]
+        df_cecos_ly = df_cecos_ly[df_cecos_ly["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ly = df_cecos_ly[df_cecos_ly["Proyecto_A"].isin(proyecto_codigo)]
 
         df_cecos_ppt = df_ppt.copy()
         df_cecos_ppt["CeCo_A"] = df_cecos_ppt["CeCo_A"].astype(str).str.strip()
         df_cecos_ppt["Proyecto_A"] = df_cecos_ppt["Proyecto_A"].astype(str).str.strip()
-        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["CeCo_A"].isin([str(x).strip() for x in ceco_codigo])]
-        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["Proyecto_A"].isin([str(x).strip() for x in proyecto_codigo])]
+        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["Proyecto_A"].isin(proyecto_codigo)]
 
         df_comp_base = df_cecos_ly if comparativo_sel == "LY" else df_cecos_ppt
 
@@ -3348,7 +3345,6 @@ else:
                 (df_comp["Clasificacion_A"] == cat)
             ].copy()
 
-            # Agrupado por categoría + cuenta
             df_real_agg = (
                 df_real_f.groupby(columnas_merge, as_index=False)["Neto_A"]
                 .sum()
@@ -3377,7 +3373,6 @@ else:
 
             df_grid = df_grid.sort_values(["Group", "Cuenta_Nombre_A"]).reset_index(drop=True)
 
-            # ---------- fila total por grupo ----------
             total_group = (
                 df_grid.groupby("Group", as_index=False)[["REAL", comparativo_sel, "DIF. NOMINAL"]]
                 .sum()
@@ -3389,7 +3384,6 @@ else:
                 0
             )
 
-            # ---------- total general ----------
             total_general_real = df_grid["REAL"].sum()
             total_general_comp = df_grid[comparativo_sel].sum()
             total_general_diff = df_grid["DIF. NOMINAL"].sum()
@@ -3406,7 +3400,6 @@ else:
 
             df_grid_final = pd.concat([df_grid, total_group, total_general], ignore_index=True)
 
-            # ---------- AGRID ----------
             currency_formatter = JsCode("""
             function(params) {
                 if (params.value === null || params.value === undefined || isNaN(params.value)) return '';
@@ -3440,12 +3433,14 @@ else:
             }
             """)
 
-            gb = GridOptionsBuilder.from_dataframe(df_grid_final)
+            gb = GridOptionsBuilder.from_dataframe(
+                df_grid_final[["Group", "Cuenta_Nombre_A", "REAL", comparativo_sel, "DIF. NOMINAL", "% VARIACION"]]
+            )
             gb.configure_default_column(groupable=True, sortable=True, filter=True, resizable=True)
             gb.configure_grid_options(getRowStyle=row_style_js)
 
-            gb.configure_column("Group", header_name="Group", pinned="left")
-            gb.configure_column("Cuenta_Nombre_A", header_name="Cuenta_Nombre_A", pinned="left")
+            gb.configure_column("Group", header_name="Group", rowGroup=True, hide=True)
+            gb.configure_column("Cuenta_Nombre_A", header_name="Cuenta", pinned="left")
             gb.configure_column("REAL", header_name="REAL", type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
             gb.configure_column(comparativo_sel, header_name=comparativo_sel, type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
             gb.configure_column("DIF. NOMINAL", header_name="DIF. NOMINAL", type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
@@ -3459,10 +3454,9 @@ else:
                 theme="streamlit",
                 height=420,
                 fit_columns_on_grid_load=True,
-                key=f"agrid_ceco_{key_prefix}_{cat}_{comparativo_sel}_{'_'.join(meses_sel)}_{'_'.join(proyecto_codigo)}"
+                key=f"agrid_ceco_{key_prefix}_{cat}_{comparativo_sel}_{'_'.join(meses_sel)}_{'_'.join(proyecto_codigo)}_{'_'.join(ceco_codigo)}"
             )
 
-            # ---------- gráfico por categoría ----------
             df_cat_chart = (
                 df_grid.groupby("Group", as_index=False)[["REAL", comparativo_sel]]
                 .sum()
@@ -3472,18 +3466,24 @@ else:
             fig_cat.add_trace(go.Bar(
                 x=df_cat_chart["Group"],
                 y=df_cat_chart["REAL"],
-                name="REAL"
+                name="REAL",
+                text=[f"${x:,.0f}" for x in df_cat_chart["REAL"]],
+                textposition="outside"
             ))
             fig_cat.add_trace(go.Bar(
                 x=df_cat_chart["Group"],
                 y=df_cat_chart[comparativo_sel],
-                name=comparativo_sel
+                name=comparativo_sel,
+                text=[f"${x:,.0f}" for x in df_cat_chart[comparativo_sel]],
+                textposition="outside"
             ))
             fig_cat.update_layout(
                 title=f"{cat} - Comparativo por Categoría",
                 barmode="group",
                 xaxis_title="Categoría",
-                yaxis_title="Monto"
+                yaxis_title="Monto",
+                uniformtext_minsize=8,
+                uniformtext_mode="hide"
             )
             st.plotly_chart(fig_cat, use_container_width=True)
 
@@ -3494,7 +3494,6 @@ else:
                 "total_diff": total_general_diff,
                 "total_pct": total_general_pct
             }
-
 
         def grafica_por_proyectos(df_real_full, df_comp_full, cat, meses_sel):
             df_real_f = df_real_full[
@@ -3507,7 +3506,6 @@ else:
                 (df_comp_full["Clasificacion_A"] == cat)
             ].copy()
 
-            # mapa código -> nombre
             mapa_proyecto = dict(zip(proyectos["proyectos"].astype(str), proyectos["nombre"]))
 
             real_proy = (
@@ -3529,18 +3527,24 @@ else:
             fig_proj.add_trace(go.Bar(
                 x=df_proj["Proyecto"],
                 y=df_proj["REAL"],
-                name="REAL"
+                name="REAL",
+                text=[f"${x:,.0f}" for x in df_proj["REAL"]],
+                textposition="outside"
             ))
             fig_proj.add_trace(go.Bar(
                 x=df_proj["Proyecto"],
                 y=df_proj[comparativo_sel],
-                name=comparativo_sel
+                name=comparativo_sel,
+                text=[f"${x:,.0f}" for x in df_proj[comparativo_sel]],
+                textposition="outside"
             ))
             fig_proj.update_layout(
                 title=f"{cat} - Comparativo por Proyecto",
                 barmode="group",
                 xaxis_title="Proyecto",
-                yaxis_title="Monto"
+                yaxis_title="Monto",
+                uniformtext_minsize=8,
+                uniformtext_mode="hide"
             )
             st.plotly_chart(fig_proj, use_container_width=True)
 
@@ -3582,28 +3586,63 @@ else:
             "% VARIACION": total_pct_cg
         }])
 
-        df_total_cg_fmt = df_total_cg.copy()
-        for c in ["REAL", comparativo_sel, "DIF. NOMINAL"]:
-            df_total_cg_fmt[c] = df_total_cg_fmt[c].apply(lambda x: f"${x:,.2f}")
-        df_total_cg_fmt["% VARIACION"] = df_total_cg["% VARIACION"].apply(lambda x: f"{x:.0f}%")
+        currency_formatter = JsCode("""
+        function(params) {
+            if (params.value === null || params.value === undefined || isNaN(params.value)) return '';
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN',
+                minimumFractionDigits: 2
+            }).format(params.value);
+        }
+        """)
 
-        st.dataframe(df_total_cg_fmt, use_container_width=True, hide_index=True)
+        percent_formatter = JsCode("""
+        function(params) {
+            if (params.value === null || params.value === undefined || isNaN(params.value)) return '';
+            return params.value.toFixed(0) + '%';
+        }
+        """)
+
+        gb_total = GridOptionsBuilder.from_dataframe(df_total_cg)
+        gb_total.configure_default_column(sortable=True, filter=True, resizable=True)
+        gb_total.configure_column("REAL", type=["numericColumn"], valueFormatter=currency_formatter)
+        gb_total.configure_column(comparativo_sel, type=["numericColumn"], valueFormatter=currency_formatter)
+        gb_total.configure_column("DIF. NOMINAL", type=["numericColumn"], valueFormatter=currency_formatter)
+        gb_total.configure_column("% VARIACION", type=["numericColumn"], valueFormatter=percent_formatter)
+
+        AgGrid(
+            df_total_cg,
+            gridOptions=gb_total.build(),
+            enable_enterprise_modules=True,
+            allow_unsafe_jscode=True,
+            theme="streamlit",
+            height=120,
+            fit_columns_on_grid_load=True,
+            key=f"agrid_total_ceco_{comparativo_sel}_{'_'.join(meses_sel)}_{'_'.join(proyecto_codigo)}_{'_'.join(ceco_codigo)}"
+        )
 
         fig_total = go.Figure()
         fig_total.add_trace(go.Bar(
             x=["COSS + G.ADMN"],
             y=[total_real_cg],
-            name="REAL"
+            name="REAL",
+            text=[f"${total_real_cg:,.0f}"],
+            textposition="outside"
         ))
         fig_total.add_trace(go.Bar(
             x=["COSS + G.ADMN"],
             y=[total_comp_cg],
-            name=comparativo_sel
+            name=comparativo_sel,
+            text=[f"${total_comp_cg:,.0f}"],
+            textposition="outside"
         ))
         fig_total.update_layout(
             title=f"Total COSS + G.ADMN vs {comparativo_sel}",
             barmode="group",
-            yaxis_title="Monto"
+            yaxis_title="Monto",
+            uniformtext_minsize=8,
+            uniformtext_mode="hide"
         )
         st.plotly_chart(fig_total, use_container_width=True)
 
@@ -3851,7 +3890,7 @@ else:
         st.dataframe(df_result, use_container_width=True)
 
     elif selected == "Dashboard":
-        st.title("📊 Dashboard Ejecutivo ESGARI 360")
+        st.title("📊 Dashboard Ejecutivo")
 
         col1, col2 = st.columns(2)
         meses_sel = filtro_meses(col1, df_2025)
@@ -3870,13 +3909,18 @@ else:
                 er_ppt_mes = estado_resultado(df_ppt, [mes], proyecto_nombre, proyecto_codigo, list_pro)
                 er_ly_mes = estado_resultado(df_ly, [mes], proyecto_nombre, proyecto_codigo, list_pro)
 
+                ingreso_actual = er_mes.get("ingreso_proyecto", 0)
+                ingreso_ppt = er_ppt_mes.get("ingreso_proyecto", 0)
+                ingreso_ly = er_ly_mes.get("ingreso_proyecto", 0)
+
                 data_dashboard.append({
                     "Mes": mes,
 
-                    "Ingreso Actual": er_mes.get("ingreso_proyecto", 0),
-                    "Ingreso PPT": er_ppt_mes.get("ingreso_proyecto", 0),
-                    "Ingreso LY": er_ly_mes.get("ingreso_proyecto", 0),
+                    "Ingreso Actual": ingreso_actual,
+                    "Ingreso PPT": ingreso_ppt,
+                    "Ingreso LY": ingreso_ly,
                     "UO Actual %": er_mes.get("por_utilidad_operativa", 0),
+
                     "COSS Actual": er_mes.get("coss_total", 0),
                     "COSS PPT": er_ppt_mes.get("coss_total", 0),
                     "COSS LY": er_ly_mes.get("coss_total", 0),
@@ -3885,12 +3929,16 @@ else:
                     "G.ADMN PPT": er_ppt_mes.get("gadmn_pro", 0),
                     "G.ADMN LY": er_ly_mes.get("gadmn_pro", 0),
 
-                    "COSS Pie": er_mes.get("coss_total", 0),
-                    "G.ADMN Pie": er_mes.get("gadmn_pro", 0),
-                    "Gasto Fin Pie": er_mes.get("gasto_fin_pro", 0),
+                    "Gasto Fin Actual": er_mes.get("gasto_fin_pro", 0),
+
+                    "Var vs PPT": ingreso_actual - ingreso_ppt,
+                    "Var vs LY": ingreso_actual - ingreso_ly,
+                    "Var % vs PPT": ((ingreso_actual / ingreso_ppt) - 1) if ingreso_ppt != 0 else 0,
+                    "Var % vs LY": ((ingreso_actual / ingreso_ly) - 1) if ingreso_ly != 0 else 0,
                 })
 
             df_dash = pd.DataFrame(data_dashboard)
+
             objetivo_uo = {
                 "ARRAYANES": 0.24,
                 "CENTRAL OTROS": 0.29,
@@ -3926,6 +3974,7 @@ else:
                 f"${er['ebt']:,.0f}",
                 f"{er['por_ebt'] * 100:.1f}%"
             )
+
             col_g1, col_g2 = st.columns(2)
 
             with col_g1:
@@ -3933,23 +3982,31 @@ else:
                 fig2.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["Ingreso Actual"],
-                    name="Ingreso Actual"
+                    name="Ingreso Actual",
+                    text=[f"${x:,.0f}" for x in df_dash["Ingreso Actual"]],
+                    textposition="outside"
                 ))
                 fig2.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["Ingreso PPT"],
-                    name="Ingreso Presupuesto"
+                    name="Ingreso Presupuesto",
+                    text=[f"${x:,.0f}" for x in df_dash["Ingreso PPT"]],
+                    textposition="outside"
                 ))
                 fig2.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["Ingreso LY"],
-                    name="Ingreso LY"
+                    name="Ingreso LY",
+                    text=[f"${x:,.0f}" for x in df_dash["Ingreso LY"]],
+                    textposition="outside"
                 ))
                 fig2.update_layout(
                     title="Ingreso vs PPT vs LY",
                     barmode="group",
                     xaxis_title="Mes",
-                    yaxis_title="Monto"
+                    yaxis_title="Monto",
+                    uniformtext_minsize=8,
+                    uniformtext_mode="hide"
                 )
                 st.plotly_chart(fig2, use_container_width=True)
 
@@ -3958,19 +4015,25 @@ else:
                 fig3.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["UO Actual %"],
-                    name="Utilidad Operativa Actual"
+                    name="Utilidad Operativa Actual",
+                    text=[f"{x:.1%}" for x in df_dash["UO Actual %"]],
+                    textposition="outside"
                 ))
                 fig3.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=[meta_uo] * len(df_dash),
-                    name="Utilidad Operativa Objetivo"
+                    name="Utilidad Operativa Objetivo",
+                    text=[f"{meta_uo:.1%}"] * len(df_dash),
+                    textposition="outside"
                 ))
                 fig3.update_layout(
                     title="Utilidad Operativa vs Objetivo",
                     barmode="group",
                     xaxis_title="Mes",
                     yaxis_title="Margen",
-                    yaxis_tickformat=".0%"
+                    yaxis_tickformat=".0%",
+                    uniformtext_minsize=8,
+                    uniformtext_mode="hide"
                 )
                 st.plotly_chart(fig3, use_container_width=True)
 
@@ -3981,23 +4044,31 @@ else:
                 fig6.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["COSS Actual"],
-                    name="COSS Actual"
+                    name="COSS Actual",
+                    text=[f"${x:,.0f}" for x in df_dash["COSS Actual"]],
+                    textposition="outside"
                 ))
                 fig6.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["COSS PPT"],
-                    name="COSS Presupuesto"
+                    name="COSS Presupuesto",
+                    text=[f"${x:,.0f}" for x in df_dash["COSS PPT"]],
+                    textposition="outside"
                 ))
                 fig6.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["COSS LY"],
-                    name="COSS LY"
+                    name="COSS LY",
+                    text=[f"${x:,.0f}" for x in df_dash["COSS LY"]],
+                    textposition="outside"
                 ))
                 fig6.update_layout(
                     title="COSS vs PPT vs LY",
                     barmode="group",
                     xaxis_title="Mes",
-                    yaxis_title="Monto"
+                    yaxis_title="Monto",
+                    uniformtext_minsize=8,
+                    uniformtext_mode="hide"
                 )
                 st.plotly_chart(fig6, use_container_width=True)
 
@@ -4006,23 +4077,31 @@ else:
                 fig7.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["G.ADMN Actual"],
-                    name="G.ADMN Actual"
+                    name="G.ADMN Actual",
+                    text=[f"${x:,.0f}" for x in df_dash["G.ADMN Actual"]],
+                    textposition="outside"
                 ))
                 fig7.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["G.ADMN PPT"],
-                    name="G.ADMN Presupuesto"
+                    name="G.ADMN Presupuesto",
+                    text=[f"${x:,.0f}" for x in df_dash["G.ADMN PPT"]],
+                    textposition="outside"
                 ))
                 fig7.add_trace(go.Bar(
                     x=df_dash["Mes"],
                     y=df_dash["G.ADMN LY"],
-                    name="G.ADMN LY"
+                    name="G.ADMN LY",
+                    text=[f"${x:,.0f}" for x in df_dash["G.ADMN LY"]],
+                    textposition="outside"
                 ))
                 fig7.update_layout(
                     title="G.ADMN vs PPT vs LY",
                     barmode="group",
                     xaxis_title="Mes",
-                    yaxis_title="Monto"
+                    yaxis_title="Monto",
+                    uniformtext_minsize=8,
+                    uniformtext_mode="hide"
                 )
                 st.plotly_chart(fig7, use_container_width=True)
 
@@ -4038,28 +4117,93 @@ else:
                             er["gasto_fin_pro"]
                         ],
                         hole=0.4,
-                        textinfo="label+percent"
+                        textinfo="label+percent+value"
                     )
                 ])
                 fig5.update_layout(title="Composición de los gastos")
                 st.plotly_chart(fig5, use_container_width=True)
 
             with col_g6:
-                # Participación del ingreso vs PPT vs LY
-                fig8 = go.Figure(data=[
-                    go.Pie(
-                        labels=["Actual", "Presupuesto", "LY"],
-                        values=[
-                            er["ingreso_proyecto"],
-                            er_ppt["ingreso_proyecto"],
-                            er_ly["ingreso_proyecto"]
-                        ],
-                        hole=0.4,
-                        textinfo="label+percent"
-                    )
-                ])
-                fig8.update_layout(title="Participación del ingreso: Actual vs PPT vs LY")
+                fig8 = go.Figure()
+
+                fig8.add_trace(go.Bar(
+                    x=df_dash["Mes"],
+                    y=df_dash["Ingreso Actual"],
+                    name="Ingreso Actual",
+                    text=[f"${x:,.0f}" for x in df_dash["Ingreso Actual"]],
+                    textposition="outside"
+                ))
+
+                fig8.add_trace(go.Scatter(
+                    x=df_dash["Mes"],
+                    y=df_dash["Ingreso PPT"],
+                    name="Ingreso PPT",
+                    mode="lines+markers+text",
+                    text=[f"${x:,.0f}" for x in df_dash["Ingreso PPT"]],
+                    textposition="top center"
+                ))
+
+                fig8.add_trace(go.Scatter(
+                    x=df_dash["Mes"],
+                    y=df_dash["Ingreso LY"],
+                    name="Ingreso LY",
+                    mode="lines+markers+text",
+                    text=[f"${x:,.0f}" for x in df_dash["Ingreso LY"]],
+                    textposition="bottom center"
+                ))
+
+                fig8.update_layout(
+                    title="Tendencia de Ingreso: Actual vs PPT vs LY",
+                    xaxis_title="Mes",
+                    yaxis_title="Monto",
+                    barmode="group"
+                )
+
                 st.plotly_chart(fig8, use_container_width=True)
+
+            st.subheader("Variación de ingreso")
+            col_v1, col_v2 = st.columns(2)
+
+            with col_v1:
+                fig9 = go.Figure()
+                fig9.add_trace(go.Bar(
+                    x=df_dash["Mes"],
+                    y=df_dash["Var vs PPT"],
+                    name="Variación $ vs PPT",
+                    text=[f"${x:,.0f}" for x in df_dash["Var vs PPT"]],
+                    textposition="outside"
+                ))
+                fig9.update_layout(
+                    title="Variación de ingreso vs PPT ($)",
+                    xaxis_title="Mes",
+                    yaxis_title="Variación $"
+                )
+                st.plotly_chart(fig9, use_container_width=True)
+
+            with col_v2:
+                fig10 = go.Figure()
+                fig10.add_trace(go.Bar(
+                    x=df_dash["Mes"],
+                    y=df_dash["Var % vs PPT"],
+                    name="Variación % vs PPT",
+                    text=[f"{x:.1%}" for x in df_dash["Var % vs PPT"]],
+                    textposition="outside"
+                ))
+                fig10.add_trace(go.Bar(
+                    x=df_dash["Mes"],
+                    y=df_dash["Var % vs LY"],
+                    name="Variación % vs LY",
+                    text=[f"{x:.1%}" for x in df_dash["Var % vs LY"]],
+                    textposition="outside"
+                ))
+                fig10.update_layout(
+                    title="Variación de ingreso vs PPT y LY (%)",
+                    barmode="group",
+                    xaxis_title="Mes",
+                    yaxis_title="Variación %",
+                    yaxis_tickformat=".0%"
+                )
+                st.plotly_chart(fig10, use_container_width=True)
     
     elif selected == "Gastos por Empresa":
         ct("GASTO POR EMPRESA")
@@ -4166,15 +4310,13 @@ else:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"_download_gastos_emp"
         )
-
     elif selected == "OH":
 
         st.title("Composición Overhead (OH)")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         meses_seleccionado = filtro_meses(col1, df_2025)
-        proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-        ceco_codigo, ceco_nombre = filtro_ceco(col3)
+        ceco_codigo, ceco_nombre = filtro_ceco(col2)
 
         tipo_dato = st.selectbox(
             "Selecciona el tipo de información a mostrar:",
@@ -4409,6 +4551,8 @@ else:
             tipo_dato,
             ceco_seleccionado=ceco_nombre
         )
+
+
 
 
 
