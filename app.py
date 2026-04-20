@@ -3373,32 +3373,10 @@ else:
 
             df_grid = df_grid.sort_values(["Group", "Cuenta_Nombre_A"]).reset_index(drop=True)
 
-            total_group = (
-                df_grid.groupby("Group", as_index=False)[["REAL", comparativo_sel, "DIF. NOMINAL"]]
-                .sum()
-            )
-            total_group["Cuenta_Nombre_A"] = "TOTAL"
-            total_group["% VARIACION"] = np.where(
-                total_group[comparativo_sel] != 0,
-                (total_group["DIF. NOMINAL"] / total_group[comparativo_sel]) * 100,
-                0
-            )
-
-            total_general_real = df_grid["REAL"].sum()
-            total_general_comp = df_grid[comparativo_sel].sum()
-            total_general_diff = df_grid["DIF. NOMINAL"].sum()
-            total_general_pct = (total_general_diff / total_general_comp * 100) if total_general_comp != 0 else 0
-
-            total_general = pd.DataFrame([{
-                "Group": f"TOTAL {cat}",
-                "Cuenta_Nombre_A": "TOTAL GENERAL",
-                "REAL": total_general_real,
-                comparativo_sel: total_general_comp,
-                "DIF. NOMINAL": total_general_diff,
-                "% VARIACION": total_general_pct
-            }])
-
-            df_grid_final = pd.concat([df_grid, total_group, total_general], ignore_index=True)
+            total_real = df_grid["REAL"].sum()
+            total_comp = df_grid[comparativo_sel].sum()
+            total_diff = df_grid["DIF. NOMINAL"].sum()
+            total_pct = (total_diff / total_comp * 100) if total_comp != 0 else 0
 
             currency_formatter = JsCode("""
             function(params) {
@@ -3418,42 +3396,38 @@ else:
             }
             """)
 
-            row_style_js = JsCode("""
-            function(params) {
-                if (params.data && (
-                    params.data["Cuenta_Nombre_A"] === "TOTAL" ||
-                    params.data["Cuenta_Nombre_A"] === "TOTAL GENERAL"
-                )) {
-                    return {
-                        backgroundColor: '#D9EAF7',
-                        fontWeight: 'bold'
-                    };
-                }
-                return null;
-            }
-            """)
-
             gb = GridOptionsBuilder.from_dataframe(
-                df_grid_final[["Group", "Cuenta_Nombre_A", "REAL", comparativo_sel, "DIF. NOMINAL", "% VARIACION"]]
+                df_grid[["Group", "Cuenta_Nombre_A", "REAL", comparativo_sel, "DIF. NOMINAL", "% VARIACION"]]
             )
+
             gb.configure_default_column(
-                groupable=True,
                 sortable=True,
                 filter=True,
                 resizable=True,
-                enableRowGroup=True
+                groupable=True
             )
 
             gb.configure_grid_options(
-                getRowStyle=row_style_js,
                 groupDefaultExpanded=0,
                 suppressAggFuncInHeader=True,
-                groupDisplayType="multipleColumns",
+                groupDisplayType="singleColumn",
                 animateRows=True
             )
 
-            # Mantener exactamente las columnas visibles, pero hacer que Group sí agrupe
-            gb.configure_column("Group", header_name="Group", rowGroup=True, hide=False)
+            # Agrupar como la primera imagen
+            gb.configure_column("Group", rowGroup=True, hide=True)
+
+            # Mostrar una sola columna visual de grupo
+            gb.configure_grid_options(
+                autoGroupColumnDef={
+                    "headerName": "Group",
+                    "minWidth": 260,
+                    "cellRendererParams": {
+                        "suppressCount": False
+                    }
+                }
+            )
+
             gb.configure_column("Cuenta_Nombre_A", header_name="Cuenta_Nombre_A", pinned="left")
             gb.configure_column("REAL", header_name="REAL", type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
             gb.configure_column(comparativo_sel, header_name=comparativo_sel, type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
@@ -3461,7 +3435,7 @@ else:
             gb.configure_column("% VARIACION", header_name="% VARIACION", type=["numericColumn"], aggFunc="avg", valueFormatter=percent_formatter)
 
             AgGrid(
-                df_grid_final[["Group", "Cuenta_Nombre_A", "REAL", comparativo_sel, "DIF. NOMINAL", "% VARIACION"]],
+                df_grid[["Group", "Cuenta_Nombre_A", "REAL", comparativo_sel, "DIF. NOMINAL", "% VARIACION"]],
                 gridOptions=gb.build(),
                 enable_enterprise_modules=True,
                 allow_unsafe_jscode=True,
@@ -3471,6 +3445,7 @@ else:
                 key=f"agrid_ceco_{key_prefix}_{cat}_{comparativo_sel}_{'_'.join(meses_sel)}_{'_'.join(proyecto_codigo)}_{'_'.join(ceco_codigo)}"
             )
 
+            # Gráfico por categoría
             df_cat_chart = (
                 df_grid.groupby("Group", as_index=False)[["REAL", comparativo_sel]]
                 .sum()
@@ -3503,10 +3478,10 @@ else:
 
             return {
                 "tabla": df_grid,
-                "total_real": total_general_real,
-                "total_comp": total_general_comp,
-                "total_diff": total_general_diff,
-                "total_pct": total_general_pct
+                "total_real": total_real,
+                "total_comp": total_comp,
+                "total_diff": total_diff,
+                "total_pct": total_pct
             }
 
         def grafica_por_proyectos(df_real_full, df_comp_full, cat, meses_sel):
