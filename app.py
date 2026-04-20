@@ -3290,100 +3290,117 @@ else:
     elif selected == "CeCo":
         texto_centrado("GASTOS POR CECO")
 
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         ceco_codigo, ceco_nombre = filtro_ceco(col1)
-        proyecto_codigo, proyecto_nombre = filtro_pro(st)
+        proyecto_codigo, proyecto_nombre = filtro_pro(col2)
+
+        comparativo_sel = col3.selectbox(
+            "Comparar contra",
+            ["LY", "PPT"],
+            index=0
+        )
+
+        meses_sel = filtro_meses(st, df_2025)
+
+        if not meses_sel:
+            st.warning("Selecciona al menos un mes.")
+            st.stop()
+
+        ceco_codigo = [str(x).strip() for x in ceco_codigo]
+        proyecto_codigo = [str(x).strip() for x in proyecto_codigo]
 
         df_cecos = df_2025.copy()
         df_cecos["CeCo_A"] = df_cecos["CeCo_A"].astype(str).str.strip()
         df_cecos["Proyecto_A"] = df_cecos["Proyecto_A"].astype(str).str.strip()
-        df_cecos = df_cecos[df_cecos["CeCo_A"].isin([str(x).strip() for x in ceco_codigo])]
-        df_cecos = df_cecos[df_cecos["Proyecto_A"].isin([str(x).strip() for x in proyecto_codigo])]
+        df_cecos = df_cecos[df_cecos["CeCo_A"].isin(ceco_codigo)]
+        df_cecos = df_cecos[df_cecos["Proyecto_A"].isin(proyecto_codigo)]
 
         df_cecos_ly = df_ly.copy()
         df_cecos_ly["CeCo_A"] = df_cecos_ly["CeCo_A"].astype(str).str.strip()
         df_cecos_ly["Proyecto_A"] = df_cecos_ly["Proyecto_A"].astype(str).str.strip()
-        df_cecos_ly = df_cecos_ly[df_cecos_ly["CeCo_A"].isin([str(x).strip() for x in ceco_codigo])]
-        df_cecos_ly = df_cecos_ly[df_cecos_ly["Proyecto_A"].isin([str(x).strip() for x in proyecto_codigo])]
+        df_cecos_ly = df_cecos_ly[df_cecos_ly["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ly = df_cecos_ly[df_cecos_ly["Proyecto_A"].isin(proyecto_codigo)]
 
         df_cecos_ppt = df_ppt.copy()
         df_cecos_ppt["CeCo_A"] = df_cecos_ppt["CeCo_A"].astype(str).str.strip()
         df_cecos_ppt["Proyecto_A"] = df_cecos_ppt["Proyecto_A"].astype(str).str.strip()
-        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["CeCo_A"].isin([str(x).strip() for x in ceco_codigo])]
-        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["Proyecto_A"].isin([str(x).strip() for x in proyecto_codigo])]
+        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["CeCo_A"].isin(ceco_codigo)]
+        df_cecos_ppt = df_cecos_ppt[df_cecos_ppt["Proyecto_A"].isin(proyecto_codigo)]
 
-        def tabla_expandible_comp(df, df_ly, df_ppt, cat, mes, ceco, key_prefix):
-            columnas = ['Cuenta_Nombre_A', 'Categoria_A']
+        df_comp_base = df_cecos_ly if comparativo_sel == "LY" else df_cecos_ppt
 
-            # Solo COSS y G.ADMN
-            df_tab = df[df['Clasificacion_A'] == cat].copy()
-            df_tab_ly = df_ly[df_ly['Clasificacion_A'] == cat].copy()
-            df_tab_ppt = df_ppt[df_ppt['Clasificacion_A'] == cat].copy()
+        ventanas = ["COSS", "G.ADMN"]
+        tab1, tab2 = st.tabs(ventanas)
 
-            df_tab = (
-                df_tab[df_tab['Mes_A'].isin(mes)]
-                .groupby(columnas, as_index=False)
-                .agg({"Neto_A": "sum"})
-            )
-            df_tab_ly = (
-                df_tab_ly[df_tab_ly['Mes_A'].isin(mes)]
-                .groupby(columnas, as_index=False)
-                .agg({"Neto_A": "sum"})
-            )
-            df_tab_ppt = (
-                df_tab_ppt[df_tab_ppt['Mes_A'].isin(mes)]
-                .groupby(columnas, as_index=False)
-                .agg({"Neto_A": "sum"})
-            )
+        def tabla_expandible_comp(df_real, df_comp, cat, meses_sel, key_prefix):
+            columnas_merge = ["Categoria_A", "Cuenta_Nombre_A"]
 
-            df_comb = pd.merge(df_tab, df_tab_ly, on=columnas, how='outer', suffixes=('', '_ly'))
-            df_comb = pd.merge(df_comb, df_tab_ppt, on=columnas, how='outer', suffixes=('', '_ppt')).fillna(0)
+            df_real_f = df_real[
+                (df_real["Mes_A"].isin(meses_sel)) &
+                (df_real["Clasificacion_A"] == cat)
+            ].copy()
 
-            df_comb['YTD'] = df_comb['Neto_A']
-            df_comb['LY'] = df_comb['Neto_A_ly']
-            df_comb['PPT'] = df_comb['Neto_A_ppt']
+            df_comp_f = df_comp[
+                (df_comp["Mes_A"].isin(meses_sel)) &
+                (df_comp["Clasificacion_A"] == cat)
+            ].copy()
 
-            df_comb["Alcance_LY"] = np.where(
-                df_comb["LY"] != 0,
-                (df_comb["YTD"] / df_comb["LY"] * 100) - 100,
-                0
-            )
-            df_comb["Alcance_PPT"] = np.where(
-                df_comb["PPT"] != 0,
-                (df_comb["YTD"] / df_comb["PPT"] * 100) - 100,
-                0
+            df_real_agg = (
+                df_real_f.groupby(columnas_merge, as_index=False)["Neto_A"]
+                .sum()
+                .rename(columns={"Categoria_A": "Group", "Neto_A": "REAL"})
             )
 
-            df_grid = df_comb[[
-                "Categoria_A",
-                "Cuenta_Nombre_A",
-                "YTD",
-                "LY",
-                "PPT",
-                "Alcance_LY",
-                "Alcance_PPT"
-            ]].copy()
-
-            total_cat = df_grid.groupby("Categoria_A", as_index=False).agg({
-                "YTD": "sum",
-                "LY": "sum",
-                "PPT": "sum"
-            })
-            total_cat["Cuenta_Nombre_A"] = "TOTAL"
-            total_cat["Alcance_LY"] = np.where(
-                total_cat["LY"] != 0,
-                (total_cat["YTD"] / total_cat["LY"] * 100) - 100,
-                0
+            df_comp_agg = (
+                df_comp_f.groupby(columnas_merge, as_index=False)["Neto_A"]
+                .sum()
+                .rename(columns={"Categoria_A": "Group", "Neto_A": comparativo_sel})
             )
-            total_cat["Alcance_PPT"] = np.where(
-                total_cat["PPT"] != 0,
-                (total_cat["YTD"] / total_cat["PPT"] * 100) - 100,
+
+            df_grid = pd.merge(
+                df_real_agg,
+                df_comp_agg,
+                on=["Group", "Cuenta_Nombre_A"],
+                how="outer"
+            ).fillna(0)
+
+            df_grid["DIF. NOMINAL"] = df_grid["REAL"] - df_grid[comparativo_sel]
+            df_grid["% VARIACION"] = np.where(
+                df_grid[comparativo_sel] != 0,
+                (df_grid["DIF. NOMINAL"] / df_grid[comparativo_sel]) * 100,
                 0
             )
 
-            df_grid = pd.concat([df_grid, total_cat], ignore_index=True, sort=False)
+            df_grid = df_grid.sort_values(["Group", "Cuenta_Nombre_A"]).reset_index(drop=True)
 
-            js_fmt = JsCode("""
+            total_group = (
+                df_grid.groupby("Group", as_index=False)[["REAL", comparativo_sel, "DIF. NOMINAL"]]
+                .sum()
+            )
+            total_group["Cuenta_Nombre_A"] = "TOTAL"
+            total_group["% VARIACION"] = np.where(
+                total_group[comparativo_sel] != 0,
+                (total_group["DIF. NOMINAL"] / total_group[comparativo_sel]) * 100,
+                0
+            )
+
+            total_general_real = df_grid["REAL"].sum()
+            total_general_comp = df_grid[comparativo_sel].sum()
+            total_general_diff = df_grid["DIF. NOMINAL"].sum()
+            total_general_pct = (total_general_diff / total_general_comp * 100) if total_general_comp != 0 else 0
+
+            total_general = pd.DataFrame([{
+                "Group": f"TOTAL {cat}",
+                "Cuenta_Nombre_A": "TOTAL GENERAL",
+                "REAL": total_general_real,
+                comparativo_sel: total_general_comp,
+                "DIF. NOMINAL": total_general_diff,
+                "% VARIACION": total_general_pct
+            }])
+
+            df_grid_final = pd.concat([df_grid, total_group, total_general], ignore_index=True)
+
+            currency_formatter = JsCode("""
             function(params) {
                 if (params.value === null || params.value === undefined || isNaN(params.value)) return '';
                 return new Intl.NumberFormat('es-MX', {
@@ -3394,16 +3411,19 @@ else:
             }
             """)
 
-            pct_fmt = JsCode("""
+            percent_formatter = JsCode("""
             function(params) {
                 if (params.value === null || params.value === undefined || isNaN(params.value)) return '';
-                return params.value.toFixed(2) + '%';
+                return params.value.toFixed(0) + '%';
             }
             """)
 
             row_style_js = JsCode("""
             function(params) {
-                if (params.data && params.data["Cuenta_Nombre_A"] === "TOTAL") {
+                if (params.data && (
+                    params.data["Cuenta_Nombre_A"] === "TOTAL" ||
+                    params.data["Cuenta_Nombre_A"] === "TOTAL GENERAL"
+                )) {
                     return {
                         backgroundColor: '#D9EAF7',
                         fontWeight: 'bold'
@@ -3413,115 +3433,233 @@ else:
             }
             """)
 
-            gb = GridOptionsBuilder.from_dataframe(df_grid)
-            gb.configure_default_column(groupable=True, sortable=True, filter=True, resizable=True)
+            gb = GridOptionsBuilder.from_dataframe(
+                df_grid_final[["Group", "Cuenta_Nombre_A", "REAL", comparativo_sel, "DIF. NOMINAL", "% VARIACION"]]
+            )
+            gb.configure_default_column(
+                groupable=True,
+                sortable=True,
+                filter=True,
+                resizable=True,
+                enableRowGroup=True
+            )
+
             gb.configure_grid_options(
                 getRowStyle=row_style_js,
                 groupDefaultExpanded=0,
-                suppressAggFuncInHeader=True
+                suppressAggFuncInHeader=True,
+                groupDisplayType="multipleColumns",
+                animateRows=True
             )
 
-            # Desglose como el primer agrid
-            gb.configure_column("Categoria_A", rowGroup=True, hide=True)
+            # Mantener exactamente las columnas visibles, pero hacer que Group sí agrupe
+            gb.configure_column("Group", header_name="Group", rowGroup=True, hide=False)
             gb.configure_column("Cuenta_Nombre_A", header_name="Cuenta_Nombre_A", pinned="left")
-
-            # Columnas como el segundo código
-            gb.configure_column("YTD", header_name="YTD", type=["numericColumn"], aggFunc="sum", valueFormatter=js_fmt)
-            gb.configure_column("LY", header_name="LY", type=["numericColumn"], aggFunc="sum", valueFormatter=js_fmt)
-            gb.configure_column("PPT", header_name="PPT", type=["numericColumn"], aggFunc="sum", valueFormatter=js_fmt)
-            gb.configure_column("Alcance_LY", header_name="Alcance_LY", type=["numericColumn"], aggFunc="avg", valueFormatter=pct_fmt)
-            gb.configure_column("Alcance_PPT", header_name="Alcance_PPT", type=["numericColumn"], aggFunc="avg", valueFormatter=pct_fmt)
+            gb.configure_column("REAL", header_name="REAL", type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
+            gb.configure_column(comparativo_sel, header_name=comparativo_sel, type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
+            gb.configure_column("DIF. NOMINAL", header_name="DIF. NOMINAL", type=["numericColumn"], aggFunc="sum", valueFormatter=currency_formatter)
+            gb.configure_column("% VARIACION", header_name="% VARIACION", type=["numericColumn"], aggFunc="avg", valueFormatter=percent_formatter)
 
             AgGrid(
-                df_grid,
+                df_grid_final[["Group", "Cuenta_Nombre_A", "REAL", comparativo_sel, "DIF. NOMINAL", "% VARIACION"]],
                 gridOptions=gb.build(),
                 enable_enterprise_modules=True,
                 allow_unsafe_jscode=True,
                 theme="streamlit",
                 height=420,
                 fit_columns_on_grid_load=True,
-                key=f"{key_prefix}_{cat}_{ceco}_{mes}_{proyecto_codigo}"
+                key=f"agrid_ceco_{key_prefix}_{cat}_{comparativo_sel}_{'_'.join(meses_sel)}_{'_'.join(proyecto_codigo)}_{'_'.join(ceco_codigo)}"
             )
 
-            df_sin_total = df_grid[df_grid["Cuenta_Nombre_A"] != "TOTAL"]
+            df_cat_chart = (
+                df_grid.groupby("Group", as_index=False)[["REAL", comparativo_sel]]
+                .sum()
+            )
 
-            resumen = {
-                "cat": cat,
-                "YTD": df_sin_total["YTD"].sum(),
-                "LY": df_sin_total["LY"].sum(),
-                "PPT": df_sin_total["PPT"].sum()
+            fig_cat = go.Figure()
+            fig_cat.add_trace(go.Bar(
+                x=df_cat_chart["Group"],
+                y=df_cat_chart["REAL"],
+                name="REAL",
+                text=[f"${x:,.0f}" for x in df_cat_chart["REAL"]],
+                textposition="outside"
+            ))
+            fig_cat.add_trace(go.Bar(
+                x=df_cat_chart["Group"],
+                y=df_cat_chart[comparativo_sel],
+                name=comparativo_sel,
+                text=[f"${x:,.0f}" for x in df_cat_chart[comparativo_sel]],
+                textposition="outside"
+            ))
+            fig_cat.update_layout(
+                title=f"{cat} - Comparativo por Categoría",
+                barmode="group",
+                xaxis_title="Categoría",
+                yaxis_title="Monto",
+                uniformtext_minsize=8,
+                uniformtext_mode="hide"
+            )
+            st.plotly_chart(fig_cat, use_container_width=True)
+
+            return {
+                "tabla": df_grid,
+                "total_real": total_general_real,
+                "total_comp": total_general_comp,
+                "total_diff": total_general_diff,
+                "total_pct": total_general_pct
             }
 
-            df_chart = pd.DataFrame([{"Tipo": t, "Valor": resumen[t]} for t in ["YTD", "LY", "PPT"]])
-            st.altair_chart(
-                alt.Chart(df_chart).mark_bar().encode(
-                    x="Tipo",
-                    y="Valor",
-                    color="Tipo"
-                ).properties(title=f"{cat}: Totales"),
-                use_container_width=True
+        def grafica_por_proyectos(df_real_full, df_comp_full, cat, meses_sel):
+            df_real_f = df_real_full[
+                (df_real_full["Mes_A"].isin(meses_sel)) &
+                (df_real_full["Clasificacion_A"] == cat)
+            ].copy()
+
+            df_comp_f = df_comp_full[
+                (df_comp_full["Mes_A"].isin(meses_sel)) &
+                (df_comp_full["Clasificacion_A"] == cat)
+            ].copy()
+
+            mapa_proyecto = dict(zip(proyectos["proyectos"].astype(str), proyectos["nombre"]))
+
+            real_proy = (
+                df_real_f.groupby("Proyecto_A", as_index=False)["Neto_A"]
+                .sum()
+                .rename(columns={"Neto_A": "REAL"})
+            )
+            comp_proy = (
+                df_comp_f.groupby("Proyecto_A", as_index=False)["Neto_A"]
+                .sum()
+                .rename(columns={"Neto_A": comparativo_sel})
             )
 
-            return resumen
+            df_proj = pd.merge(real_proy, comp_proy, on="Proyecto_A", how="outer").fillna(0)
+            df_proj["Proyecto"] = df_proj["Proyecto_A"].astype(str).map(mapa_proyecto).fillna(df_proj["Proyecto_A"].astype(str))
+            df_proj = df_proj.sort_values("REAL", ascending=False)
 
-        # --- Selección de meses ---
-        meses = filtro_meses(col2, df_cecos)
+            fig_proj = go.Figure()
+            fig_proj.add_trace(go.Bar(
+                x=df_proj["Proyecto"],
+                y=df_proj["REAL"],
+                name="REAL",
+                text=[f"${x:,.0f}" for x in df_proj["REAL"]],
+                textposition="outside"
+            ))
+            fig_proj.add_trace(go.Bar(
+                x=df_proj["Proyecto"],
+                y=df_proj[comparativo_sel],
+                name=comparativo_sel,
+                text=[f"${x:,.0f}" for x in df_proj[comparativo_sel]],
+                textposition="outside"
+            ))
+            fig_proj.update_layout(
+                title=f"{cat} - Comparativo por Proyecto",
+                barmode="group",
+                xaxis_title="Proyecto",
+                yaxis_title="Monto",
+                uniformtext_minsize=8,
+                uniformtext_mode="hide"
+            )
+            st.plotly_chart(fig_proj, use_container_width=True)
 
-        # --- Pestañas ---
-        resumenes = {}
-        ventanas = ['COSS', 'G.ADMN']
-        tabs = st.tabs(ventanas)
+        with tab1:
+            st.subheader("COSS")
+            resumen_coss = tabla_expandible_comp(
+                df_cecos,
+                df_comp_base,
+                "COSS",
+                meses_sel,
+                "COSS"
+            )
+            grafica_por_proyectos(df_cecos, df_comp_base, "COSS", meses_sel)
 
-        for i, cat in enumerate(ventanas):
-            with tabs[i]:
-                resumenes[cat] = tabla_expandible_comp(
-                    df_cecos,
-                    df_cecos_ly,
-                    df_cecos_ppt,
-                    cat,
-                    meses,
-                    ceco_codigo,
-                    cat
-                )
+        with tab2:
+            st.subheader("G.ADMN")
+            resumen_gadmn = tabla_expandible_comp(
+                df_cecos,
+                df_comp_base,
+                "G.ADMN",
+                meses_sel,
+                "GADMN"
+            )
+            grafica_por_proyectos(df_cecos, df_comp_base, "G.ADMN", meses_sel)
 
-        # --- Resumen global ---
-        st.subheader("📌 Totales Globales")
+        st.markdown("---")
+        st.subheader("Resumen Total COSS + G.ADMN")
 
-        otros = ['COSS', 'G.ADMN']
-        ytd_otros = sum(resumenes[c]["YTD"] for c in otros)
-        ly_otros = sum(resumenes[c]["LY"] for c in otros)
-        ppt_otros = sum(resumenes[c]["PPT"] for c in otros)
+        total_real_cg = resumen_coss["total_real"] + resumen_gadmn["total_real"]
+        total_comp_cg = resumen_coss["total_comp"] + resumen_gadmn["total_comp"]
+        total_diff_cg = resumen_coss["total_diff"] + resumen_gadmn["total_diff"]
+        total_pct_cg = (total_diff_cg / total_comp_cg * 100) if total_comp_cg != 0 else 0
 
-        diff_otros_ly = ytd_otros - ly_otros
-        diff_otros_ppt = ytd_otros - ppt_otros
+        df_total_cg = pd.DataFrame([{
+            "Concepto": "COSS + G.ADMN",
+            "REAL": total_real_cg,
+            comparativo_sel: total_comp_cg,
+            "DIF. NOMINAL": total_diff_cg,
+            "% VARIACION": total_pct_cg
+        }])
 
-        c1, c2 = st.columns(2)
-        c1.metric(
-            "📉 COSS + G.ADMN (YTD−LY)",
-            f"${diff_otros_ly:,.2f}",
-            delta=f"{(diff_otros_ly / ly_otros * 100) if ly_otros else 0:.2f}%"
+        currency_formatter = JsCode("""
+        function(params) {
+            if (params.value === null || params.value === undefined || isNaN(params.value)) return '';
+            return new Intl.NumberFormat('es-MX', {
+                style: 'currency',
+                currency: 'MXN',
+                minimumFractionDigits: 2
+            }).format(params.value);
+        }
+        """)
+
+        percent_formatter = JsCode("""
+        function(params) {
+            if (params.value === null || params.value === undefined || isNaN(params.value)) return '';
+            return params.value.toFixed(0) + '%';
+        }
+        """)
+
+        gb_total = GridOptionsBuilder.from_dataframe(df_total_cg)
+        gb_total.configure_default_column(sortable=True, filter=True, resizable=True)
+        gb_total.configure_column("REAL", type=["numericColumn"], valueFormatter=currency_formatter)
+        gb_total.configure_column(comparativo_sel, type=["numericColumn"], valueFormatter=currency_formatter)
+        gb_total.configure_column("DIF. NOMINAL", type=["numericColumn"], valueFormatter=currency_formatter)
+        gb_total.configure_column("% VARIACION", type=["numericColumn"], valueFormatter=percent_formatter)
+
+        AgGrid(
+            df_total_cg,
+            gridOptions=gb_total.build(),
+            enable_enterprise_modules=True,
+            allow_unsafe_jscode=True,
+            theme="streamlit",
+            height=120,
+            fit_columns_on_grid_load=True,
+            key=f"agrid_total_ceco_{comparativo_sel}_{'_'.join(meses_sel)}_{'_'.join(proyecto_codigo)}_{'_'.join(ceco_codigo)}"
         )
-        c2.metric(
-            "📉 COSS + G.ADMN (YTD−PPT)",
-            f"${diff_otros_ppt:,.2f}",
-            delta=f"{(diff_otros_ppt / ppt_otros * 100) if ppt_otros else 0:.2f}%"
+
+        fig_total = go.Figure()
+        fig_total.add_trace(go.Bar(
+            x=["COSS + G.ADMN"],
+            y=[total_real_cg],
+            name="REAL",
+            text=[f"${total_real_cg:,.0f}"],
+            textposition="outside"
+        ))
+        fig_total.add_trace(go.Bar(
+            x=["COSS + G.ADMN"],
+            y=[total_comp_cg],
+            name=comparativo_sel,
+            text=[f"${total_comp_cg:,.0f}"],
+            textposition="outside"
+        ))
+        fig_total.update_layout(
+            title=f"Total COSS + G.ADMN vs {comparativo_sel}",
+            barmode="group",
+            yaxis_title="Monto",
+            uniformtext_minsize=8,
+            uniformtext_mode="hide"
         )
-
-        df_global = pd.DataFrame([
-            {"Categoria": "COSS + G.ADMN", "Tipo": "YTD", "Valor": ytd_otros},
-            {"Categoria": "COSS + G.ADMN", "Tipo": "LY", "Valor": ly_otros},
-            {"Categoria": "COSS + G.ADMN", "Tipo": "PPT", "Valor": ppt_otros}
-        ])
-
-        st.altair_chart(
-            alt.Chart(df_global).mark_bar().encode(
-                x="Categoria:N",
-                y="Valor:Q",
-                color="Tipo:N"
-            ).properties(title="Comparativo Global YTD vs LY vs PPT"),
-            use_container_width=True
-        )
-
+        st.plotly_chart(fig_total, use_container_width=True)
+      
     elif selected == "Ratios":
 
         st.title("📊 Análisis de Ratios Personalizados")
