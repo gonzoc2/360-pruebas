@@ -1396,7 +1396,7 @@ else:
     if st.session_state["rol"] in ["director", "admin"] and "ESGARI" in st.session_state["proyectos"]:
         selected = option_menu(
         menu_title=None,
-        options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY",
+        options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY/PPT",
                  "CeCo", "Ratios", "Dashboard", "Gastos por Empresa", "OH"],
         icons = [
                 "house",                # Resumen
@@ -1419,7 +1419,7 @@ else:
     elif st.session_state["rol"] == "director" or st.session_state["rol"] == "admin":
         selected = option_menu(
         menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY", "CeCo", "Ratios", "Dashboard", "OH"],
+        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY/PPT", "CeCo", "Ratios", "Dashboard", "OH"],
         icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "clock-history", "person-gear", "percent", "speedometer", "house-door"],
         default_index=0,
         orientation="horizontal",)
@@ -1453,13 +1453,9 @@ else:
                 for nombre, codigo in zip(proyectos["nombre"], proyectos["proyectos"].astype(str))
                 if nombre not in {"OFICINAS LUNA", "PATIO", "OFICINAS ANDARES"}
             }
-
-            # ESGARI con todos los proyectos
             codigos = proyectos["proyectos"].astype(str).tolist()
             resumen_esgari = estado_resultado(df_2025, meses_seleccionado, "ESGARI", codigos, list_pro)
             resumen_proyectos["ESGARI"] = resumen_esgari
-
-            # Proyectos deseadas
             metricas_seleccionadas = [
                 ("Ingreso", "ingreso_proyecto"),
                 ("COSS Total", "coss_total"),
@@ -1546,18 +1542,12 @@ else:
                     .hide(axis='index')
                     .render()
                 )
-
-                # Hacer la tabla responsive con CSS
                 responsive_html = f'<div style="overflow-x: auto; width: 100%;">{html}</div>'
-
                 return responsive_html
 
             # Mostrar tabla
             tabla_html = generar_tabla_con_estilo(df_formateado)
-            
             st.markdown(tabla_html, unsafe_allow_html=True)
-
-            # --- Exportar a Excel (sin estilo visual, solo datos limpios) ---
 
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -1574,8 +1564,6 @@ else:
             # --- Filtro de proyecto ---
             proyectos_disponibles = [col for col in df_tabla.columns if col != "Proyecto"]
             proyecto_default = "ESGARI" if "ESGARI" in proyectos_disponibles else proyectos_disponibles[0]
-            proyecto_seleccionado = st.selectbox("Selecciona un proyecto para visualizar:", proyectos_disponibles, index=proyectos_disponibles.index(proyecto_default))
-
             # --- Convertir a formato largo para graficar ---
             df_limpio = df_tabla.set_index("Proyecto").T.reset_index().rename(columns={"index": "Proyecto"})
             df_limpio = df_limpio.dropna(axis=1, how="all")
@@ -1586,125 +1574,146 @@ else:
 
             # --- TABs ---
             tabs = st.tabs([
-                "💵 Comparativo de Ingresos y Utilidades",
-                "📈 Comparativo de Márgenes %",
-                "⚙️ Gráfica Personalizada",
-                "🥧 Participación por Proyecto"
+                "Comparativo de Ingresos",
+                "Margen de Utilidad Operativa",
+                "Participación por Proyecto",
+                "COSS por proyecto"
             ])
 
+#FCOMPORATIVO DE INGRESOS actual, lm y ppt
 
-            # --- TAB 1 ---
-            with tabs[0]:
-                st.write("### Ingresos y Utilidades")
+        with tabs[0]:
+            st.write("### Comparativo de Ingresos por Proyecto")
 
-                columnas_existentes = [m for m in metricas_pesos if m in df_limpio.columns]
-                df_proyecto = df_limpio[df_limpio["Proyecto"] == proyecto_seleccionado]
+            datos = []
 
-                if columnas_existentes:
-                    fig_montos = px.bar(
-                        df_proyecto,
-                        x="Proyecto",
-                        y=columnas_existentes,
-                        barmode="group",
-                        title=f"Montos comparativos del proyecto: {proyecto_seleccionado}",
-                        labels={"value": "Monto", "variable": "Métrica"},
-                        text_auto=".2s"
-                    )
-                    st.plotly_chart(fig_montos, use_container_width=True)
-                else:
-                    st.info("No hay métricas monetarias disponibles para graficar.")
+            # Iterar por proyectos
+            for proy in list_pro:
 
-            # --- TAB 2 ---
-            with tabs[1]:
-                st.write("### Márgenes por Proyecto (%)")
+                er_actual = estado_resultado(df_2025, meses_seleccionado, proy, [proy], list_pro)
+                er_ppt = estado_resultado(df_ppt, meses_seleccionado, proy, [proy], list_pro)
+                er_ly = estado_resultado(df_ly, meses_seleccionado, proy, [proy], list_pro)
 
-                columnas_margen = [m for m in metricas_porcentajes if m in df_limpio.columns]
-                df_margen = df_limpio[df_limpio["Proyecto"] == proyecto_seleccionado].copy()
+                datos.append({
+                    "Proyecto": proy,
+                    "Actual": er_actual.get("ingreso_proyecto", 0),
+                    "PPT": er_ppt.get("ingreso_proyecto", 0),
+                    "LY": er_ly.get("ingreso_proyecto", 0)
+                })
 
-                for col in columnas_margen:
-                    try:
-                        df_margen[col] = df_margen[col].replace("%", "", regex=True).astype(float)
-                    except:
-                        df_margen[col] = pd.to_numeric(df_margen[col], errors="coerce")
+            df_graf = pd.DataFrame(datos)
+            df_graf = df_graf[df_graf["Proyecto"].str.upper() != "ESGARI"]
 
-                if columnas_margen:
-                    fig_margenes = px.bar(
-                        df_margen,
-                        x="Proyecto",
-                        y=columnas_margen,
-                        barmode="group",
-                        title=f"Márgenes del proyecto: {proyecto_seleccionado}",
-                        labels={"value": "%", "variable": "Métrica"},
-                        text_auto=".2f"
-                    )
-                    fig_margenes.update_layout(yaxis=dict(tickformat=".0%"))
-                    st.plotly_chart(fig_margenes, use_container_width=True)
-                else:
-                    st.info("No hay métricas de margen disponibles.")
+            fig = px.bar(
+                df_graf,
+                x="Proyecto",
+                y=["Actual", "PPT", "LY"],
+                barmode="group",
+                title="Ingresos por Proyecto: Actual vs PPT vs LY",
+                labels={"value": "Monto", "variable": "Tipo"}
+            )
 
-            # --- TAB 3 ---
-            with tabs[2]:
-                st.write("### Comparación personalizada")
+            fig.update_traces(
+                texttemplate="$%{y:,.0f}",
+                textposition="outside"
+            )
 
-                columnas_disponibles = [col for col in df_limpio.columns if col != "Proyecto"]
-                metrica_default = "Ingresos" if "Ingresos" in columnas_disponibles else columnas_disponibles[0]
+            st.plotly_chart(fig, use_container_width=True)
 
-                seleccion = st.multiselect(
-                    "Selecciona métricas:",
-                    options=columnas_disponibles,
-                    default=[metrica_default]
-                )
+#### grafico de margen de utilidad operativa
+        with tabs[1]:
+            st.write("### Margen de Utilidad Operativa por Proyecto")
 
-                if seleccion:
-                    df_custom = df_limpio[df_limpio["Proyecto"] == proyecto_seleccionado]
-                    fig_custom = px.bar(
-                        df_custom,
-                        x="Proyecto",
-                        y=seleccion,
-                        barmode="group",
-                        title=f"Comparación personalizada para: {proyecto_seleccionado}",
-                        labels={"value": "Valor", "variable": "Métrica"},
-                        text_auto=".2s"
-                    )
-                    st.plotly_chart(fig_custom, use_container_width=True)
-                else:
-                    st.info("Selecciona al menos una métrica.")
+            datos = []
 
-            # --- TAB 4 (Pastel, sin filtro) ---
-            with tabs[3]:
-                st.write("### Participación por Proyecto")
+            for proy in list_pro:
 
-                metricas_disponibles_pie = [m for m in metricas_pesos if m in df_limpio.columns]
+                er_actual = estado_resultado(df_2025, meses_seleccionado, proy, [proy], list_pro)
+                er_ppt = estado_resultado(df_ppt, meses_seleccionado, proy, [proy], list_pro)
+                er_ly = estado_resultado(df_ly, meses_seleccionado, proy, [proy], list_pro)
 
-                metrica_pastel = st.selectbox(
-                    "Selecciona una métrica para ver participación:",
-                    options=metricas_disponibles_pie,
-                    index=0 if "Ingresos" in metricas_disponibles_pie else 0
-                )
+                datos.append({
+                    "Proyecto": proy,
+                    "Actual": er_actual.get("por_utilidad_operativa", 0) * 100,
+                    "PPT": er_ppt.get("por_utilidad_operativa", 0) * 100,
+                    "LY": er_ly.get("por_utilidad_operativa", 0) * 100
+                })
 
-                df_pie = df_limpio[["Proyecto", metrica_pastel]].copy()
-                df_pie = df_pie[df_pie["Proyecto"].str.upper() != "ESGARI"]
+            df_margen = pd.DataFrame(datos)
+            df_margen = df_margen[df_margen["Proyecto"].str.upper() != "ESGARI"]
 
-                try:
-                    df_pie[metrica_pastel] = df_pie[metrica_pastel].replace("[\$,]", "", regex=True).astype(float)
-                except:
-                    df_pie[metrica_pastel] = pd.to_numeric(df_pie[metrica_pastel], errors="coerce")
+            fig = px.bar(
+                df_margen,
+                x="Proyecto",
+                y=["Actual", "PPT", "LY"],
+                barmode="group",
+                title="Margen Operativo por Proyecto",
+                labels={"value": "%", "variable": "Tipo"}
+            )
 
-                fig_pie = px.pie(
-                    df_pie,
-                    names="Proyecto",
-                    values=metrica_pastel,
-                    title=f"Participación de {metrica_pastel} por Proyecto",
-                    hole=0.3
-                )
-                st.plotly_chart(fig_pie, use_container_width=True)
+            fig.update_traces(
+                texttemplate="%{y:.1f}%",
+                textposition="outside"
+            )
 
+            st.plotly_chart(fig, use_container_width=True)
 
+## participacion por proyecto
+        with tabs[2]:
+            st.write("### Participación por Proyecto")
+            metricas_disponibles_pie = [m for m in metricas_pesos if m in df_limpio.columns]
+            metrica_pastel = st.selectbox(
+                "Selecciona una métrica para ver participación:",
+                options=metricas_disponibles_pie,
+                index=0 if "Ingresos" in metricas_disponibles_pie else 0
+            )
+
+            df_pie = df_limpio[["Proyecto", metrica_pastel]].copy()
+            df_pie = df_pie[df_pie["Proyecto"].str.upper() != "ESGARI"]
+
+            try:
+                df_pie[metrica_pastel] = df_pie[metrica_pastel].replace("[\$,]", "", regex=True).astype(float)
+            except:
+                df_pie[metrica_pastel] = pd.to_numeric(df_pie[metrica_pastel], errors="coerce")
+
+            fig_pie = px.pie(
+                df_pie,
+                names="Proyecto",
+                values=metrica_pastel,
+                title=f"Participación de {metrica_pastel} por Proyecto",
+                hole=0.3
+            )
+            st.plotly_chart(fig_pie, use_container_width=True)
+
+        with tabs[3]:
+            st.write("### COSS por Proyecto")
+
+            df_coss_proy = df_limpio[["Proyecto", "COSS Total"]].copy()
+            df_coss_proy = df_coss_proy[df_coss_proy["Proyecto"].str.upper() != "ESGARI"]
+
+            df_coss_proy["COSS Total"] = pd.to_numeric(
+                df_coss_proy["COSS Total"],
+                errors="coerce"
+            )
+
+            fig_coss = px.bar(
+                df_coss_proy,
+                x="Proyecto",
+                y="COSS Total",
+                title="COSS Total por Proyecto",
+                text="COSS Total"
+            )
+
+            fig_coss.update_traces(
+                texttemplate="$%{text:,.0f}",
+                textposition="outside"
+            )
+
+            st.plotly_chart(fig_coss, use_container_width=True)
 
     elif selected == "Estado de Resultado":
 
         estdo_re(df_2025, ceco = "1")
-
 
     elif selected == "Comparativa":
         st.write("Bienvenido a la sección de Comparativa. Aquí puedes comparar diferentes fechas.")
@@ -2865,86 +2874,55 @@ else:
                     else:
                         st.info("Selecciona al menos un concepto para visualizar.")
 
-    elif selected == "Meses LY":
+    elif selected == "Meses LY/PPT":
         ct("P&L MES A MES")
+
         codigo_pro, pro = filtro_pro(st)
         ceco_codi, ceco_nomb = filtro_ceco(st)
-        df_ly["CeCo_A"] = df_ly["CeCo_A"].astype(str)
-        if ceco_nomb != "ESGARI":
-            df_ly = df_ly[df_ly["CeCo_A"].isin(ceco_codi)]
-        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.","jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+        opcion = st.selectbox("Información:", ["PPT", "LY"], index=0)
+        df_base = df_ppt.copy() if opcion == "PPT" else df_ly.copy()
 
-        meses_disponibles = [mes for mes in meses_ordenados if mes in df_ly["Mes_A"].unique()]
+        for col in ["CeCo_A", "Proyecto_A", "Mes_A"]:
+            if col in df_base.columns:
+                df_base[col] = df_base[col].astype(str).str.strip()
+
+        codigo_pro = [str(x).strip() for x in codigo_pro]
+        ceco_codi = [str(x).strip() for x in ceco_codi]
+        if ceco_nomb != "ESGARI":
+            df_base = df_base[df_base["CeCo_A"].isin(ceco_codi)].copy()
+
+        meses_ordenados = [
+            "ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+            "jul.", "ago.", "sep.", "oct.", "nov.", "dic."
+        ]
+
+        meses_disponibles = [m for m in meses_ordenados if m in df_base["Mes_A"].unique()]
         meses_filtrados = st.multiselect(
             "Selecciona los meses que deseas incluir:",
             options=meses_disponibles,
             default=meses_disponibles,
-            key="filtro_meses_est_res"
+            key=f"filtro_meses_ly_ppt_{opcion}_{pro}_{ceco_nomb}"
         )
-        if len(meses_filtrados) <2:
-            st.error("Selecionar dos meses o más!")
-        else:
 
-            # --- Función principal para generar el estado de resultado mensual ---
-            def estado_resultado_por_mes(df_ly, proyecto_nombre, proyecto_codigo, lista_proyectos):
-                meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.","jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+        if len(meses_filtrados) < 2:
+            st.error("Seleccionar dos meses o más.")
+            st.stop()
 
-                meses_disponibles = [mes for mes in meses_ordenados if mes in meses_filtrados]
-                resultado_por_mes = {}
+        def estado_resultado_por_mes(df, proyecto_nombre, proyecto_codigo, lista_proyectos):
+            meses_sel = [m for m in meses_ordenados if m in meses_filtrados]
+            resultado_por_mes = {}
 
-                for mes in meses_disponibles:
-                    estado_mes = estado_resultado(
-                        df_ly,
-                        meses_seleccionado=[mes],
-                        proyecto_nombre=proyecto_nombre,
-                        proyecto_codigo=proyecto_codigo,
-                        lista_proyectos=lista_proyectos
-                    )
-                    resultado_por_mes[mes] = estado_mes
+            for mes in meses_sel:
+                resultado_por_mes[mes] = estado_resultado(
+                    df,
+                    meses_seleccionado=[mes],
+                    proyecto_nombre=proyecto_nombre,
+                    proyecto_codigo=proyecto_codigo,
+                    lista_proyectos=lista_proyectos
+                )
 
-                df_resultado = pd.DataFrame(resultado_por_mes)
+            df_resultado = pd.DataFrame(resultado_por_mes)
 
-                # Diccionario estricto: porcentaje -> métrica base
-                porcentajes_base = {
-                    "porcentaje_ingresos": "ingreso_proyecto",
-                    "por_patio": "patio_pro",
-                    "por_coss": "coss_total",
-                    "por_utilidad_bruta": "utilidad_bruta",
-                    "por_gadmn": "gadmn_pro",
-                    "por_utilidad_operativa": "utilidad_operativa",
-                    "por_oh": "oh_pro",
-                    "por_ebit": "ebit",
-                    "por_gasto_fin": "gasto_fin_pro",
-                    "por_ingreso_fin": "ingreso_fin_pro",
-                    "por_resultado_fin": "resultado_fin",
-                    "por_ebt": "ebt"
-                }
-
-                # Función para calcular columna Total
-                def calcular_total(row):
-                    if row.name in porcentajes_base:
-                        base_row = porcentajes_base[row.name]
-                        ingreso_total = df_resultado.loc["ingreso_proyecto"].sum(skipna=True)
-                        if base_row in df_resultado.index and ingreso_total != 0:
-                            base_total = df_resultado.loc[base_row].sum(skipna=True)
-                            return base_total / ingreso_total
-                        else:
-                            return np.nan
-                    else:
-                        return row.sum(skipna=True)
-
-                # Agregar columna Total
-                df_resultado["Total"] = df_resultado.apply(calcular_total, axis=1)
-
-                # Agregar columna Promedio
-                columnas_meses = [col for col in df_resultado.columns if col != "Total"]
-                df_resultado["Promedio"] = df_resultado[columnas_meses].mean(axis=1, skipna=True)
-                return df_resultado
-
-            # Ejecutar función
-            tabla_mensual = estado_resultado_por_mes(df_ly, pro, codigo_pro, list_pro)
-
-            # Diccionario para formateo
             porcentajes_base = {
                 "porcentaje_ingresos": "ingreso_proyecto",
                 "por_patio": "patio_pro",
@@ -2960,331 +2938,367 @@ else:
                 "por_ebt": "ebt"
             }
 
-            # Crear copia formateada
-            tabla_formateada = tabla_mensual.copy()
+            def calcular_total(row):
+                if row.name in porcentajes_base:
+                    base_row = porcentajes_base[row.name]
+                    ingreso_total = df_resultado.loc["ingreso_proyecto"].sum(skipna=True)
 
-            for row in tabla_formateada.index:
-                if "por" in row.lower() or row.startswith("%"):
-                    tabla_formateada.loc[row] = tabla_formateada.loc[row].apply(lambda x: f"{x:.2%}" if pd.notnull(x) else "")
-                else:
-                    tabla_formateada.loc[row] = tabla_formateada.loc[row].apply(lambda x: f"${x:,.0f}" if pd.notnull(x) else "")
+                    if base_row in df_resultado.index and ingreso_total != 0:
+                        base_total = df_resultado.loc[base_row].sum(skipna=True)
+                        return base_total / ingreso_total
 
-            # Renombrar filas
-            nombres_filas = {
-                "ingreso_proyecto": "Ingresos",
-                "patio_pro": "Patio",            
-                "coss_total": "COSS",
-                "utilidad_bruta": "Utilidad Bruta",
-                "gadmn_pro": "Gastos Admin.",
-                "utilidad_operativa": "Utilidad Operativa",
-                "oh_pro": "OH",
-                "ebit": "EBIT",
-                "gasto_fin_pro": "Gastos Financieros",
-                "oh_pro_gfin": "Gasto financiero OH",
-                "ingreso_fin_pro": "Ingresos Financieros",
-                "ebt": "EBT",
-                "porcentaje_ingresos": "% de Ingresos",
-                "por_patio": "% Patio",
-                "por_coss": "% COSS",
-                "por_utilidad_bruta": "% Utilidad Bruta",
-                "por_gadmn": "% G. Admin",
-                "por_utilidad_operativa": "% Utilidad Operativa",
-                "por_oh": "% Overhead",
-                "por_ebit": "% EBIT",
-                "por_gasto_fin": "% Gasto Financiero",
-                "por_ingreso_fin": "% Ingreso Financiero",
-                "oh_pro_ifin": "Ingreso OH",
-                "por_resultado_fin": "% Resultado Financiero",
-                "por_ebt": "% EBT",
-                
-            }
-            tabla_mensual_renombrada = tabla_formateada.rename(index=nombres_filas)
-            tabla_mensual_renombrada = tabla_mensual_renombrada.drop(
-                index=["coss_pro", "mal_coss", "mal_gadmn", "mal_gfin", "mal_ifin", "resultado_fin", "% de Ingresos"],
-                errors='ignore'
+                    return np.nan
+
+                return row.sum(skipna=True)
+
+            df_resultado["Total"] = df_resultado.apply(calcular_total, axis=1)
+
+            columnas_meses = [c for c in df_resultado.columns if c != "Total"]
+            df_resultado["Promedio"] = df_resultado[columnas_meses].mean(axis=1, skipna=True)
+
+            return df_resultado
+
+        tabla_mensual = estado_resultado_por_mes(df_base, pro, codigo_pro, list_pro)
+
+        nombres_filas = {
+            "ingreso_proyecto": "Ingresos",
+            "patio_pro": "Patio",
+            "coss_total": "COSS",
+            "utilidad_bruta": "Utilidad Bruta",
+            "gadmn_pro": "Gastos Admin.",
+            "utilidad_operativa": "Utilidad Operativa",
+            "oh_pro": "OH",
+            "ebit": "EBIT",
+            "gasto_fin_pro": "Gastos Financieros",
+            "oh_pro_gfin": "Gasto financiero OH",
+            "ingreso_fin_pro": "Ingresos Financieros",
+            "ebt": "EBT",
+            "porcentaje_ingresos": "% de Ingresos",
+            "por_patio": "% Patio",
+            "por_coss": "% COSS",
+            "por_utilidad_bruta": "% Utilidad Bruta",
+            "por_gadmn": "% G. Admin",
+            "por_utilidad_operativa": "% Utilidad Operativa",
+            "por_oh": "% Overhead",
+            "por_ebit": "% EBIT",
+            "por_gasto_fin": "% Gasto Financiero",
+            "por_ingreso_fin": "% Ingreso Financiero",
+            "oh_pro_ifin": "Ingreso OH",
+            "por_resultado_fin": "% Resultado Financiero",
+            "por_ebt": "% EBT",
+        }
+
+        tabla_mensual_limpia = tabla_mensual.rename(index=nombres_filas)
+        tabla_mensual_limpia = tabla_mensual_limpia.drop(
+            index=[
+                "coss_pro", "mal_coss", "mal_gadmn", "mal_gfin",
+                "mal_ifin", "resultado_fin", "% de Ingresos"
+            ],
+            errors="ignore"
+        )
+
+        conceptos_ocultos_gerente = [
+            "OH", "EBIT", "Gastos Financieros", "Gasto financiero OH",
+            "Ingresos Financieros", "EBT", "% Overhead", "% EBIT",
+            "% Gasto Financiero", "% Ingreso Financiero", "Ingreso OH",
+            "% Resultado Financiero", "% EBT"
+        ]
+
+        if st.session_state.get("rol") == "gerente":
+            tabla_mensual_limpia = tabla_mensual_limpia.drop(
+                index=conceptos_ocultos_gerente,
+                errors="ignore"
             )
-            if st.session_state["rol"] == "gerente":
-                tabla_mensual_renombrada = tabla_mensual_renombrada.drop(
-                    index=["OH", "EBIT", "Gastos Financieros", "Gasto financiero OH", "Ingresos Financieros", "EBT", "% Overhead", "% EBIT", "% Gasto Financiero", "% Ingreso Financiero", "Ingreso OH", "% Resultado Financiero", "% EBT"],
-                    errors='ignore'
-                )    
 
-            # --- Estilo visual profesional para tabla mensual ---
-            def generar_tabla_con_estilo_mensual(df):
-                df_reset = df.reset_index().rename(columns={"index": "Concepto"})
-                filas_porcentaje = [nombre for nombre in df_reset["Concepto"] if nombre.startswith("%") or "por" in nombre.lower()]
-
-                def aplicar_estilos(row):
-                    if row["Concepto"] == "Promedio Mensual":
-                        return ['background-color: #cccccc; color: black; font-weight: bold;' for _ in row]
-                    elif row["Concepto"] in filas_porcentaje:
-                        return ['background-color: #00112B; color: white;' for _ in row]
-                    else:
-                        color_fondo = '#ffffff' if row.name % 2 == 0 else '#f2f2f2'
-                        return [f'background-color: {color_fondo}; color: black;' for _ in row]
-
-                estilos_header = [
-                    {'selector': 'thead th', 'props': 'background-color: #00112B; color: white; font-weight: bold; font-size: 14px;'}
-                ]
-
-                html = (
-                    df_reset.style
-                    .apply(aplicar_estilos, axis=1)
-                    .set_table_styles(estilos_header)
-                    .set_properties(**{'font-size': '12px', 'text-align': 'right'})
-                    .hide(axis='index')
-                    .render()
+        tabla_formateada = tabla_mensual_limpia.copy()
+        for row in tabla_formateada.index:
+            if row.startswith("%"):
+                tabla_formateada.loc[row] = tabla_formateada.loc[row].apply(
+                    lambda x: f"{x:.2%}" if pd.notnull(x) else ""
+                )
+            else:
+                tabla_formateada.loc[row] = tabla_formateada.loc[row].apply(
+                    lambda x: f"${x:,.0f}" if pd.notnull(x) else ""
                 )
 
-                responsive_html = f'<div style="overflow-x: auto; width: 100%;">{html}</div>'
-                return responsive_html
-
-            # Mostrar en Streamlit
-            st.write(f"### Estado de Resultado por Mes '{pro}'")
-            tabla_html = generar_tabla_con_estilo_mensual(tabla_mensual_renombrada)
-            st.markdown(tabla_html, unsafe_allow_html=True)
-            # --- Preparar DataFrame ---
-            meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-
-            meses_disponibles = [mes for mes in meses_ordenados if mes in meses_filtrados]
-
-            df_meses = df_ly[df_ly["Proyecto_A"].isin(codigo_pro)]
-            df_meses = df_meses[~(df_meses["Clasificacion_A"].isin(["IMPUESTOS", "OTROS INGRESOS"]))]
-            if st.session_state["rol"] == "gerente":
-                df_meses = df_meses[~(df_meses["Clasificacion_A"].isin(["GASTOS FINANCIEROS"]))]
-            df_meses = df_meses.groupby(
-                ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A", "Mes_A"],
-                as_index=False
-            )["Neto_A"].sum()
-
-            df_pivot = df_meses.pivot_table(
-                index=["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"],
-                columns="Mes_A",
-                values="Neto_A",
-                aggfunc="sum"
-            )
-
-            for mes in meses_disponibles:
-                if mes not in df_pivot.columns:
-                    df_pivot[mes] = 0
-            
-            # Reordenar columnas según meses_disponibles
-            df_pivot = df_pivot[meses_disponibles]
-            df_pivot = df_pivot.reset_index().fillna(0)
-
-            # --- Agregar columnas de Total y Promedio ---
-            columnas_mensuales = [col for col in df_pivot.columns if col not in ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"]]
-            df_pivot["Total"] = df_pivot[columnas_mensuales].sum(axis=1)
-            df_pivot["Promedio"] = df_pivot[columnas_mensuales].mean(axis=1)
-
-
-            # --- Configurar AgGrid ---
-
-            gb = GridOptionsBuilder.from_dataframe(df_pivot)
-
-            # Agrupar jerárquicamente
-            gb.configure_column("Clasificacion_A", rowGroup=True, hide=True)
-            gb.configure_column("Categoria_A", rowGroup=True, hide=True)
-            gb.configure_column("Cuenta_Nombre_A", pinned='left')
-
-            # Formateador de moneda usando JavaScript
-            currency_formatter = JsCode("""
-                function(params) {
-                    if (params.value === 0 || params.value === null) {
-                        return "$0.00";
-                    }
-                    return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(params.value);
-                }
-            """)
-
-            # Aplicar formato visual con el formateador JS
-            for col in df_pivot.columns:
-                if col not in ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"]:
-                    gb.configure_column(
-                        col,
-                        type=["numericColumn", "numberColumnFilter", "customNumericFormat"],
-                        aggFunc="sum",
-                        valueFormatter=currency_formatter,
-                        cellStyle={'textAlign': 'right'}
-                    )
-
-            gridOptions = gb.build()
-
-            # Mostrar en Streamlit
-            st.write("### Tabla Clasificación, Categoría y Cuenta")
-            AgGrid(
-                df_pivot,
-                gridOptions=gridOptions,
-                enable_enterprise_modules=True,
-                fit_columns_on_grid_load=False,
-                allow_unsafe_jscode=True,
-                domLayout='normal',
-                height=600
-            )
-
-            # Convertir a formato largo para graficar
-            df_graficas = tabla_mensual_renombrada.T.reset_index().rename(columns={"index": "Mes"})
-
-            df_graficas = df_graficas[~df_graficas["Mes"].isin(["Total", "Promedio"])]
-            columnas_porcentaje = [col for col in df_graficas.columns if col.startswith("%")]
-            
-            for col in columnas_porcentaje:
-                if df_graficas[col].dtype == object or df_graficas[col].dtype == "string":
-                    df_graficas[col] = (
-                        df_graficas[col]
-                        .str.replace("%", "", regex=False)
-                        .replace("", np.nan)
-                        .astype(float)
-                    )
-
-            # Variables por rol
-            es_gerente = st.session_state.get("rol") == "gerente"
-
-            # Conceptos a excluir para gerentes
-            conceptos_excluir = [
-                "OH", "EBIT", "Gastos Financieros", "Gasto financiero OH", "Ingresos Financieros", "EBT",
-                "% Overhead", "% EBIT", "% Gasto Financiero", "% Ingreso Financiero", "Ingreso OH", "% Resultado Financiero", "% EBT"
+        def generar_tabla_con_estilo_mensual(df):
+            df_reset = df.reset_index().rename(columns={"index": "Concepto"})
+            filas_porcentaje = [
+                x for x in df_reset["Concepto"]
+                if str(x).startswith("%")
             ]
 
-            # Generar lista limpia de columnas para graficar
-            conceptos_disponibles = [col for col in df_graficas.columns if col != "Mes"]
-            if es_gerente:
-                conceptos_disponibles = [col for col in conceptos_disponibles if col not in conceptos_excluir]
+            def aplicar_estilos(row):
+                if row["Concepto"] in filas_porcentaje:
+                    return ["background-color: #00112B; color: white;" for _ in row]
 
-            # Crear tabs
-            tabs = st.tabs([
-                "📈 Ingresos vs Utilidad Operativa",
-                "📉 Composición de Gastos",
-                "📊 Márgenes de Rentabilidad",
-                "🎛️ Gráfica Personalizada"
-            ])
+                color_fondo = "#ffffff" if row.name % 2 == 0 else "#f2f2f2"
+                return [f"background-color: {color_fondo}; color: black;" for _ in row]
 
-            # --- TAB 1: Ingresos vs Utilidad Operativa ---
-            with tabs[0]:
-                st.subheader("Ingresos vs Utilidad Operativa")
-
-                columnas_graf1 = [col for col in ["Ingresos", "Utilidad Operativa"] if col in df_graficas.columns]
-
-                if len(columnas_graf1) >= 2:
-                    fig1 = px.line(
-                        df_graficas,
-                        x="Mes",
-                        y=columnas_graf1,
-                        markers=True,
-                        title="Evolución mensual: Ingresos vs Utilidad Operativa",
-                        labels={"value": "Monto", "variable": "Concepto"}
+            estilos_header = [
+                {
+                    "selector": "thead th",
+                    "props": (
+                        "background-color: #00112B; color: white; "
+                        "font-weight: bold; font-size: 14px;"
                     )
-                    st.plotly_chart(fig1, use_container_width=True)
-                else:
-                    st.info("No hay suficientes datos disponibles para esta gráfica.")
-            # --- TAB 2: Composición de Gastos ---
-            with tabs[1]:
-                st.subheader("Composición mensual de gastos")
+                }
+            ]
 
-                # Usar tabla_mensual limpia, renombrar filas para mantener coherencia
-                tabla_gastos = tabla_mensual.rename(index=nombres_filas)
-                if es_gerente:
-                    tabla_gastos = tabla_gastos.drop(index=conceptos_excluir, errors='ignore')
+            html = (
+                df_reset.style
+                .apply(aplicar_estilos, axis=1)
+                .set_table_styles(estilos_header)
+                .set_properties(**{"font-size": "12px", "text-align": "right"})
+                .hide(axis="index")
+                .to_html()
+            )
 
-                gastos_clave = ["COSS", "Gastos Admin.", "Gastos Financieros"]
-                columnas_gastos = [g for g in gastos_clave if g in tabla_gastos.index]
+            return f'<div style="overflow-x: auto; width: 100%;">{html}</div>'
 
-                if columnas_gastos:
-                    # Transponer para graficar
-                    gastos_data = tabla_gastos.loc[columnas_gastos].T.reset_index().rename(columns={"index": "Mes"})
+        st.write(f"### Estado de Resultado por Mes - {opcion} | Proyecto: {pro} | CeCo: {ceco_nomb}")
+        st.markdown(generar_tabla_con_estilo_mensual(tabla_formateada), unsafe_allow_html=True)
 
-                    fig2 = px.bar(
-                        gastos_data,
-                        x="Mes",
-                        y=columnas_gastos,
-                        barmode="stack",
-                        title="Composición de gastos por mes",
-                        labels={"value": "Monto", "variable": "Tipo de Gasto"}
+        meses_sel = [m for m in meses_ordenados if m in meses_filtrados]
+        df_meses = df_base.copy()
+        if pro != "ESGARI":
+            df_meses = df_meses[df_meses["Proyecto_A"].isin(codigo_pro)]
+
+        df_meses = df_meses[
+            ~df_meses["Clasificacion_A"].isin(["IMPUESTOS", "OTROS INGRESOS"])
+        ]
+
+        if st.session_state.get("rol") == "gerente":
+            df_meses = df_meses[
+                ~df_meses["Clasificacion_A"].isin(["GASTOS FINANCIEROS"])
+            ]
+
+        df_meses = df_meses.groupby(
+            ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A", "Mes_A"],
+            as_index=False
+        )["Neto_A"].sum()
+
+        df_pivot = df_meses.pivot_table(
+            index=["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"],
+            columns="Mes_A",
+            values="Neto_A",
+            aggfunc="sum",
+            fill_value=0
+        )
+
+        for mes in meses_sel:
+            if mes not in df_pivot.columns:
+                df_pivot[mes] = 0
+
+        df_pivot = df_pivot[meses_sel].reset_index().fillna(0)
+
+        columnas_mensuales = [
+            c for c in df_pivot.columns
+            if c not in ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"]
+        ]
+
+        df_pivot["Total"] = df_pivot[columnas_mensuales].sum(axis=1)
+        df_pivot["Promedio"] = df_pivot[columnas_mensuales].mean(axis=1)
+
+        currency_formatter = JsCode("""
+            function(params) {
+                if (params.value === null || params.value === undefined || isNaN(params.value)) {
+                    return "";
+                }
+                return new Intl.NumberFormat('es-MX', {
+                    style: 'currency',
+                    currency: 'MXN',
+                    maximumFractionDigits: 0
+                }).format(params.value);
+            }
+        """)
+
+        gb = GridOptionsBuilder.from_dataframe(df_pivot)
+
+        gb.configure_default_column(
+            resizable=True,
+            sortable=True,
+            filter=True,
+            groupable=True
+        )
+
+        gb.configure_column("Clasificacion_A", rowGroup=True, hide=True)
+        gb.configure_column("Categoria_A", rowGroup=True, hide=True)
+        gb.configure_column("Cuenta_Nombre_A", header_name="Cuenta", pinned="left")
+
+        for col in columnas_mensuales + ["Total", "Promedio"]:
+            gb.configure_column(
+                col,
+                type=["numericColumn", "numberColumnFilter"],
+                aggFunc="sum",
+                valueFormatter=currency_formatter,
+                cellStyle={"textAlign": "right"}
+            )
+
+        gridOptions = gb.build()
+
+        st.write("### Tabla Clasificación, Categoría y Cuenta")
+
+        AgGrid(
+            df_pivot,
+            gridOptions=gridOptions,
+            enable_enterprise_modules=True,
+            fit_columns_on_grid_load=False,
+            allow_unsafe_jscode=True,
+            domLayout="normal",
+            height=600,
+            theme="streamlit",
+            key=f"agrid_meses_ly_ppt_{opcion}_{pro}_{ceco_nomb}_{'-'.join(meses_sel)}"
+        )
+
+
+        df_graficas = tabla_mensual_limpia.T.reset_index().rename(columns={"index": "Mes"})
+        df_graficas = df_graficas[~df_graficas["Mes"].isin(["Total", "Promedio"])].copy()
+
+        for col in df_graficas.columns:
+            if col != "Mes":
+                df_graficas[col] = pd.to_numeric(df_graficas[col], errors="coerce")
+
+        es_gerente = st.session_state.get("rol") == "gerente"
+
+        conceptos_disponibles = [c for c in df_graficas.columns if c != "Mes"]
+
+        if es_gerente:
+            conceptos_disponibles = [
+                c for c in conceptos_disponibles
+                if c not in conceptos_ocultos_gerente
+            ]
+
+        tabs = st.tabs([
+            "📈 Ingresos vs Utilidad Operativa",
+            "📉 Composición de Gastos",
+            "📊 Márgenes de Rentabilidad",
+            "🎛️ Gráfica Personalizada"
+        ])
+
+        with tabs[0]:
+            st.subheader("Ingresos vs Utilidad Operativa")
+
+            columnas_graf1 = [
+                c for c in ["Ingresos", "Utilidad Operativa"]
+                if c in df_graficas.columns
+            ]
+
+            if len(columnas_graf1) >= 2:
+                fig1 = px.line(
+                    df_graficas,
+                    x="Mes",
+                    y=columnas_graf1,
+                    markers=True,
+                    title=f"Evolución mensual {opcion}: Ingresos vs Utilidad Operativa",
+                    labels={"value": "Monto", "variable": "Concepto"}
+                )
+                st.plotly_chart(fig1, use_container_width=True)
+            else:
+                st.info("No hay suficientes datos disponibles para esta gráfica.")
+
+        with tabs[1]:
+            st.subheader("Composición mensual de gastos")
+
+            gastos_clave = ["COSS", "Gastos Admin.", "Gastos Financieros"]
+            columnas_gastos = [g for g in gastos_clave if g in tabla_mensual_limpia.index]
+
+            if columnas_gastos:
+                gastos_data = (
+                    tabla_mensual_limpia
+                    .loc[columnas_gastos]
+                    .T
+                    .reset_index()
+                    .rename(columns={"index": "Mes"})
+                )
+
+                gastos_data = gastos_data[
+                    ~gastos_data["Mes"].isin(["Total", "Promedio"])
+                ]
+
+                fig2 = px.bar(
+                    gastos_data,
+                    x="Mes",
+                    y=columnas_gastos,
+                    barmode="stack",
+                    title=f"Composición de gastos por mes - {opcion}",
+                    labels={"value": "Monto", "variable": "Tipo de Gasto"}
+                )
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                st.info("No hay columnas de gasto disponibles para graficar.")
+
+        with tabs[2]:
+            st.subheader("Márgenes de rentabilidad")
+
+            margenes_clave = ["% Utilidad Bruta", "% Utilidad Operativa"]
+            columnas_margen = [m for m in margenes_clave if m in df_graficas.columns]
+
+            if columnas_margen:
+                fig3 = px.line(
+                    df_graficas,
+                    x="Mes",
+                    y=columnas_margen,
+                    markers=True,
+                    title=f"Márgenes: Utilidad Bruta y Operativa - {opcion}",
+                    labels={"value": "%", "variable": "Métrica"}
+                )
+                fig3.update_layout(yaxis_tickformat=".0%")
+                st.plotly_chart(fig3, use_container_width=True)
+            else:
+                st.info("No hay márgenes disponibles para graficar.")
+
+        with tabs[3]:
+            st.subheader("Gráfica personalizada")
+
+            seleccion = st.multiselect(
+                "Selecciona conceptos para graficar:",
+                options=conceptos_disponibles,
+                default=["Ingresos"] if "Ingresos" in conceptos_disponibles else []
+            )
+
+            if seleccion:
+                porcentuales = [c for c in seleccion if c.startswith("%")]
+                monetarias = [c for c in seleccion if not c.startswith("%")]
+
+                fig = make_subplots(specs=[[{"secondary_y": True}]])
+
+                for col in monetarias:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df_graficas["Mes"],
+                            y=df_graficas[col],
+                            name=col,
+                            mode="lines+markers"
+                        ),
+                        secondary_y=False
                     )
-                    st.plotly_chart(fig2, use_container_width=True)
-                else:
-                    st.info("No hay columnas de gasto disponibles para graficar.")
 
-            # --- TAB 3: Márgenes de Rentabilidad ---
-            with tabs[2]:
-                st.subheader("Márgenes de rentabilidad")
-
-                margenes_clave = ["% Utilidad Bruta", "% Utilidad Operativa"]
-                columnas_margen = [m for m in margenes_clave if m in df_graficas.columns]
-
-                if columnas_margen:
-                    # Convertir strings tipo '25.00%' a float (por si están formateadas)
-                    for col in columnas_margen:
-                        df_graficas[col] = df_graficas[col].replace("%", "", regex=True).astype(float)
-
-                    fig3 = px.line(
-                        df_graficas,
-                        x="Mes",
-                        y=columnas_margen,
-                        markers=True,
-                        title="Márgenes: Utilidad Bruta y Operativa",
-                        labels={"value": "%", "variable": "Métrica"}
+                for col in porcentuales:
+                    fig.add_trace(
+                        go.Scatter(
+                            x=df_graficas["Mes"],
+                            y=df_graficas[col],
+                            name=col,
+                            mode="lines+markers",
+                            line=dict(dash="dot")
+                        ),
+                        secondary_y=True
                     )
-                    st.plotly_chart(fig3, use_container_width=True)
-                else:
-                    st.info("No hay márgenes disponibles para graficar.")
-                
-                # --- TAB 4: Gráfica Personalizada con doble eje Y ---
-                with tabs[3]:
-                    st.subheader("Gráfica personalizada")
-                
-                    seleccion = st.multiselect(
-                        "Selecciona conceptos para graficar:",
-                        options=conceptos_disponibles,
-                        default=["Ingresos"] if "Ingresos" in conceptos_disponibles else []
-                    )
-                
-                    if seleccion:
-                        # Separar métricas monetarias y porcentuales
-                        porcentuales = [col for col in seleccion if col.startswith("%")]
-                        monetarias = [col for col in seleccion if not col.startswith("%")]
-                
-                        fig = make_subplots(specs=[[{"secondary_y": True}]])
-                
-                        # Agregar trazos monetarios
-                        for col in monetarias:
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=df_graficas["Mes"],
-                                    y=df_graficas[col],
-                                    name=col,
-                                    mode='lines+markers'
-                                ),
-                                secondary_y=False
-                            )
-                
-                        # Agregar trazos porcentuales
-                        for col in porcentuales:
-                            fig.add_trace(
-                                go.Scatter(
-                                    x=df_graficas["Mes"],
-                                    y=df_graficas[col],
-                                    name=col,
-                                    mode='lines+markers',
-                                    line=dict(dash='dot')
-                                ),
-                                secondary_y=True
-                            )
-                
-                        # Etiquetas de ejes
-                        fig.update_yaxes(title_text="Monto ($ MXN)", secondary_y=False)
-                        fig.update_yaxes(title_text="Porcentaje (%)", secondary_y=True)
-                
-                        fig.update_layout(
-                            title="Evolución de conceptos seleccionados",
-                            xaxis_title="Mes",
-                            legend_title="Conceptos",
-                            hovermode="x unified"
-                        )
-                
-                        st.plotly_chart(fig, use_container_width=True)
-                    else:
-                        st.info("Selecciona al menos un concepto para visualizar.")
+
+                fig.update_yaxes(title_text="Monto ($ MXN)", secondary_y=False)
+                fig.update_yaxes(title_text="Porcentaje (%)", tickformat=".0%", secondary_y=True)
+
+                fig.update_layout(
+                    title=f"Evolución de conceptos seleccionados - {opcion}",
+                    xaxis_title="Mes",
+                    legend_title="Conceptos",
+                    hovermode="x unified"
+                )
+
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Selecciona al menos un concepto para visualizar.")
 
 
     elif selected == "CeCo":
