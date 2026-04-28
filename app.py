@@ -1453,9 +1453,13 @@ else:
                 for nombre, codigo in zip(proyectos["nombre"], proyectos["proyectos"].astype(str))
                 if nombre not in {"OFICINAS LUNA", "PATIO", "OFICINAS ANDARES"}
             }
+
+            # ESGARI con todos los proyectos
             codigos = proyectos["proyectos"].astype(str).tolist()
             resumen_esgari = estado_resultado(df_2025, meses_seleccionado, "ESGARI", codigos, list_pro)
             resumen_proyectos["ESGARI"] = resumen_esgari
+
+            # Proyectos deseadas
             metricas_seleccionadas = [
                 ("Ingreso", "ingreso_proyecto"),
                 ("COSS Total", "coss_total"),
@@ -1542,12 +1546,18 @@ else:
                     .hide(axis='index')
                     .render()
                 )
+
+                # Hacer la tabla responsive con CSS
                 responsive_html = f'<div style="overflow-x: auto; width: 100%;">{html}</div>'
+
                 return responsive_html
 
             # Mostrar tabla
             tabla_html = generar_tabla_con_estilo(df_formateado)
+            
             st.markdown(tabla_html, unsafe_allow_html=True)
+
+            # --- Exportar a Excel (sin estilo visual, solo datos limpios) ---
 
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -1564,6 +1574,8 @@ else:
             # --- Filtro de proyecto ---
             proyectos_disponibles = [col for col in df_tabla.columns if col != "Proyecto"]
             proyecto_default = "ESGARI" if "ESGARI" in proyectos_disponibles else proyectos_disponibles[0]
+            proyecto_seleccionado = st.selectbox("Selecciona un proyecto para visualizar:", proyectos_disponibles, index=proyectos_disponibles.index(proyecto_default))
+
             # --- Convertir a formato largo para graficar ---
             df_limpio = df_tabla.set_index("Proyecto").T.reset_index().rename(columns={"index": "Proyecto"})
             df_limpio = df_limpio.dropna(axis=1, how="all")
@@ -1574,143 +1586,119 @@ else:
 
             # --- TABs ---
             tabs = st.tabs([
-                "Comparativo de Ingresos",
-                "Margen de Utilidad Operativa",
-                "Participación por Proyecto",
-                "COSS por proyecto"
+                "💵 Comparativo de Ingresos y Utilidades",
+                "📈 Comparativo de Márgenes %",
+                "⚙️ Gráfica Personalizada",
+                "🥧 Participación por Proyecto"
             ])
 
-#FCOMPORATIVO DE INGRESOS actual, lm y ppt
 
-        with tabs[0]:
-            st.write("### Comparativo de Ingresos por Proyecto")
+            # --- TAB 1 ---
+            with tabs[0]:
+                st.write("### Ingresos y Utilidades")
 
-            datos = []
+                columnas_existentes = [m for m in metricas_pesos if m in df_limpio.columns]
+                df_proyecto = df_limpio[df_limpio["Proyecto"] == proyecto_seleccionado]
 
-            # Iterar por proyectos
-            for proy in list_pro:
+                if columnas_existentes:
+                    fig_montos = px.bar(
+                        df_proyecto,
+                        x="Proyecto",
+                        y=columnas_existentes,
+                        barmode="group",
+                        title=f"Montos comparativos del proyecto: {proyecto_seleccionado}",
+                        labels={"value": "Monto", "variable": "Métrica"},
+                        text_auto=".2s"
+                    )
+                    st.plotly_chart(fig_montos, use_container_width=True)
+                else:
+                    st.info("No hay métricas monetarias disponibles para graficar.")
 
-                er_actual = estado_resultado(df_2025, meses_seleccionado, proy, [proy], list_pro)
-                er_ppt = estado_resultado(df_ppt, meses_seleccionado, proy, [proy], list_pro)
-                er_ly = estado_resultado(df_ly, meses_seleccionado, proy, [proy], list_pro)
+            # --- TAB 2 ---
+            with tabs[1]:
+                st.write("### Márgenes por Proyecto (%)")
 
-                datos.append({
-                    "Proyecto": proy,
-                    "Actual": er_actual.get("ingreso_proyecto", 0),
-                    "PPT": er_ppt.get("ingreso_proyecto", 0),
-                    "LY": er_ly.get("ingreso_proyecto", 0)
-                })
+                columnas_margen = [m for m in metricas_porcentajes if m in df_limpio.columns]
+                df_margen = df_limpio[df_limpio["Proyecto"] == proyecto_seleccionado].copy()
 
-            df_graf = pd.DataFrame(datos)
-            df_graf = df_graf[df_graf["Proyecto"].str.upper() != "ESGARI"]
+                for col in columnas_margen:
+                    try:
+                        df_margen[col] = df_margen[col].replace("%", "", regex=True).astype(float)
+                    except:
+                        df_margen[col] = pd.to_numeric(df_margen[col], errors="coerce")
 
-            fig = px.bar(
-                df_graf,
-                x="Proyecto",
-                y=["Actual", "PPT", "LY"],
-                barmode="group",
-                title="Ingresos por Proyecto: Actual vs PPT vs LY",
-                labels={"value": "Monto", "variable": "Tipo"}
-            )
+                if columnas_margen:
+                    fig_margenes = px.bar(
+                        df_margen,
+                        x="Proyecto",
+                        y=columnas_margen,
+                        barmode="group",
+                        title=f"Márgenes del proyecto: {proyecto_seleccionado}",
+                        labels={"value": "%", "variable": "Métrica"},
+                        text_auto=".2f"
+                    )
+                    fig_margenes.update_layout(yaxis=dict(tickformat=".0%"))
+                    st.plotly_chart(fig_margenes, use_container_width=True)
+                else:
+                    st.info("No hay métricas de margen disponibles.")
 
-            fig.update_traces(
-                texttemplate="$%{y:,.0f}",
-                textposition="outside"
-            )
+            # --- TAB 3 ---
+            with tabs[2]:
+                st.write("### Comparación personalizada")
 
-            st.plotly_chart(fig, use_container_width=True)
+                columnas_disponibles = [col for col in df_limpio.columns if col != "Proyecto"]
+                metrica_default = "Ingresos" if "Ingresos" in columnas_disponibles else columnas_disponibles[0]
 
-#### grafico de margen de utilidad operativa
-        with tabs[1]:
-            st.write("### Margen de Utilidad Operativa por Proyecto")
+                seleccion = st.multiselect(
+                    "Selecciona métricas:",
+                    options=columnas_disponibles,
+                    default=[metrica_default]
+                )
 
-            datos = []
+                if seleccion:
+                    df_custom = df_limpio[df_limpio["Proyecto"] == proyecto_seleccionado]
+                    fig_custom = px.bar(
+                        df_custom,
+                        x="Proyecto",
+                        y=seleccion,
+                        barmode="group",
+                        title=f"Comparación personalizada para: {proyecto_seleccionado}",
+                        labels={"value": "Valor", "variable": "Métrica"},
+                        text_auto=".2s"
+                    )
+                    st.plotly_chart(fig_custom, use_container_width=True)
+                else:
+                    st.info("Selecciona al menos una métrica.")
 
-            for proy in list_pro:
+            # --- TAB 4 (Pastel, sin filtro) ---
+            with tabs[3]:
+                st.write("### Participación por Proyecto")
 
-                er_actual = estado_resultado(df_2025, meses_seleccionado, proy, [proy], list_pro)
-                er_ppt = estado_resultado(df_ppt, meses_seleccionado, proy, [proy], list_pro)
-                er_ly = estado_resultado(df_ly, meses_seleccionado, proy, [proy], list_pro)
+                metricas_disponibles_pie = [m for m in metricas_pesos if m in df_limpio.columns]
 
-                datos.append({
-                    "Proyecto": proy,
-                    "Actual": er_actual.get("por_utilidad_operativa", 0) * 100,
-                    "PPT": er_ppt.get("por_utilidad_operativa", 0) * 100,
-                    "LY": er_ly.get("por_utilidad_operativa", 0) * 100
-                })
+                metrica_pastel = st.selectbox(
+                    "Selecciona una métrica para ver participación:",
+                    options=metricas_disponibles_pie,
+                    index=0 if "Ingresos" in metricas_disponibles_pie else 0
+                )
 
-            df_margen = pd.DataFrame(datos)
-            df_margen = df_margen[df_margen["Proyecto"].str.upper() != "ESGARI"]
+                df_pie = df_limpio[["Proyecto", metrica_pastel]].copy()
+                df_pie = df_pie[df_pie["Proyecto"].str.upper() != "ESGARI"]
 
-            fig = px.bar(
-                df_margen,
-                x="Proyecto",
-                y=["Actual", "PPT", "LY"],
-                barmode="group",
-                title="Margen Operativo por Proyecto",
-                labels={"value": "%", "variable": "Tipo"}
-            )
+                try:
+                    df_pie[metrica_pastel] = df_pie[metrica_pastel].replace("[\$,]", "", regex=True).astype(float)
+                except:
+                    df_pie[metrica_pastel] = pd.to_numeric(df_pie[metrica_pastel], errors="coerce")
 
-            fig.update_traces(
-                texttemplate="%{y:.1f}%",
-                textposition="outside"
-            )
-
-            st.plotly_chart(fig, use_container_width=True)
-
-## participacion por proyecto
-        with tabs[2]:
-            st.write("### Participación por Proyecto")
-            metricas_disponibles_pie = [m for m in metricas_pesos if m in df_limpio.columns]
-            metrica_pastel = st.selectbox(
-                "Selecciona una métrica para ver participación:",
-                options=metricas_disponibles_pie,
-                index=0 if "Ingresos" in metricas_disponibles_pie else 0
-            )
-
-            df_pie = df_limpio[["Proyecto", metrica_pastel]].copy()
-            df_pie = df_pie[df_pie["Proyecto"].str.upper() != "ESGARI"]
-
-            try:
-                df_pie[metrica_pastel] = df_pie[metrica_pastel].replace("[\$,]", "", regex=True).astype(float)
-            except:
-                df_pie[metrica_pastel] = pd.to_numeric(df_pie[metrica_pastel], errors="coerce")
-
-            fig_pie = px.pie(
-                df_pie,
-                names="Proyecto",
-                values=metrica_pastel,
-                title=f"Participación de {metrica_pastel} por Proyecto",
-                hole=0.3
-            )
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-        with tabs[3]:
-            st.write("### COSS por Proyecto")
-
-            df_coss_proy = df_limpio[["Proyecto", "COSS Total"]].copy()
-            df_coss_proy = df_coss_proy[df_coss_proy["Proyecto"].str.upper() != "ESGARI"]
-
-            df_coss_proy["COSS Total"] = pd.to_numeric(
-                df_coss_proy["COSS Total"],
-                errors="coerce"
-            )
-
-            fig_coss = px.bar(
-                df_coss_proy,
-                x="Proyecto",
-                y="COSS Total",
-                title="COSS Total por Proyecto",
-                text="COSS Total"
-            )
-
-            fig_coss.update_traces(
-                texttemplate="$%{text:,.0f}",
-                textposition="outside"
-            )
-
-            st.plotly_chart(fig_coss, use_container_width=True)
-
+                fig_pie = px.pie(
+                    df_pie,
+                    names="Proyecto",
+                    values=metrica_pastel,
+                    title=f"Participación de {metrica_pastel} por Proyecto",
+                    hole=0.3
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
+              
     elif selected == "Estado de Resultado":
 
         estdo_re(df_2025, ceco = "1")
@@ -3922,7 +3910,7 @@ else:
 
             objetivo_uo = {
                 "ARRAYANES": 0.24,
-                "CENTRAL OTROS": 0.29,
+                "CENTRAL OTROS": 0.34,
                 "CHALCO": 0.24,
                 "CONTINENTAL": 0.30,
                 "FLEX DEDICADO": 0.27,
@@ -3930,7 +3918,7 @@ else:
                 "INTERNACIONAL FWD": 0.24,
                 "WH": 0.21,
                 "MANZANILLO": 0.25,
-                "NUEVO PROYECTO 1": 0.26,
+                "BAJIO": 0.26,
                 "ESGARI": 0.25
             }
 
@@ -4091,11 +4079,10 @@ else:
             with col_g5:
                 fig5 = go.Figure(data=[
                     go.Pie(
-                        labels=["COSS", "G.ADMN", "Gastos Financieros"],
+                        labels=["COSS", "G.ADMN"],
                         values=[
                             er["coss_total"],
-                            er["gadmn_pro"],
-                            er["gasto_fin_pro"]
+                            er["gadmn_pro"]
                         ],
                         hole=0.4,
                         textinfo="label+percent+value"
@@ -4185,6 +4172,172 @@ else:
                     yaxis_tickformat=".0%"
                 )
                 st.plotly_chart(fig10, use_container_width=True)
+
+        st.subheader("Ingresos Proyectados")
+
+        def calcular_proyeccion_ingresos(
+            df_2025: pd.DataFrame,
+            mes_act: str,
+            fecha_actualizacion: pd.DataFrame,
+            pro: str,
+            codigo_pro,                 # list[str] o str
+            modo: str = "lineal",       # "lineal" | "historico"
+            cargar_datos=None,          # callable(url) -> DataFrame (requerido si modo="historico")
+            ingreso_sem_url: str = None
+        ) -> float:
+            fecha_completa = fecha_actualizacion['fecha'].iloc[0]
+            fecha_act = fecha_completa.day
+            ultimo_dia_mes = (fecha_completa + pd.offsets.MonthEnd(0)).day
+
+            df_mes = df_2025[(df_2025["Mes_A"] == mes_act) & (df_2025["Categoria_A"] == "INGRESO")]
+            if pro != "ESGARI":
+                cods = codigo_pro if isinstance(codigo_pro, list) else [codigo_pro]
+                df_mes = df_mes[df_mes["Proyecto_A"].isin(cods)]
+
+            if modo == "lineal":
+                base = df_mes["Neto_A"].sum()
+                return float(base / max(fecha_act, 1) * ultimo_dia_mes)
+
+            if modo == "historico":
+                if cargar_datos is None or ingreso_sem_url is None:
+                    raise ValueError("Para modo 'historico' debes pasar cargar_datos e ingreso_sem_url.")
+                df_hist = cargar_datos(ingreso_sem_url)
+                df_hist["mes"] = pd.to_datetime(df_hist["fecha"]).dt.day
+                idx = (df_hist['mes'] - fecha_act).abs().idxmin()
+                dia_ref = int(df_hist.loc[idx, 'mes'])
+
+                df_va = df_hist[df_hist['mes'] == dia_ref].copy()
+                df_va["ingreso"] = df_va["ingreso"] / max(dia_ref, 1) * fecha_act
+                df_va = df_va.drop(columns=["mes", "semana", "fecha"])
+
+                df_fin = df_hist[df_hist["semana"] == 4].copy()
+                df_fin = df_fin.drop(columns=["mes", "semana", "fecha"])
+
+                df_merged = pd.merge(df_va, df_fin, on="proyecto", suffixes=("_va", "_fin"))
+                df_merged["ingreso_dividido"] = df_merged["ingreso_va"] / df_merged["ingreso_fin"].replace({0: pd.NA})
+                df_merged = df_merged.replace([pd.NA, pd.NaT, float("inf"), -float("inf")], 0)
+
+                df_proy = (df_2025[df_2025["Mes_A"] == mes_act]
+                        .groupby(["Proyecto_A", "Categoria_A"], as_index=False)["Neto_A"].sum())
+                df_proy = df_proy[df_proy["Categoria_A"] == "INGRESO"].drop(columns=["Categoria_A"])
+
+                df_proy["Proyecto_A"] = df_proy["Proyecto_A"].astype(float)
+                df_proy = pd.merge(df_proy, df_merged, left_on="Proyecto_A", right_on="proyecto", how="left")
+                df_proy["Neto_A"] = df_proy["Neto_A"] / df_proy["ingreso_dividido"].replace({0: pd.NA}).fillna(0)
+
+                df_proy = df_proy.drop(columns=["proyecto", "ingreso_va", "ingreso_fin", "ingreso_dividido"])
+                df_proy["Proyecto_A"] = df_proy["Proyecto_A"].astype(float).astype(int).astype(str)
+
+                if pro == "ESGARI":
+                    return float(df_proy["Neto_A"].sum())
+                cods = codigo_pro if isinstance(codigo_pro, list) else [codigo_pro]
+                return float(df_proy[df_proy["Proyecto_A"].isin(cods)]["Neto_A"].sum())
+
+            raise ValueError("modo debe ser 'lineal' o 'historico'")
+
+        # ---------- Helper para ingresos por mes ----------
+### ESGARI es la suma de todos los proyectos
+        def ingre_co(df):
+            if proyecto_nombre != "ESGARI":
+                df = df[df["Proyecto_A"].isin(proyecto_codigo)]
+            df = df[df["Categoria_A"] == "INGRESO"]
+            df = df.groupby("Mes_A", as_index=False).agg({"Neto_A": "sum"})
+            return df
+
+        df_co_2025 = ingre_co(df_2025)
+        df_co_ly = ingre_co(df_ly)
+        df_co_ppt = ingre_co(df_ppt)
+
+        # ---------- Mes actual (formato "ene.","feb.",...) ----------
+        orden_meses = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                    "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+        mes_map = {1:"ene.", 2:"feb.", 3:"mar.", 4:"abr.", 5:"may.", 6:"jun.",
+                7:"jul.", 8:"ago.", 9:"sep.", 10:"oct.", 11:"nov.", 12:"dic."}
+        fecha_hoy = fecha_actualizacion['fecha'].iloc[0]
+        mes_act = mes_map[int(fecha_hoy.month)]
+
+        # ---------- UI: Real vs Proyección en el mes actual ----------
+        colA, colB = st.columns([1,1])
+        vista_mes_actual = colA.radio(
+            f"Mes actual ({mes_act})",
+            options=["Ver real", "Ver proyección"],
+            horizontal=True,
+            index=0,
+            key="vista_mes_actual_ing"
+        )
+        tipo_proy = None
+        if vista_mes_actual == "Ver proyección":
+            tipo_proy = colB.selectbox(
+                "Tipo de proyección",
+                options=["Lineal", "Histórica"],
+                index=0,
+                key="tipo_proy_ing"
+            )
+
+        # ---------- Asegurar que todos los meses estén presentes ----------
+        df_base = pd.DataFrame({"Mes_A": orden_meses})
+
+        def asegurar_meses(df, col_name):
+            df = df_base.merge(df, on="Mes_A", how="left")
+            df.rename(columns={"Neto_A": col_name}, inplace=True)
+            return df
+
+        df_co_2025 = asegurar_meses(df_co_2025, "Actual")
+        df_co_ly   = asegurar_meses(df_co_ly,   "Año Anterior")
+        df_co_ppt  = asegurar_meses(df_co_ppt,  "Presupuesto")
+
+        # ---------- Si se elige proyección, reemplazar SOLO el mes actual en "Actual" ----------
+        ingreso_pro_fut = None
+        if vista_mes_actual == "Ver proyección":
+            modo = "lineal" if tipo_proy == "Lineal" else "historico"
+            ingreso_pro_fut = calcular_proyeccion_ingresos(
+                df_2025=df_2025,
+                mes_act=mes_act,
+                fecha_actualizacion=fecha_actualizacion,
+                pro=proyecto_nombre,
+                codigo_pro=proyecto_codigo,
+                modo=modo,
+                cargar_datos=cargar_datos if modo == "historico" else None,
+                ingreso_sem_url=("https://docs.google.com/spreadsheets/d/14l6QLudSBpqxmfuwRqVxCXzhSFzRL0AqWJqVuIOaFFQ/export?format=xlsx")
+            )
+            # Reemplazo in-place del valor del mes actual en la columna "Actual"
+            df_co_2025.loc[df_co_2025["Mes_A"] == mes_act, "Actual"] = ingreso_pro_fut
+
+        # ---------- Unir todas las series ----------
+        df_final = df_base.copy()
+        df_final = df_final.merge(df_co_2025, on="Mes_A", how="left")
+        df_final = df_final.merge(df_co_ly,   on="Mes_A", how="left")
+        df_final = df_final.merge(df_co_ppt,  on="Mes_A", how="left")
+
+        # ---------- Mostrar métrica del mes actual ----------
+        # Si no hay proyección, muestra el real; si hay proyección, la proyección.
+        valor_mes_actual = df_final.loc[df_final["Mes_A"] == mes_act, "Actual"].values[0]
+        etiqueta = "Ingreso proyectado del mes" if vista_mes_actual == "Ver proyección" else "Ingreso real del mes"
+ 
+
+        # ---------- Gráfico ----------
+        df_melted = df_final.melt(id_vars="Mes_A", var_name="Tipo", value_name="Ingresos")
+        df_melted["Ingresos_miles"] = (df_melted["Ingresos"] / 1000).round(0)
+        df_melted["Texto"] = df_melted["Ingresos_miles"].apply(lambda x: f"${int(x):,}" if pd.notnull(x) else "")
+
+        fig = px.line(
+            df_melted,
+            x="Mes_A",
+            y="Ingresos_miles",
+            color="Tipo",
+            markers=True,
+            title="Ingresos Comerciales por Mes (en miles de $)"
+        )
+        for tipo in df_melted["Tipo"].unique():
+            fig.update_traces(
+                selector=dict(name=tipo),
+                text=df_melted[df_melted["Tipo"] == tipo]["Texto"],
+                textposition="top center",
+                mode="lines+markers+text"
+            )
+        fig.update_layout(yaxis_tickformat="$,.0f")
+        st.plotly_chart(fig, use_container_width=True)
+
     
     elif selected == "Gastos por Empresa":
         ct("GASTO POR EMPRESA")
