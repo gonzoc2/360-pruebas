@@ -1426,8 +1426,8 @@ else:
     elif st.session_state["rol"] == "gerente":
         selected = option_menu(
         menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "CeCo"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "person-gear"],
+        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "CeCo", "Dashboard"],
+        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "person-gear", "speedometer"],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "ceco":
@@ -4201,36 +4201,84 @@ else:
             if modo == "historico":
                 if cargar_datos is None or ingreso_sem_url is None:
                     raise ValueError("Para modo 'historico' debes pasar cargar_datos e ingreso_sem_url.")
-                df_hist = cargar_datos(ingreso_sem_url)
-                df_hist["mes"] = pd.to_datetime(df_hist["fecha"]).dt.day
-                idx = (df_hist['mes'] - fecha_act).abs().idxmin()
-                dia_ref = int(df_hist.loc[idx, 'mes'])
 
-                df_va = df_hist[df_hist['mes'] == dia_ref].copy()
-                df_va["ingreso"] = df_va["ingreso"] / max(dia_ref, 1) * fecha_act
-                df_va = df_va.drop(columns=["mes", "semana", "fecha"])
+                df_hist = cargar_datos(ingreso_sem_url).copy()
+
+                df_hist["fecha"] = pd.to_datetime(df_hist["fecha"], errors="coerce")
+                df_hist["dia"] = df_hist["fecha"].dt.day
+
+                df_hist["proyecto"] = (
+                    pd.to_numeric(df_hist["proyecto"], errors="coerce")
+                    .astype("Int64")
+                    .astype(str)
+                )
+
+                df_hist["ingreso"] = pd.to_numeric(df_hist["ingreso"], errors="coerce").fillna(0)
+
+                idx = (df_hist["dia"] - fecha_act).abs().idxmin()
+                dia_ref = int(df_hist.loc[idx, "dia"])
+
+                df_va = df_hist[df_hist["dia"] == dia_ref].copy()
+                df_va["ingreso_va"] = df_va["ingreso"] / max(dia_ref, 1) * fecha_act
+                df_va = df_va[["proyecto", "ingreso_va"]]
 
                 df_fin = df_hist[df_hist["semana"] == 4].copy()
-                df_fin = df_fin.drop(columns=["mes", "semana", "fecha"])
+                df_fin = df_fin[["proyecto", "ingreso"]].rename(columns={"ingreso": "ingreso_fin"})
 
-                df_merged = pd.merge(df_va, df_fin, on="proyecto", suffixes=("_va", "_fin"))
-                df_merged["ingreso_dividido"] = df_merged["ingreso_va"] / df_merged["ingreso_fin"].replace({0: pd.NA})
-                df_merged = df_merged.replace([pd.NA, pd.NaT, float("inf"), -float("inf")], 0)
+                df_merged = pd.merge(df_va, df_fin, on="proyecto", how="inner")
 
-                df_proy = (df_2025[df_2025["Mes_A"] == mes_act]
-                        .groupby(["Proyecto_A", "Categoria_A"], as_index=False)["Neto_A"].sum())
-                df_proy = df_proy[df_proy["Categoria_A"] == "INGRESO"].drop(columns=["Categoria_A"])
+                df_merged["ingreso_dividido"] = np.where(
+                    df_merged["ingreso_fin"] != 0,
+                    df_merged["ingreso_va"] / df_merged["ingreso_fin"],
+                    np.nan
+                )
 
-                df_proy["Proyecto_A"] = df_proy["Proyecto_A"].astype(float)
-                df_proy = pd.merge(df_proy, df_merged, left_on="Proyecto_A", right_on="proyecto", how="left")
-                df_proy["Neto_A"] = df_proy["Neto_A"] / df_proy["ingreso_dividido"].replace({0: pd.NA}).fillna(0)
+                df_merged["ingreso_dividido"] = (
+                    pd.to_numeric(df_merged["ingreso_dividido"], errors="coerce")
+                    .replace([np.inf, -np.inf], np.nan)
+                )
 
-                df_proy = df_proy.drop(columns=["proyecto", "ingreso_va", "ingreso_fin", "ingreso_dividido"])
-                df_proy["Proyecto_A"] = df_proy["Proyecto_A"].astype(float).astype(int).astype(str)
+                df_proy = (
+                    df_2025[
+                        (df_2025["Mes_A"] == mes_act) &
+                        (df_2025["Categoria_A"] == "INGRESO")
+                    ]
+                    .groupby("Proyecto_A", as_index=False)["Neto_A"]
+                    .sum()
+                )
+
+                df_proy["Proyecto_A"] = (
+                    pd.to_numeric(df_proy["Proyecto_A"], errors="coerce")
+                    .astype("Int64")
+                    .astype(str)
+                )
+
+                df_proy = pd.merge(
+                    df_proy,
+                    df_merged[["proyecto", "ingreso_dividido"]],
+                    left_on="Proyecto_A",
+                    right_on="proyecto",
+                    how="left"
+                )
+
+                df_proy["Neto_A"] = np.where(
+                    df_proy["ingreso_dividido"].notna() & (df_proy["ingreso_dividido"] != 0),
+                    df_proy["Neto_A"] / df_proy["ingreso_dividido"],
+                    df_proy["Neto_A"]
+                )
+
+                df_proy["Neto_A"] = (
+                    pd.to_numeric(df_proy["Neto_A"], errors="coerce")
+                    .replace([np.inf, -np.inf], np.nan)
+                    .fillna(0)
+                )
 
                 if pro == "ESGARI":
                     return float(df_proy["Neto_A"].sum())
+
                 cods = codigo_pro if isinstance(codigo_pro, list) else [codigo_pro]
+                cods = [str(x).strip() for x in cods]
+
                 return float(df_proy[df_proy["Proyecto_A"].isin(cods)]["Neto_A"].sum())
 
             raise ValueError("modo debe ser 'lineal' o 'historico'")
