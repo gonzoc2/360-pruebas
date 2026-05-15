@@ -1657,25 +1657,24 @@ else:
     # Ya ha iniciado sesión
     st.sidebar.success(f"👤 Usuario: {st.session_state['username']}")
 
-with st.sidebar:
-
-    st.markdown("## Menú Principal")
-
-    if st.session_state["rol"] == "admin":
-        menu_principal = option_menu(
-            None,
-            options=["General", "Empresas", "Análisis"],
-            icons=["bar-chart", "building", "gear"],
-            default_index=0,
-        )
-    else:
-        menu_principal = option_menu(
-            None,
-            options=["General"],
-            icons=["bar-chart"],
-            default_index=0,
-        )
-
+  with st.sidebar:
+  
+      st.markdown("## Menú Principal")
+  
+      if st.session_state["rol"] == "admin":
+          menu_principal = option_menu(
+              None,
+              options=["General", "Empresas", "Análisis"],
+              icons=["bar-chart", "building", "gear"],
+              default_index=0,
+          )
+      else:
+          menu_principal = option_menu(
+              None,
+              options=["General"],
+              icons=["bar-chart"],
+              default_index=0,
+          )
 
     if st.sidebar.button("Cerrar sesión"):
         for key in ["logged_in", "username", "rol", "proyectos"]:
