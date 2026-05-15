@@ -13,8 +13,12 @@ from st_aggrid.shared import JsCode
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, parse_qs
 import altair as alt
-                
+import re
+import time
+from functools import reduce
+import streamlit.components.v1 as components
 
+                
 st.set_page_config(
     page_title="Esgari 360",
     page_icon="🚚",  # <- icono de camión
@@ -55,6 +59,19 @@ proyectos = st.secrets["urls"]["proyectos"]
 base_ly =  st.secrets["urls"]["base_ly"]
 base_ppt = st.secrets["urls"]["base_ppt"]
 fecha = st.secrets["urls"]["fecha"]
+balance_url = st.secrets["urls"]["balance_url"]
+balance_ly = st.secrets["urls"]["balance_ly"]
+mapeo_url = st.secrets["urls"]["mapeo_url"]
+comparables = 'https://docs.google.com/spreadsheets/d/13eS6lIAxijfkss69OuPHezPxHuOdQUJF50duelc0jZ4/export?format=xlsx'
+banace_esgari = st.secrets["balance"]["banace_esgari"]
+er_esgari = st.secrets["balance"]["banace_esgari"]
+
+
+EMPRESAS = ["HOLDING", "FWD", "WH", "UBIKARGA", "EHM", "RESA", "GREEN"]
+COLUMNAS_CUENTA = ["Cuenta", "Descripción"]
+COLUMNAS_MONTO = ["Saldo final", "Saldo"]
+CLASIFICACIONES_PRINCIPALES = ["ACTIVO", "PASIVO", "CAPITAL"]
+
 
 categorias_felx_com = ['COSTO DE PERSONAL', 'GASTO DE PERSONAL', 'NOMINA ADMINISTRATIVOS']
 da = ['AMORT ARRENDAMIENTO', 'AMORTIZACION', 'DEPRECIACION']
@@ -66,6 +83,169 @@ def cargar_datos(url):
     response.raise_for_status()
     archivo_excel = BytesIO(response.content)
     return pd.read_excel(archivo_excel, engine="openpyxl")
+
+@st.cache_data
+def extra_beta(ticker):
+    ticker = str(ticker).strip().upper()
+    url = f"https://www.alphaspread.com/security/nyse/{ticker}/discount-rate"
+
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, "html.parser")
+
+            # Método principal
+        for beta_div in soup.find_all("div", class_="dotted-underline label pointer tooltip"):
+            if "Beta" in beta_div.get_text(strip=True):
+                value_div = beta_div.find_previous_sibling("div", class_="value weight-700")
+                if value_div:
+                    raw = value_div.get_text(strip=True).replace(",", ".").strip()
+                    match = re.search(r"-?\d+(\.\d+)?", raw)
+                    if match:
+                        return float(match.group())
+
+            # Fallback: buscar "Beta" en texto cercano
+        html_text = soup.get_text(" ", strip=True)
+        match_beta = re.search(r"Beta\s*(-?\d+(\.\d+)?)", html_text, re.IGNORECASE)
+        if match_beta:
+            return float(match_beta.group(1))
+
+        return None
+
+    except Exception:
+        return None
+
+
+@st.cache_data
+def info_balance(ticker, campo):
+    ticker = str(ticker).strip().upper()
+    url = f"https://www.alphaspread.com/security/nyse/{ticker}/financials/balance-sheet"
+
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.content, "html.parser")
+        html_text = soup.prettify()
+
+        pattern = rf'"{re.escape(campo)}".*?"text":"([\d\s]+)"'
+        match = re.search(pattern, html_text)
+
+        if match:
+            return float(match.group(1).replace(" ", ""))
+
+        return 0.0
+
+    except Exception:
+        return 0.0
+
+
+@st.cache_data
+def des_beta(ticker, tax):
+    beta = extra_beta(ticker)
+
+    # usa solo deuda real, no Total Liabilities & Equity
+    debt = (
+        info_balance(ticker, "Current Portion of Long-Term Debt")
+        + info_balance(ticker, "Short-Term Debt")
+        + info_balance(ticker, "Long-Term Debt")
+    )
+
+    equity = info_balance(ticker, "Total Equity")
+
+    if beta is None:
+        return None
+
+    if equity is None or equity == 0:
+        return None
+
+    return beta / (1 + (1 - tax) * (debt / equity))
+
+
+def mean_beta(com_list):
+    betas = []
+
+    for x in com_list:
+        if pd.isna(x):
+            continue
+
+        x = str(x).strip().upper()
+        tax = 0.3 if x == "TRAXIONA" else 0.21
+        beta = des_beta(x, tax)
+
+        if beta is not None:
+            betas.append(beta)
+        else:
+            st.warning(f"No se pudo calcular beta para {x}")
+
+        time.sleep(1)
+
+    if not betas:
+        return None
+
+    return sum(betas) / len(betas)
+
+
+@st.cache_data
+def get_cetes_3y():
+    TOKEN = 'eef020dafff1667cc5fb4dc1de10cf314857367cbd5c881511679bb2e7a7433a'
+    SERIE_ID = "SF43936"
+    url = f"https://www.banxico.org.mx/SieAPIRest/service/v1/series/{SERIE_ID}/datos/oportuno"
+    headers = {"Bmx-Token": TOKEN}
+
+    try:
+        response = requests.get(url, headers=headers, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+        return float(data['bmx']['series'][0]['datos'][0]['dato'])
+    except (KeyError, IndexError, ValueError, requests.RequestException):
+        return None
+
+
+@st.cache_data
+def erp():
+    url = "https://pages.stern.nyu.edu/~adamodar/pc/datasets/ctryprem.xlsx"
+
+    df = pd.read_excel(
+        url,
+        sheet_name="ERPs by country",
+        skiprows=7
+    )
+
+    df.columns = df.columns.astype(str).str.strip()
+
+    erp_col = [c for c in df.columns if "Total Equity Risk Premium" in c][0]
+
+    return df.loc[df["Country"] == "Mexico", erp_col].iloc[0]
+
+
+@st.cache_data
+def cargar_datos_hoja(url, nombre_hoja=None):
+    response = requests.get(url, timeout=30)
+    response.raise_for_status()
+    archivo_excel = BytesIO(response.content)
+    return pd.read_excel(archivo_excel, engine="openpyxl", sheet_name=nombre_hoja)
+
+
+def apalancar_beta(beta_des, tax, debt, equity):
+    if beta_des is None:
+        return None
+    if tax is None:
+        return None
+    if debt is None:
+        return None
+    if equity is None or equity == 0:
+        return None
+
+    beta_des = float(beta_des)
+    tax = float(tax)
+    debt = float(debt)
+    equity = float(equity)
+
+    return beta_des * (1 + (1 - tax) * (debt / equity))
 
 def validar_credenciales(df, username, password):
     usuario_row = df[(df["usuario"] == username) & (df["contraseña"] == password)]
@@ -1267,6 +1447,150 @@ def proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_p
     with tab1:
         st.write("Proyección Original")
         construir_tabla(ingreso_pro_fut, coss_pro_ori, gadmn_pro_ori, oh_pro, intereses, id_tab=5)
+def limpiar_cuenta(x):
+    """Convierte cuenta a int, quitando comas/espacios/texto (ej: '400,000,006' -> 400000006)."""
+    if pd.isna(x):
+        return pd.NA
+    s = str(x).strip()
+    if s.endswith(".0"):
+        s = s[:-2]
+
+    s = re.sub(r"[^\d-]", "", s)
+
+    if s == "" or s == "-":
+        return pd.NA
+
+    try:
+        return int(s)
+    except:
+        return pd.NA
+
+
+def _encontrar_columna(df, candidatos):
+    return next((c for c in candidatos if c in df.columns), None)
+
+def _to_numeric_money(series):
+    s = series.astype(str).replace(r"[\$,]", "", regex=True)
+    return pd.to_numeric(s, errors="coerce").fillna(0)
+
+@st.cache_data(show_spinner="Cargando Excel (URL)...")
+def load_excel_from_url(url: str) -> pd.DataFrame:
+    r = requests.get(url)
+    r.raise_for_status()
+    file = BytesIO(r.content)
+    df = pd.read_excel(file, engine="openpyxl")
+    df.columns = df.columns.str.strip()
+    return df
+
+@st.cache_data(show_spinner="Cargando mapeo de cuentas...")
+def cargar_mapeo(url: str) -> pd.DataFrame:
+    df_mapeo = load_excel_from_url(url)
+    if "Cuenta" not in df_mapeo.columns:
+        st.error("❌ El mapeo debe contener una columna llamada 'Cuenta'.")
+        return pd.DataFrame()
+
+    df_mapeo["Cuenta"] = df_mapeo["Cuenta"].apply(limpiar_cuenta)
+    df_mapeo = df_mapeo.dropna(subset=["Cuenta"]).drop_duplicates(subset=["Cuenta"], keep="first")
+    return df_mapeo
+
+@st.cache_data(show_spinner="Cargando hojas del balance...")
+def cargar_balance_multi_hojas(url: str, hojas: list[str]) -> dict[str, pd.DataFrame]:
+    r = requests.get(url)
+    r.raise_for_status()
+    file = BytesIO(r.content)
+
+    data = {}
+    for hoja in hojas:
+        try:
+            file.seek(0)  
+            df = pd.read_excel(file, sheet_name=hoja, engine="openpyxl")
+            df.columns = df.columns.str.strip()
+            data[hoja] = df
+        except Exception as e:
+            data[hoja] = pd.DataFrame()
+            st.warning(f"⚠️ No se pudo leer la hoja {hoja}: {e}")
+    return data
+
+
+def autoclasificar_resultados(df_merged, col_cuenta):
+    """
+    Si no viene en mapeo:
+    400,000,000 a 499,999,999  -> RESULTADOS / INGRESO
+    >= 500,000,000             -> RESULTADOS / GASTO
+    """
+
+    df_merged[col_cuenta] = pd.to_numeric(df_merged[col_cuenta], errors="coerce")
+    mask_no_map = df_merged["CLASIFICACION"].isna()
+    mask_ing = mask_no_map & (df_merged[col_cuenta] >= 400000000) & (df_merged[col_cuenta] < 500000000)
+    mask_gas = mask_no_map & (df_merged[col_cuenta] >= 500000000)
+    df_merged.loc[mask_ing, "CLASIFICACION"] = "RESULTADOS"
+    df_merged.loc[mask_ing, "CATEGORIA"] = "INGRESO"
+    df_merged.loc[mask_gas, "CLASIFICACION"] = "RESULTADOS"
+    df_merged.loc[mask_gas, "CATEGORIA"] = "GASTO"
+
+    return df_merged
+
+# Cálculos de capital
+com = cargar_datos(comparables)
+com_list = (
+    com["ticket"]
+    .dropna()
+    .astype(str)
+    .str.strip()
+    .str.upper()
+    .tolist()
+)
+
+com = com.set_index("empresa")
+beta_pro = mean_beta(com_list)
+
+if beta_pro is None:
+    st.error("No se pudo calcular la beta promedio de los comparables.")
+    st.stop()
+
+erp_mex = erp()
+
+risk_free_raw = get_cetes_3y()
+if risk_free_raw is None:
+    st.error("No se pudo obtener CETES a 3 años.")
+    st.stop()
+
+risk_free = risk_free_raw / 100
+tiie_spread = risk_free + 0.05
+
+df_balance = cargar_datos_hoja(banace_esgari, "2025")
+df_balance["NETO 2025"] = df_balance["NETO 2025"] * 1000
+df_balance["NETO 2024"] = df_balance["NETO 2024"] * 1000
+
+df_er = cargar_datos_hoja(banace_esgari, "P&l")
+df_er["Monto"] = df_er["Monto"]
+
+deuda = (
+    df_balance[df_balance["CUENTA"] == "Contrato de derecho de uso (CP)"]["NETO 2025"].values[0]
+    + df_balance[df_balance["CUENTA"] == "Creditos Bancarios"]["NETO 2025"].values[0]
+    + df_balance[df_balance["CUENTA"] == "Contratos por derecho de uso"]["NETO 2025"].values[0]
+    + df_balance[df_balance["CUENTA"] == "Creditos Bancarios CP"]["NETO 2025"].values[0]
+)
+
+equity = df_balance[df_balance["CUENTA"] == "Total Capital Contable"]["NETO 2025"].values[0]
+cash = df_balance[df_balance["CUENTA"] == "Bancos"]["NETO 2025"].values[0]
+deuda_neta = deuda - cash
+
+beta_esg = apalancar_beta(beta_pro, 0.3, deuda, equity)
+if beta_esg is None:
+    st.error("No se pudo calcular la beta apalancada.")
+    st.stop()
+
+eq = risk_free + (beta_esg * erp_mex)
+co_de = 0.1268
+kd = co_de * (1 - 0.3)
+
+if (deuda_neta + equity) == 0:
+    st.error("La suma de deuda neta y equity es 0, no se puede calcular WACC.")
+    st.stop()
+
+wacc = (deuda_neta / (deuda_neta + equity)) * kd + (equity / (deuda_neta + equity)) * eq
+debt_weight = deuda_neta / (deuda_neta + equity)
 
 
 init_session_state()
@@ -1335,6 +1659,23 @@ else:
     # Ya ha iniciado sesión
     st.sidebar.success(f"👤 Usuario: {st.session_state['username']}")
 
+    if st.session_state['rol'] == "admin":
+        menu_principal = option_menu(
+        "Menú Principal",
+        options=["General", "Empresas", "Análisis"],
+        icons=["bar-chart", "building", "gear"],
+        menu_icon="cast",
+        default_index=0,
+    )
+    else:
+        menu_principal = option_menu(
+        "Menú Principal",
+        options=["General"],
+        icons=["bar-chart"],
+        menu_icon="cast",
+        default_index=0,
+    )
+
     if st.sidebar.button("Cerrar sesión"):
         for key in ["logged_in", "username", "rol", "proyectos"]:
             st.session_state[key] = "" if key != "logged_in" else False
@@ -1379,7 +1720,6 @@ else:
                         mime="application/vnd.ms-excel.sheet.macroEnabled.12",  # MIME type para .xlsm
                     )
 
-
         # Crear los botones de descarga
         create_download_buttons()
 
@@ -1392,53 +1732,153 @@ else:
     }
     fecha_texto = f"{fecha_act.day} de {meses[fecha_act.month]} de {fecha_act.year}"
     texto_centrado(f"Fecha de actualización: {fecha_texto}")
+
     
-    if st.session_state["rol"] in ["director", "admin"] and "ESGARI" in st.session_state["proyectos"]:
+    if menu_principal == "General":
+
+        if st.session_state["rol"] in ["director", "admin"] and "ESGARI" in st.session_state["proyectos"]:
+
+            selected = option_menu(
+                menu_title=None,
+                options=[
+                    "Resumen", "Estado de Resultado", "Comparativa", "Análisis",
+                    "Proyeccion", "Meses", "Meses LY/PPT",
+                    "CeCo", "Ratios", "Dashboard", "OH"
+                ],
+                icons=[
+                    "house",            #Resumen
+                    "clipboard-data",   #Estado de Resultado
+                    "file-earmark-bar-graph",  #Comparativa
+                    "bar-chart",               #Análisis
+                    "building",                #Proyeccion
+                    "calendar",                #Meses
+                    "clock-history",           #Meses LY/PPT
+                    "person-gear",             #CeCo
+                    "percent",                  #Ratios
+                    "speedometer",      #Dashboard  
+                    "briefcase",        #OH
+                ],
+                default_index=0,
+                orientation="horizontal",
+            )
+
+        elif st.session_state["rol"] == "director" or st.session_state["rol"] == "admin":
+
+            selected = option_menu(
+                menu_title=None,
+                options=[
+                    "Estado de Resultado", "Comparativa", "Análisis",
+                    "Proyeccion", "Meses",
+                    "Meses LY/PPT", "CeCo", "Ratios", "Dashboard", "OH"
+                ],
+                icons=[
+                    "clipboard-data",   #Estado de Resultado
+                    "file-earmark-bar-graph",  #Comparativa
+                    "bar-chart",               #Análisis
+                    "building",                #Proyeccion
+                    "calendar",                #Meses
+                    "clock-history",           #Meses LY/PPT
+                    "person-gear",             #CeCo
+                    "percent",                  #Ratios
+                    "speedometer",      #Dashboard  
+                    "briefcase",        #OH
+                ],
+                default_index=0,
+                orientation="horizontal",
+            )
+
+        elif st.session_state["rol"] == "gerente":
+
+            selected = option_menu(
+                menu_title=None,
+                options=[
+                    "Estado de Resultado", "Comparativa", "Análisis",
+                    "Proyeccion", "Meses", "Meses LY/PPT", "CeCo", "Dashboard"
+                ],
+                icons=[
+                    "clipboard-data",
+                    "file-earmark-bar-graph",
+                    "bar-chart",
+                    "building",
+                    "clock-history",
+                    "calendar",
+                    "person-gear",
+                    "speedometer"
+                ],
+                default_index=0,
+                orientation="horizontal",
+            )
+
+        elif st.session_state["rol"] == "ceco":
+
+            selected = option_menu(
+                menu_title=None,
+                options=["CeCo"],
+                icons=["person-gear"],
+                default_index=0,
+                orientation="horizontal",
+            )
+
+
+    elif menu_principal == "Empresas":
+
         selected = option_menu(
-        menu_title=None,
-        options=["Resumen", "Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY/PPT",
-                 "CeCo", "Ratios", "Dashboard", "Gastos por Empresa", "OH"],
-        icons = [
-                "house",                # Resumen
-                "clipboard-data",       # Estado de Resultado
-                "file-earmark-bar-graph",# Comparativa
-                "bar-chart",            # Análisis
-                "building",             # Proyeccion
-                "clock-history",        # LY
-                "easel",                # PPT
-                "calendar",             # Meses
-                "clock-history",        # Meses LY
-                "person-gear",          # CeCo -> "Centro de Costos"
-                "percent",              # Ratios
-                "speedometer" ,         # Dashboard
-                "briefcase",            # Gastos por Empresa
-                "house-door",           # OH
+            menu_title=None,
+            options=[
+                "Balance General",
+                "Balance por empresa",
+                "Estado de Resultado",
+                "Escenario EDR"
             ],
-        default_index=0,
-        orientation="horizontal",)
-    elif st.session_state["rol"] == "director" or st.session_state["rol"] == "admin":
-        selected = option_menu(
-        menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY/PPT", "CeCo", "Ratios", "Dashboard", "OH"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "clock-history", "person-gear", "percent", "speedometer", "house-door"],
-        default_index=0,
-        orientation="horizontal",)
-    elif st.session_state["rol"] == "gerente":
-        selected = option_menu(
-        menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "CeCo", "Dashboard"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "person-gear", "speedometer"],
-        default_index=0,
-        orientation="horizontal",)
-    elif st.session_state["rol"] == "ceco":
-        selected = option_menu(
-        menu_title=None,
-        options=[ "CeCo"],
-        icons=["person-gear"],
-        default_index=0,
-        orientation="horizontal",)
+            icons=[
+                "journal-text",
+                "clipboard-data",
+                "sliders"
+            ],
+            default_index=0,
+            orientation="horizontal",
+        )
 
+    elif menu_principal == "Análisis":
 
+        selected = option_menu(
+            menu_title=None,
+            options=[
+                "WACC",
+                "Balance",
+                "Análisis ratios",
+                "E. Resultados",
+                "Flujo de efectivo",
+                "Ratios",
+                "Dupont"
+            ],
+            icons=[
+                "cash-coin",
+                "journal-text",
+                "percent",
+                "clipboard-data",
+                "graph-up-arrow",
+                "speedometer",
+                "diagram-3"
+            ],
+            default_index=0,
+            orientation="horizontal",
+        )
+
+        if selected == "WACC":
+            selected = option_menu(
+                menu_title=None,
+                options=[
+                    "Costo de capital",
+                    "Deuda"
+                ],
+                icons=[
+                    "graph-up-arrow",
+                    "bank"
+                ],
+                default_index=0,
+                orientation="horizontal",
+            )
 
     if selected == "Resumen":
         
@@ -1592,7 +2032,6 @@ else:
                 "🥧 Participación por Proyecto"
             ])
 
-
             # --- TAB 1 ---
             with tabs[0]:
                 st.write("### Ingresos y Utilidades")
@@ -1698,10 +2137,13 @@ else:
                     hole=0.3
                 )
                 st.plotly_chart(fig_pie, use_container_width=True)
-              
+
+
+
     elif selected == "Estado de Resultado":
 
         estdo_re(df_2025, ceco = "1")
+
 
     elif selected == "Comparativa":
         st.write("Bienvenido a la sección de Comparativa. Aquí puedes comparar diferentes fechas.")
@@ -2036,7 +2478,9 @@ else:
                     tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "COSS", "Tabla de COSS")
                     
                 with tabs[2]:
-                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "G.ADMN", "Tabla de G.ADMN")                               
+                    tabla_comparativa(tipo_com, df_agrid, df_2025, proyecto_codigo, meses_seleccionado, "Clasificacion_A", "G.ADMN", "Tabla de G.ADMN")  
+
+                
 
     elif selected == "Análisis":
         st.write("Bienvenido a la sección de Análisis. Aquí puedes realizar un análisis detallado de los datos.")
@@ -2275,7 +2719,7 @@ else:
             if modo_oh == "Manual (fijo)":
                 oh_pct_elegido = oh_pct_manual
             elif modo_oh == "Mes pasado (LM)":
-                meses_sel = [mes_ant_lm] if mes_ant else []
+                meses_sel = [mes_ant_lm] if mes_ant_lm else []
                 oh_pct_elegido = calcular_pct_oh_hist(meses_sel, df_2025, codigo_pro, pro)
             elif modo_oh == "Promedio 3 meses":
                 meses_sel = ultimos_tres_meses(mes_act, meses_ordenados)
@@ -2295,7 +2739,7 @@ else:
 
         # --- Resultado final de OH a usar en el resto del flujo ---
         oh_pro = oh_pro_monto if modo_oh_master == "Usar cálculo original (monto)" else oh_pro_pct
-      
+        
         if promedio_variables == "Mes actual":
             df_ext_var = df_2025[df_2025["Mes_A"] == mes_act]
             df_ext_var = df_ext_var[df_ext_var["Categoria_A"].isin(costos_variables)]
@@ -2339,18 +2783,27 @@ else:
             ingreso_pro = df_ext_var[df_ext_var["Categoria_A"] == "INGRESO"]["Neto_A"].sum()
             df_ext_var["Neto_normalizado"] = df_ext_var["Neto_A"] / ingreso_pro
             df_ext_var = df_ext_var[~df_ext_var["Categoria_A"].isin(["INGRESO"])]
+        
+            
             df_ext_var["Neto_A"] = df_ext_var["Neto_normalizado"] * ingreso_pro_fut
+
             variable = df_ext_var["Neto_normalizado"].sum()
+            
             df_junto = pd.concat([df_ext_var, df_sum], ignore_index=True)
+
             coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
+            
             gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
+
             ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
             intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
+
             utilidad_operativa = ingreso_pro_fut - coss_pro - gadmn_pro
             por_uo = utilidad_operativa / ingreso_pro_fut if ingreso_pro_fut != 0 else 0 
             ebit = utilidad_operativa - oh_pro
             ebt = ebit - intereses
             por_ebt = ebt / ingreso_pro_fut if ingreso_pro_fut != 0 else 0
+            
             
             if modo_oh_master == "Calcular como % de ingresos":
                 oh_pct_elegido = oh_pct_elegido  # ya estaba definido arriba
@@ -2370,10 +2823,15 @@ else:
             df_ext_var = df_ext_var[~df_ext_var["Categoria_A"].isin(["INGRESO"])]
              
             df_ext_var["Neto_A"] = df_ext_var["Neto_normalizado"] * ingreso_pro_fut
+
             variable = df_ext_var["Neto_normalizado"].sum()
+            
             df_junto = pd.concat([df_ext_var, df_sum], ignore_index=True)
+
             coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
+            
             gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
+
             ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
             intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
 
@@ -2408,12 +2866,17 @@ else:
                 ingreso_pro = df_ext_var[df_ext_var["Categoria_A"] == "INGRESO"]["Neto_A"].sum()
                 df_ext_var["Neto_normalizado"] = df_ext_var["Neto_A"] / ingreso_pro
                 df_ext_var = df_ext_var[~df_ext_var["Categoria_A"].isin(["INGRESO"])]
+                
                 df_ext_var["Neto_A"] = df_ext_var["Neto_normalizado"] * ingreso_pro_fut
 
                 variable = df_ext_var["Neto_normalizado"].sum()
+                
                 df_junto = pd.concat([df_ext_var, df_sum], ignore_index=True)
+
                 coss_pro = df_junto[df_junto["Clasificacion_A"] == "COSS"]["Neto_A"].sum() + patio_pro
+                
                 gadmn_pro = df_junto[df_junto["Clasificacion_A"] == "G.ADMN"]["Neto_A"].sum()
+
                 ingreso_fin_cue = ['INGRESO POR REVALUACION CAMBIARIA', 'INGRESOS POR INTERESES', 'INGRESO POR REVALUACION DE ACTIVOS', 'INGRESO POR FACTORAJE']
                 intereses = df_junto[df_junto["Clasificacion_A"] == "GASTOS FINANCIEROS"]["Neto_A"].sum() - df_junto[df_junto["Categoria_A"].isin(ingreso_fin_cue)]["Neto_A"].sum()
 
@@ -2423,17 +2886,10 @@ else:
                     oh_pct_elegido = None
 
                 proyecciones(ingreso_pro_fut, df_ext_var, df_sum, oh_pro, intereses, patio_pro, coss_pro, gadmn_pro, oh_pct_elegido)
+
+
             else:
                 st.warning("No hay suficientes meses anteriores para calcular el promedio de 3 meses.")  
-    
-    elif selected == "LY":
-        st.write("Bienvenido a la sección de LY. Aquí puedes ver los datos del año anterior.")
-        estdo_re(df_ly, ceco = "2")
-
-
-    elif selected == "PPT":
-        st.write("Bienvenido a la sección de PPT. Aquí puedes ver el presupuesto!")
-        estdo_re(df_ppt, ceco = "3")
     
     
     elif selected == "Meses":
@@ -2443,7 +2899,8 @@ else:
         df_2025["CeCo_A"] = df_2025["CeCo_A"].astype(str)
         if ceco_nomb != "ESGARI":
             df_2025 = df_2025[df_2025["CeCo_A"].isin(ceco_codi)]
-        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                   "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
         meses_disponibles = [mes for mes in meses_ordenados if mes in df_2025["Mes_A"].unique()]
         meses_filtrados = st.multiselect(
@@ -2458,7 +2915,8 @@ else:
 
             # --- Función principal para generar el estado de resultado mensual ---
             def estado_resultado_por_mes(df_2025, proyecto_nombre, proyecto_codigo, lista_proyectos):
-                meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+                meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                                "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
                 meses_disponibles = [mes for mes in meses_ordenados if mes in meses_filtrados]
                 resultado_por_mes = {}
@@ -2510,6 +2968,9 @@ else:
                 # Agregar columna Promedio
                 columnas_meses = [col for col in df_resultado.columns if col != "Total"]
                 df_resultado["Promedio"] = df_resultado[columnas_meses].mean(axis=1, skipna=True)
+
+
+
                 return df_resultado
 
             # Ejecutar función
@@ -2615,8 +3076,11 @@ else:
             tabla_html = generar_tabla_con_estilo_mensual(tabla_mensual_renombrada)
             st.markdown(tabla_html, unsafe_allow_html=True)
             
+
+
             # --- Preparar DataFrame ---
-            meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.","jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
+            meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.",
+                            "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
 
             meses_disponibles = [mes for mes in meses_ordenados if mes in meses_filtrados]
 
@@ -2648,6 +3112,7 @@ else:
             columnas_mensuales = [col for col in df_pivot.columns if col not in ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"]]
             df_pivot["Total"] = df_pivot[columnas_mensuales].sum(axis=1)
             df_pivot["Promedio"] = df_pivot[columnas_mensuales].mean(axis=1)
+
 
             # --- Configurar AgGrid ---
 
@@ -2728,7 +3193,7 @@ else:
             # Crear tabs
             tabs = st.tabs([
                 "📈 Ingresos vs Utilidad Operativa",
-                "📉 Composición de Gastos",
+                "📉  de Gastos",
                 "📊 Márgenes de Rentabilidad",
                 "🎛️ Gráfica Personalizada"
             ])
@@ -2753,7 +3218,7 @@ else:
                     st.info("No hay suficientes datos disponibles para esta gráfica.")
 
 
-            # --- TAB 2: Composición de Gastos ---
+            # --- TAB 2:  de Gastos ---
             with tabs[1]:
                 st.subheader("Composición mensual de gastos")
 
@@ -3044,7 +3509,7 @@ else:
 
             return f'<div style="overflow-x: auto; width: 100%;">{html}</div>'
 
-        st.write(f"### Estado de Resultado por Mes - {opcion} | Proyecto: {pro} | CeCo: {ceco_nomb}")
+        st.write(f"### Estado de Resultado por Mes '{pro}'")
         st.markdown(generar_tabla_con_estilo_mensual(tabla_formateada), unsafe_allow_html=True)
 
         meses_sel = [m for m in meses_ordenados if m in meses_filtrados]
@@ -3287,8 +3752,7 @@ else:
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("Selecciona al menos un concepto para visualizar.")
-
-
+    
     elif selected == "CeCo":
         texto_centrado("GASTOS POR CECO")
 
@@ -3614,7 +4078,7 @@ else:
             uniformtext_mode="hide"
         )
         st.plotly_chart(fig_total, use_container_width=True)
-      
+
     elif selected == "Ratios":
 
         st.title("📊 Análisis de Ratios Personalizados")
@@ -3927,7 +4391,7 @@ else:
             er_ppt = estado_resultado(df_ppt, meses_sel, proyecto_nombre, proyecto_codigo, list_pro)
             er_ly = estado_resultado(df_ly, meses_sel, proyecto_nombre, proyecto_codigo, list_pro)
 
-            c1, c2, c3 = st.columns(3)
+            c1, c2 = st.columns(2)
             c1.metric(
                 "Ingreso",
                 f"${er['ingreso_proyecto']:,.0f}",
@@ -3937,11 +4401,6 @@ else:
                 "Utilidad Operativa",
                 f"${er['utilidad_operativa']:,.0f}",
                 f"{er['por_utilidad_operativa'] * 100:.1f}%"
-            )
-            c3.metric(
-                "EBT",
-                f"${er['ebt']:,.0f}",
-                f"{er['por_ebt'] * 100:.1f}%"
             )
 
             col_g1, col_g2 = st.columns(2)
@@ -4282,9 +4741,6 @@ else:
                 return float(df_proy[df_proy["Proyecto_A"].isin(cods)]["Neto_A"].sum())
 
             raise ValueError("modo debe ser 'lineal' o 'historico'")
-
-        # ---------- Helper para ingresos por mes ----------
-### ESGARI es la suma de todos los proyectos
         def ingre_co(df):
             if proyecto_nombre != "ESGARI":
                 df = df[df["Proyecto_A"].isin(proyecto_codigo)]
@@ -4385,113 +4841,8 @@ else:
             )
         fig.update_layout(yaxis_tickformat="$,.0f")
         st.plotly_chart(fig, use_container_width=True)
-
     
-    elif selected == "Gastos por Empresa":
-        ct("GASTO POR EMPRESA")
-        empresas = [0, 10, 20, 30, 40, 50]
-        nombre_empresas = [
-            'ESGARI',
-            'ESGARI HOLDING MEXICO, S.A. DE C.V.',
-            'RESA MULTIMODAL, S.A. DE C.V', 
-            'UBIKARGA S.A DE C.V', 
-            'ESGARI FORWARDING SA DE CV', 
-            'ESGARI WAREHOUSING & MANUFACTURING, S DE R.L DE C.V'
-        ]
-        empresas_dict = dict(zip(nombre_empresas, empresas))
-        col1, col2 = st.columns(2)
 
-        def filtro_emp(col):
-            emp = col.selectbox('Selecciona la empresa', empresas_dict)
-            if emp == 'ESGARI':
-                codigo_emp = empresas
-            else:
-                codigo_emp = [empresas_dict[emp]]
-            return emp, codigo_emp
-
-        emp, codigo_emp = filtro_emp(col1)
-        meses = filtro_meses(col2, df_2025)
-
-        df_emp = df_2025[
-            (df_2025["Mes_A"].isin(meses)) &
-            (df_2025["Empresa_A"].isin(codigo_emp)) &
-            (~df_2025["Clasificacion_A"].isin(["INGRESO", "IMPUESTOS", "OTROS INGRESOS"]))
-        ]
-
-        df_emp = df_emp.groupby(
-            ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A", "Mes_A"],
-            as_index=False
-        )["Neto_A"].sum()
-
-        df_pivot = df_emp.pivot_table(
-            index=["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"],
-            columns="Mes_A",
-            values="Neto_A",
-            aggfunc="sum",
-            fill_value=0
-        ).reset_index()
-
-        # Ordenar columnas de meses cronológicamente
-        meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic."]
-
-        # Filtrar solo los meses seleccionados que existen en los datos
-        columnas_meses = [m for m in meses_ordenados if m in df_pivot.columns]
-        # Reordenar columnas
-        df_pivot = df_pivot[["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"] + columnas_meses]
-        # Añadir Total y Promedio al final
-        df_pivot["Total"] = df_pivot[columnas_meses].sum(axis=1)
-        df_pivot["Promedio"] = df_pivot[columnas_meses].mean(axis=1)
-        df_pivot["Total"] = df_pivot[meses].sum(axis=1)
-        df_pivot["Promedio"] = df_pivot[meses].mean(axis=1)
-        gb = GridOptionsBuilder.from_dataframe(df_pivot)
-        gb.configure_column("Clasificacion_A", rowGroup=True, hide=True)
-        gb.configure_column("Categoria_A", rowGroup=True, hide=True)
-        gb.configure_column("Cuenta_Nombre_A", pinned="left")
-
-        formatter = JsCode("""
-            function(params) {
-                if (params.value === 0 || params.value === null) {
-                    return "$0.00";
-                }
-                return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(params.value);
-            }
-        """)
-
-        for col in df_pivot.columns:
-            if col not in ["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"]:
-                gb.configure_column(
-                    col,
-                    type=["numericColumn"],
-                    aggFunc="sum",
-                    valueFormatter=formatter,
-                    cellStyle={'textAlign': 'right'}
-                )
-
-        gridOptions = gb.build()
-        st.write("### Tabla por Mes con Total y Promedio")
-        AgGrid(
-            df_pivot,
-            gridOptions=gridOptions,
-            enable_enterprise_modules=True,
-            fit_columns_on_grid_load=False,
-            allow_unsafe_jscode=True,
-            domLayout='normal',
-            height=600
-        )
-
-        # Exportar a Excel
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-            df_pivot.to_excel(writer, index=False, sheet_name="Gastos_por_empresa")
-            output.seek(0)
-
-        st.download_button(
-            label=f"Descargar tabla",
-            data=output,
-            file_name=f"gastos_{emp}_{'_'.join(meses)}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            key=f"_download_gastos_emp"
-        )
     elif selected == "OH":
 
         st.title("Composición Overhead (OH)")
@@ -4733,6 +5084,2960 @@ else:
             tipo_dato,
             ceco_seleccionado=ceco_nombre
         )
+
+    elif selected == "Balance General":
+        def tabla_balance_por_empresa():
+            st.subheader("Balance General por Empresa")
+
+            df_mapeo_local = cargar_mapeo(mapeo_url)
+            if df_mapeo_local.empty:
+                st.stop()
+
+            data_empresas = cargar_balance_multi_hojas(balance_url, EMPRESAS)
+            resultados_balance = []
+            balances_detallados = {}
+            cuentas_no_mapeadas = []
+
+            for empresa in EMPRESAS:
+                df = data_empresas.get(empresa, pd.DataFrame()).copy()
+                if df.empty:
+                    continue
+
+                col_cuenta = _encontrar_columna(df, COLUMNAS_CUENTA)
+                col_monto = _encontrar_columna(df, COLUMNAS_MONTO)
+
+                if not col_cuenta or not col_monto:
+                    st.warning(f"⚠️ {empresa}: columnas inválidas (Cuenta / Saldo).")
+                    continue
+
+                df[col_cuenta] = df[col_cuenta].apply(limpiar_cuenta)
+                df[col_monto] = _to_numeric_money(df[col_monto])
+                df = df.dropna(subset=[col_cuenta])
+                df = df.groupby(col_cuenta, as_index=False)[col_monto].sum()
+
+                df_merged = df.merge(
+                    df_mapeo_local[["Cuenta", "CLASIFICACION", "CATEGORIA"]],
+                    left_on=col_cuenta,
+                    right_on="Cuenta",
+                    how="left",
+                )
+
+                df_merged["EN_MAPEO"] = df_merged["CLASIFICACION"].notna()
+                df_merged = autoclasificar_resultados(df_merged, col_cuenta)
+
+                no_mapeadas = df_merged[~df_merged["EN_MAPEO"]].copy()
+                if not no_mapeadas.empty:
+                    no_mapeadas["EMPRESA"] = empresa
+                    cols_keep = [c for c in [col_cuenta, col_monto, "EMPRESA"] if c in no_mapeadas.columns]
+                    cuentas_no_mapeadas.append(
+                        no_mapeadas[cols_keep].rename(columns={col_cuenta: "Cuenta", col_monto: "Saldo"})
+                    )
+
+                df_merged = df_merged[~df_merged["CLASIFICACION"].isna()].copy()
+                if df_merged.empty:
+                    st.warning(f"⚠️ {empresa}: sin coincidencias con el mapeo.")
+                    continue
+
+                df_balance = df_merged[df_merged["CLASIFICACION"].isin(["ACTIVO", "PASIVO", "CAPITAL"])].copy()
+                if df_balance.empty:
+                    st.warning(f"⚠️ {empresa}: sin coincidencias para BALANCE (ACTIVO/PASIVO/CAPITAL).")
+                    continue
+
+                resumen = (
+                    df_balance.groupby(["CLASIFICACION", "CATEGORIA"])[col_monto]
+                    .sum()
+                    .reset_index()
+                    .rename(columns={col_monto: empresa})
+                )
+
+                resultados_balance.append(resumen)
+                balances_detallados[empresa] = df_merged.copy()
+
+            if not resultados_balance:
+                st.error("❌ No se pudo generar información consolidada.")
+                return
+
+            data_resultados = []
+            for empresa in EMPRESAS:
+                df_raw = data_empresas.get(empresa, pd.DataFrame()).copy()
+                if df_raw.empty:
+                    continue
+
+                col_cuenta_raw = _encontrar_columna(df_raw, COLUMNAS_CUENTA)
+                col_monto_raw = _encontrar_columna(df_raw, COLUMNAS_MONTO)
+
+                if not col_cuenta_raw or not col_monto_raw:
+                    st.warning(f"⚠️ {empresa}: no encontré columnas de Cuenta/Saldo para resultados.")
+                    continue
+
+                df_raw[col_cuenta_raw] = df_raw[col_cuenta_raw].apply(limpiar_cuenta)
+                df_raw[col_monto_raw] = _to_numeric_money(df_raw[col_monto_raw])
+                df_raw = df_raw.dropna(subset=[col_cuenta_raw])
+                df_cta = df_raw.groupby(col_cuenta_raw, as_index=False)[col_monto_raw].sum()
+
+                ingreso = df_cta.loc[
+                    (df_cta[col_cuenta_raw] > 400000000) & (df_cta[col_cuenta_raw] < 500000000),
+                    col_monto_raw
+                ].sum()
+
+                gasto = df_cta.loc[
+                    (df_cta[col_cuenta_raw] > 500000000),
+                    col_monto_raw
+                ].sum()
+
+                utilidad = ingreso + gasto
+
+                data_resultados.append({
+                    "EMPRESA": empresa,
+                    "INGRESO": float(ingreso),
+                    "GASTO": float(gasto),
+                    "UTILIDAD": float(utilidad),
+                })
+
+            df_resultados = pd.DataFrame(data_resultados)
+
+            st.markdown("### Estado de Resultados por Empresa")
+            if df_resultados.empty:
+                st.info("No se pudo calcular estado de resultados")
+            else:
+                df_resultados_t = (
+                    df_resultados.set_index("EMPRESA")
+                    .T
+                    .reset_index()
+                    .rename(columns={"index": "CONCEPTO"})
+                )
+
+                df_resultados_t["TOTAL"] = df_resultados_t[
+                    [c for c in df_resultados_t.columns if c != "CONCEPTO"]
+                ].sum(axis=1)
+
+                for col in df_resultados_t.columns:
+                    if col != "CONCEPTO":
+                        df_resultados_t[col] = df_resultados_t[col].apply(lambda x: f"${x:,.2f}")
+
+                st.dataframe(df_resultados_t, use_container_width=True, hide_index=True)
+
+            utilidad_por_empresa = {}
+            utilidad_total = 0.0
+
+            if not df_resultados.empty:
+                utilidad_por_empresa = df_resultados.set_index("EMPRESA")["UTILIDAD"].to_dict()
+                utilidad_total = float(df_resultados["UTILIDAD"].sum())
+
+            df_final = reduce(
+                lambda l, r: pd.merge(l, r, on=["CLASIFICACION", "CATEGORIA"], how="outer"),
+                resultados_balance
+            ).fillna(0)
+
+            for emp in EMPRESAS:
+                if emp not in df_final.columns:
+                    df_final[emp] = 0.0
+
+            df_final["TOTAL ACUMULADO"] = df_final[EMPRESAS].sum(axis=1)
+
+            total_capital_con_utilidad = None
+
+            for clasif in CLASIFICACIONES_PRINCIPALES:
+                st.markdown(f"### {clasif}")
+                df_clasif = df_final[df_final["CLASIFICACION"] == clasif].copy()
+
+                if df_clasif.empty:
+                    st.info(f"No hay cuentas clasificadas como {clasif}.")
+                    continue
+
+                # Agregar la utilidad como fila visible dentro de CAPITAL
+                if clasif == "CAPITAL" and utilidad_por_empresa:
+                    fila_utilidad = pd.DataFrame({
+                        "CLASIFICACION": [clasif],
+                        "CATEGORIA": ["UTILIDAD DEL EJERCICIO"]
+                    })
+
+                    for emp in EMPRESAS:
+                        fila_utilidad[emp] = float(utilidad_por_empresa.get(emp, 0.0))
+
+                    fila_utilidad["TOTAL ACUMULADO"] = fila_utilidad[EMPRESAS].sum(axis=1)
+
+                    df_clasif = pd.concat([df_clasif, fila_utilidad], ignore_index=True)
+
+                # Subtotal ya incluyendo utilidad
+                subtotal = pd.DataFrame({
+                    "CLASIFICACION": [clasif],
+                    "CATEGORIA": [f"TOTAL {clasif}"]
+                })
+
+                for col in EMPRESAS + ["TOTAL ACUMULADO"]:
+                    subtotal[col] = df_clasif[col].sum()
+
+                df_clasif = pd.concat([df_clasif, subtotal], ignore_index=True)
+
+                if clasif == "CAPITAL":
+                    total_capital_con_utilidad = float(subtotal["TOTAL ACUMULADO"].iloc[0])
+
+                df_show = df_clasif.copy()
+                for col in EMPRESAS + ["TOTAL ACUMULADO"]:
+                    df_show[col] = df_show[col].apply(lambda x: f"${x:,.2f}")
+
+                with st.expander(f"{clasif}", expanded=(clasif == "CAPITAL")):
+                    st.dataframe(
+                        df_show.drop(columns=["CLASIFICACION"]),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    if clasif == "CAPITAL" and utilidad_por_empresa:
+                        st.markdown("La utilidad del ejercicio fue integrada y mostrada dentro del capital.")
+
+
+            totales = {
+                c: df_final[df_final["CLASIFICACION"] == c]["TOTAL ACUMULADO"].sum()
+                for c in CLASIFICACIONES_PRINCIPALES
+            }
+
+            if total_capital_con_utilidad is not None:
+                totales["CAPITAL"] = total_capital_con_utilidad
+
+            diferencia = totales["ACTIVO"] + (totales["PASIVO"] + totales["CAPITAL"])
+
+            resumen_final = pd.DataFrame({
+                "Concepto": ["TOTAL ACTIVO", "TOTAL PASIVO", "TOTAL CAPITAL", "DIFERENCIA"],
+                "Monto Total": [
+                    f"${totales['ACTIVO']:,.2f}",
+                    f"${totales['PASIVO']:,.2f}",
+                    f"${totales['CAPITAL']:,.2f}",
+                    f"${diferencia:,.2f}",
+                ]
+            })
+
+            st.markdown("### Resumen Consolidado")
+            st.dataframe(resumen_final, use_container_width=True, hide_index=True)
+
+            if abs(diferencia) < 1:
+                st.success("✅ El balance está cuadrado (ACTIVO = PASIVO + CAPITAL).")
+            else:
+                st.error("❌ El balance no cuadra. Revisa cuentas/mapeo.")
+
+            if cuentas_no_mapeadas:
+                st.markdown("## ⚠️ Cuentas NO mapeadas detectadas (NO existen en el mapeo)")
+                df_no_map = pd.concat(cuentas_no_mapeadas, ignore_index=True)
+
+                if "Saldo" in df_no_map.columns:
+                    df_no_map_res = (
+                        df_no_map.groupby("Cuenta", as_index=False)["Saldo"]
+                        .sum()
+                        .sort_values("Saldo", ascending=False)
+                    )
+
+                st.markdown("### Detalle de cuentas no mapeadas")
+                cols_orden = [c for c in ["EMPRESA", "Cuenta", "Descripcion", "Saldo"] if c in df_no_map.columns]
+                st.dataframe(
+                    df_no_map[cols_orden].sort_values(cols_orden[:2]),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                for empresa, df_emp in balances_detallados.items():
+                    df_emp.to_excel(writer, index=False, sheet_name=empresa[:31])
+                df_final.to_excel(writer, index=False, sheet_name="Consolidado")
+                resumen_final.to_excel(writer, index=False, sheet_name="Resumen")
+                if not df_resultados.empty:
+                    df_resultados.to_excel(writer, index=False, sheet_name="Resultados")
+
+            st.download_button(
+                label="💾 Descargar Excel Consolidado",
+                data=output.getvalue(),
+                file_name="Balance_Consolidado.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            return
+        tabla_balance_por_empresa()
+
+    elif selected == "Balance por empresa":
+        st.markdown("""
+        <style>
+
+        .stApp {
+            background: white;
+        }
+
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 2rem;
+        }
+
+        .header-pill{
+            background: linear-gradient(90deg, #163a5f 0%, #214a6b 100%);
+            color: white;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-weight: 800;
+            display: inline-block;
+            box-shadow: 0 8px 18px rgba(20, 58, 95, 0.22);
+            margin-bottom: 10px;
+        }
+
+        .sub-pill{
+            background: #214a6b;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            display: inline-block;
+            margin: 6px 0px 10px 0px;
+        }
+
+        .card-blue{
+            background: white;
+            border-radius: 16px;
+            padding: 14px 14px;
+            box-shadow: none;
+            border: 1px solid #d8e3f0;
+            margin-bottom: 14px;
+        }
+
+        </style>
+        """, unsafe_allow_html=True)
+
+        def tabla_balance_general_acumulado():
+            col1, = st.columns([1])
+
+            OPCIONES_EMPRESA = ["ACUMULADO"] + EMPRESAS
+            empresa_sel = col1.selectbox("Empresa", OPCIONES_EMPRESA, index=0)
+
+            df_mapeo_local = cargar_mapeo(mapeo_url)
+            if df_mapeo_local.empty:
+                st.stop()
+
+            empresas_cargar = EMPRESAS[:] if empresa_sel == "ACUMULADO" else [empresa_sel]
+
+            data_empresas = cargar_balance_multi_hojas(balance_url, empresas_cargar)
+            data_empresas_ly = cargar_balance_multi_hojas(balance_ly, empresas_cargar)
+
+            if empresa_sel == "ACUMULADO":
+                dfs_act = [data_empresas.get(e, pd.DataFrame()).copy() for e in empresas_cargar]
+                dfs_ly = [data_empresas_ly.get(e, pd.DataFrame()).copy() for e in empresas_cargar]
+
+                df_emp = (
+                    pd.concat([d for d in dfs_act if not d.empty], ignore_index=True)
+                    if any([not d.empty for d in dfs_act])
+                    else pd.DataFrame()
+                )
+                df_emp_ly = (
+                    pd.concat([d for d in dfs_ly if not d.empty], ignore_index=True)
+                    if any([not d.empty for d in dfs_ly])
+                    else pd.DataFrame()
+                )
+            else:
+                df_emp = data_empresas.get(empresa_sel, pd.DataFrame()).copy()
+                df_emp_ly = data_empresas_ly.get(empresa_sel, pd.DataFrame()).copy()
+
+            if df_emp.empty:
+                st.warning(f"⚠️ No hay datos para {empresa_sel}.")
+                st.stop()
+
+            col_cuenta = _encontrar_columna(df_emp, COLUMNAS_CUENTA)
+            col_monto = _encontrar_columna(df_emp, COLUMNAS_MONTO)
+            col_cuenta_ly = _encontrar_columna(df_emp_ly, COLUMNAS_CUENTA)
+            col_monto_ly = _encontrar_columna(df_emp_ly, COLUMNAS_MONTO)
+
+            if not col_cuenta or not col_monto:
+                st.error(f"❌ {empresa_sel}: columnas inválidas")
+                st.stop()
+
+            data_resultados = []
+
+            for empresa in EMPRESAS:
+                df_raw = data_empresas.get(empresa, pd.DataFrame()).copy()
+                if df_raw.empty:
+                    continue
+
+                col_cuenta_raw = _encontrar_columna(df_raw, COLUMNAS_CUENTA)
+                col_monto_raw = _encontrar_columna(df_raw, COLUMNAS_MONTO)
+
+                if not col_cuenta_raw or not col_monto_raw:
+                    st.warning(f"⚠️ {empresa}: no encontré columnas de Cuenta/Saldo para resultados.")
+                    continue
+
+                df_raw[col_cuenta_raw] = df_raw[col_cuenta_raw].apply(limpiar_cuenta)
+                df_raw[col_monto_raw] = _to_numeric_money(df_raw[col_monto_raw])
+
+                df_raw = df_raw.dropna(subset=[col_cuenta_raw])
+                df_cta = df_raw.groupby(col_cuenta_raw, as_index=False)[col_monto_raw].sum()
+
+                ingreso = df_cta.loc[
+                    (df_cta[col_cuenta_raw] > 400000000) & (df_cta[col_cuenta_raw] < 500000000),
+                    col_monto_raw
+                ].sum()
+
+                gasto = df_cta.loc[
+                    (df_cta[col_cuenta_raw] > 500000000),
+                    col_monto_raw
+                ].sum()
+
+                utilidad = ingreso + gasto
+
+                data_resultados.append({
+                    "EMPRESA": empresa,
+                    "INGRESO": float(ingreso),
+                    "GASTO": float(gasto),
+                    "UTILIDAD": float(utilidad),
+                })
+
+            df_resultados = pd.DataFrame(data_resultados)
+
+            if empresa_sel == "ACUMULADO" and not df_resultados.empty:
+                df_total = pd.DataFrame([{
+                    "EMPRESA": "TOTAL",
+                    "INGRESO": float(df_resultados["INGRESO"].sum()),
+                    "GASTO": float(df_resultados["GASTO"].sum()),
+                    "UTILIDAD": float(df_resultados["UTILIDAD"].sum()),
+                }])
+                df_resultados = pd.concat([df_resultados, df_total], ignore_index=True)
+
+            data_resultados_ly = []
+
+            for empresa in EMPRESAS:
+                df_raw_ly = data_empresas_ly.get(empresa, pd.DataFrame()).copy()
+                if df_raw_ly.empty:
+                    continue
+
+                col_cuenta_raw_ly = _encontrar_columna(df_raw_ly, COLUMNAS_CUENTA)
+                col_monto_raw_ly = _encontrar_columna(df_raw_ly, COLUMNAS_MONTO)
+
+                if not col_cuenta_raw_ly or not col_monto_raw_ly:
+                    st.warning(f"⚠️ {empresa} LY: no encontré columnas de Cuenta/Saldo para resultados.")
+                    continue
+
+                df_raw_ly[col_cuenta_raw_ly] = df_raw_ly[col_cuenta_raw_ly].apply(limpiar_cuenta)
+                df_raw_ly[col_monto_raw_ly] = _to_numeric_money(df_raw_ly[col_monto_raw_ly])
+
+                df_raw_ly = df_raw_ly.dropna(subset=[col_cuenta_raw_ly])
+                df_cta_ly = df_raw_ly.groupby(col_cuenta_raw_ly, as_index=False)[col_monto_raw_ly].sum()
+
+                ingreso_ly = df_cta_ly.loc[
+                    (df_cta_ly[col_cuenta_raw_ly] > 400000000) & (df_cta_ly[col_cuenta_raw_ly] < 500000000),
+                    col_monto_raw_ly
+                ].sum()
+
+                gasto_ly = df_cta_ly.loc[
+                    (df_cta_ly[col_cuenta_raw_ly] > 500000000),
+                    col_monto_raw_ly
+                ].sum()
+
+                utilidad_ly = ingreso_ly + gasto_ly
+
+                data_resultados_ly.append({
+                    "EMPRESA": empresa,
+                    "INGRESO": float(ingreso_ly),
+                    "GASTO": float(gasto_ly),
+                    "UTILIDAD": float(utilidad_ly),
+                })
+
+            df_resultados_ly = pd.DataFrame(data_resultados_ly)
+
+            if empresa_sel == "ACUMULADO" and not df_resultados_ly.empty:
+                df_total_ly = pd.DataFrame([{
+                    "EMPRESA": "TOTAL",
+                    "INGRESO": float(df_resultados_ly["INGRESO"].sum()),
+                    "GASTO": float(df_resultados_ly["GASTO"].sum()),
+                    "UTILIDAD": float(df_resultados_ly["UTILIDAD"].sum()),
+                }])
+                df_resultados_ly = pd.concat([df_resultados_ly, df_total_ly], ignore_index=True)
+
+            st.markdown('<div class="header-pill">BALANCE GENERAL POR EMPRESA</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sub-pill">Estado de Resultados por Empresa</div>', unsafe_allow_html=True)
+
+            st.dataframe(
+                df_resultados.style
+                    .format({
+                        "INGRESO": "${:,.2f}",
+                        "GASTO": "${:,.2f}",
+                        "UTILIDAD": "${:,.2f}",
+                    })
+                    .set_properties(**{
+                        "text-align": "right",
+                        "border-color": "#d8e3f0"
+                    })
+                    .set_table_styles([
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#214a6b"),
+                                ("color", "white"),
+                                ("font-weight", "bold"),
+                                ("text-align", "center"),
+                                ("border", "1px solid #d8e3f0")
+                            ]
+                        },
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("border", "1px solid #e6eef7")
+                            ]
+                        }
+                    ]),
+                use_container_width=True,
+                hide_index=True
+            )
+
+            df_emp[col_cuenta] = df_emp[col_cuenta].apply(limpiar_cuenta)
+            df_emp[col_monto] = _to_numeric_money(df_emp[col_monto])
+            df_emp = df_emp.dropna(subset=[col_cuenta])
+            df_emp = df_emp.groupby(col_cuenta, as_index=False)[col_monto].sum()
+
+            df_emp_ly[col_cuenta_ly] = df_emp_ly[col_cuenta_ly].apply(limpiar_cuenta)
+            df_emp_ly[col_monto_ly] = _to_numeric_money(df_emp_ly[col_monto_ly])
+            df_emp_ly = df_emp_ly.dropna(subset=[col_cuenta_ly])
+            df_emp_ly = df_emp_ly.groupby(col_cuenta_ly, as_index=False)[col_monto_ly].sum()
+
+            df_merged = df_emp.merge(
+                df_mapeo_local[["Cuenta", "CLASIFICACION", "CATEGORIA"]],
+                left_on=col_cuenta,
+                right_on="Cuenta",
+                how="left",
+            )
+
+            df_merged_ly = df_emp_ly.merge(
+                df_mapeo_local[["Cuenta", "CLASIFICACION", "CATEGORIA"]],
+                left_on=col_cuenta_ly,
+                right_on="Cuenta",
+                how="left",
+            )
+
+            df_no_mapeadas = df_merged[df_merged["CLASIFICACION"].isna()].copy()
+            df_ok = df_merged[~df_merged["CLASIFICACION"].isna()].copy()
+
+            if df_ok.empty:
+                st.warning(f"⚠️ {empresa_sel}: sin coincidencias con el mapeo.")
+                st.stop()
+
+            ORDEN = ("ACTIVO", "PASIVO", "CAPITAL")
+
+            df_ok["CLASIFICACION"] = df_ok["CLASIFICACION"].astype(str).str.upper().str.strip()
+            df_ok["CATEGORIA"] = df_ok["CATEGORIA"].astype(str).str.strip()
+            df_ok[col_monto] = pd.to_numeric(df_ok[col_monto], errors="coerce").fillna(0.0)
+
+            df_ok = df_ok[df_ok["CLASIFICACION"].isin(ORDEN)].copy()
+            df_ok = df_ok[df_ok["CATEGORIA"].str.upper().ne("MAYOR")].copy()
+
+            df_grp = (
+                df_ok.groupby(["CLASIFICACION", "CATEGORIA"], as_index=False)[col_monto]
+                .sum()
+                .rename(columns={col_monto: "MONTO"})
+            )
+
+            df_ok_ly = df_merged_ly[~df_merged_ly["CLASIFICACION"].isna()].copy()
+            df_ok_ly["CLASIFICACION"] = df_ok_ly["CLASIFICACION"].astype(str).str.upper().str.strip()
+            df_ok_ly["CATEGORIA"] = df_ok_ly["CATEGORIA"].astype(str).str.strip()
+            df_ok_ly[col_monto_ly] = pd.to_numeric(df_ok_ly[col_monto_ly], errors="coerce").fillna(0.0)
+
+            df_ok_ly = df_ok_ly[df_ok_ly["CLASIFICACION"].isin(ORDEN)].copy()
+            df_ok_ly = df_ok_ly[df_ok_ly["CATEGORIA"].str.upper().ne("MAYOR")].copy()
+
+            df_grp_ly = (
+                df_ok_ly.groupby(["CLASIFICACION", "CATEGORIA"], as_index=False)[col_monto_ly]
+                .sum()
+                .rename(columns={col_monto_ly: "MONTO_LY"})
+            )
+
+            df_base = df_grp.merge(df_grp_ly, on=["CLASIFICACION", "CATEGORIA"], how="outer")
+            df_base["MONTO"] = pd.to_numeric(df_base["MONTO"], errors="coerce").fillna(0.0)
+            df_base["MONTO_LY"] = pd.to_numeric(df_base["MONTO_LY"], errors="coerce").fillna(0.0)
+
+            mask_pc = df_base["CLASIFICACION"].isin(["PASIVO", "CAPITAL"])
+            df_base.loc[mask_pc, "MONTO"] *= -1
+            df_base.loc[mask_pc, "MONTO_LY"] *= -1
+
+            df_base["% VARIACION"] = np.where(
+                df_base["MONTO_LY"].abs() > 1e-9,
+                (df_base["MONTO"] / df_base["MONTO_LY"]) - 1.0,
+                np.nan
+            )
+
+            if df_resultados.empty:
+                utilidad_sel = 0.0
+            else:
+                if empresa_sel == "ACUMULADO":
+                    utilidad_sel = float(
+                        df_resultados.loc[df_resultados["EMPRESA"] != "TOTAL", "UTILIDAD"].sum()
+                    ) * -1
+                else:
+                    s = df_resultados.loc[df_resultados["EMPRESA"] == empresa_sel, "UTILIDAD"]
+                    utilidad_sel = float(s.iloc[0]) * -1 if not s.empty else 0.0
+
+            if df_resultados_ly.empty:
+                utilidad_sel_ly = 0.0
+            else:
+                if empresa_sel == "ACUMULADO":
+                    utilidad_sel_ly = float(
+                        df_resultados_ly.loc[df_resultados_ly["EMPRESA"] != "TOTAL", "UTILIDAD"].sum()
+                    ) * -1
+                else:
+                    s_ly = df_resultados_ly.loc[df_resultados_ly["EMPRESA"] == empresa_sel, "UTILIDAD"]
+                    utilidad_sel_ly = float(s_ly.iloc[0]) * -1 if not s_ly.empty else 0.0
+
+            rows = []
+            totales = {}
+            totales_ly = {}
+
+            for clasif in ORDEN:
+                sub = df_base[df_base["CLASIFICACION"] == clasif].copy()
+
+                total_act = float(sub["MONTO"].sum()) if not sub.empty else 0.0
+                total_ly = float(sub["MONTO_LY"].sum()) if not sub.empty else 0.0
+
+                if clasif == "CAPITAL":
+                    total_act += utilidad_sel
+                    total_ly += utilidad_sel_ly
+
+                totales[clasif] = total_act
+                totales_ly[clasif] = total_ly
+
+                rows.append({
+                    "SECCION": clasif,
+                    "CUENTA": "",
+                    "MONTO": total_act,
+                    "MONTO_LY": total_ly,
+                    "% VARIACION": (total_act / total_ly - 1.0) if abs(total_ly) > 1e-9 else np.nan
+                })
+
+                if not sub.empty:
+                    sub = sub.sort_values("CATEGORIA")
+                    for _, r in sub.iterrows():
+                        rows.append({
+                            "SECCION": "",
+                            "CUENTA": str(r["CATEGORIA"]),
+                            "MONTO": float(r["MONTO"]),
+                            "MONTO_LY": float(r["MONTO_LY"]),
+                            "% VARIACION": float(r["% VARIACION"]) if pd.notna(r["% VARIACION"]) else np.nan
+                        })
+
+                if clasif == "CAPITAL":
+                    rows.append({
+                        "SECCION": "",
+                        "CUENTA": "UTILIDAD DEL EJERCICIO",
+                        "MONTO": float(utilidad_sel),
+                        "MONTO_LY": float(utilidad_sel_ly),
+                        "% VARIACION": (
+                            (utilidad_sel / utilidad_sel_ly) - 1.0
+                            if abs(utilidad_sel_ly) > 1e-9 else np.nan
+                        )
+                    })
+
+                rows.append({
+                    "SECCION": "",
+                    "CUENTA": "",
+                    "MONTO": None,
+                    "MONTO_LY": None,
+                    "% VARIACION": None
+                })
+
+            dif = float(totales.get("ACTIVO", 0.0) - (totales.get("PASIVO", 0.0) + totales.get("CAPITAL", 0.0)))
+            dif_ly = float(totales_ly.get("ACTIVO", 0.0) - (totales_ly.get("PASIVO", 0.0) + totales_ly.get("CAPITAL", 0.0)))
+
+            rows.append({
+                "SECCION": "RESUMEN",
+                "CUENTA": "DIFERENCIA",
+                "MONTO": dif,
+                "MONTO_LY": dif_ly,
+                "% VARIACION": (dif / dif_ly - 1.0) if abs(dif_ly) > 1e-9 else np.nan
+            })
+
+            df_out_raw = pd.DataFrame(rows)
+
+            def fmt_money(x):
+                if x is None or (isinstance(x, float) and pd.isna(x)):
+                    return ""
+                return f"${float(x):,.2f}"
+
+            def fmt_pct(x):
+                if x is None or (isinstance(x, float) and pd.isna(x)):
+                    return ""
+                return f"{x * 100:,.1f}%"
+
+            df_out_show = df_out_raw.copy()
+            df_out_show["MONTO"] = df_out_show["MONTO"].apply(fmt_money)
+            df_out_show["MONTO_LY"] = df_out_show["MONTO_LY"].apply(fmt_money)
+            df_out_show["% VARIACION"] = df_out_show["% VARIACION"].apply(fmt_pct)
+
+            def estilo_reporte(row):
+                seccion = str(row.get("SECCION", "")).upper().strip()
+                cuenta = str(row.get("CUENTA", "")).upper().strip()
+
+                if seccion in ["ACTIVO", "PASIVO", "CAPITAL"]:
+                    return [
+                        "font-weight:800; background:#dbe8f6; color:#000000; border-top:2px solid #163a5f; border-bottom:2px solid #163a5f;"
+                    ] * len(row)
+
+                if seccion == "RESUMEN" or cuenta == "DIFERENCIA":
+                    return [
+                        "font-weight:800; background:#dbe8f6; color:#163a5f; border-top:2px solid #214a6b;"
+                    ] * len(row)
+
+                if cuenta == "UTILIDAD DEL EJERCICIO":
+                    return [
+                        "font-weight:700; background:#eef4fb; color:#163a5f;"
+                    ] * len(row)
+
+                if cuenta == "":
+                    return [
+                        "background:#ffffff; color:#ffffff; border:none;"
+                    ] * len(row)
+
+                return ["background:#ffffff; color:#000000;"] * len(row)
+
+            st.markdown(f'<div class="sub-pill">{empresa_sel}</div>', unsafe_allow_html=True)
+
+            styled_df = (
+                df_out_show[["SECCION", "CUENTA", "MONTO", "MONTO_LY", "% VARIACION"]]
+                .style
+                .hide(axis="index")
+                .apply(estilo_reporte, axis=1)
+                .set_properties(**{
+                    "border": "1px solid #e6eef7",
+                    "font-size": "14px",
+                    "color": "#000000"
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#163a5f"),
+                            ("color", "white"),
+                            ("font-weight", "bold"),
+                            ("text-align", "center"),
+                            ("border", "1px solid #d8e3f0"),
+                            ("padding", "8px")
+                        ]
+                    },
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "7px"),
+                            ("border", "1px solid #e6eef7"),
+                            ("color", "#000000")
+                        ]
+                    }
+                ])
+            )
+
+            st.table(styled_df)
+
+            if abs(dif) < 1:
+                st.success("✅ El balance está cuadrado")
+            else:
+                st.error("❌ El balance no cuadra. Revisa mapeo/cuentas.")
+
+            if not df_no_mapeadas.empty:
+                st.markdown("## ⚠️ Cuentas NO mapeadas")
+                cols_show = [col_cuenta, col_monto]
+                cols_show = [c for c in cols_show if c in df_no_mapeadas.columns]
+                df_nm = (
+                    df_no_mapeadas[cols_show]
+                    .copy()
+                    .rename(columns={col_cuenta: "Cuenta", col_monto: "Saldo"})
+                )
+                st.dataframe(df_nm, use_container_width=True, hide_index=True)
+
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_ok.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_detalle")
+                df_grp.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_agrupado")
+                df_ok_ly.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_detalle_LY")
+                df_grp_ly.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_agrupado_LY")
+                if not df_no_mapeadas.empty:
+                    df_no_mapeadas.to_excel(writer, index=False, sheet_name="No_mapeadas")
+
+            nombre_archivo = (
+                "Balance_Acumulado_TODAS.xlsx"
+                if empresa_sel == "ACUMULADO"
+                else f"Balance_Acumulado_{empresa_sel}.xlsx"
+            )
+
+            st.download_button(
+                label=f"💾 Descargar Excel ({empresa_sel})",
+                data=output.getvalue(),
+                file_name=nombre_archivo,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            return
+
+        tabla_balance_general_acumulado()
+
+    elif selected == "E.R por empresa":
+        st.markdown("""
+        <style>
+
+        .stApp {
+            background: white;
+        }
+
+        .block-container {
+            padding-top: 1rem;
+            padding-bottom: 2rem;
+        }
+
+        .header-pill{
+            background: linear-gradient(90deg, #163a5f 0%, #214a6b 100%);
+            color: white;
+            padding: 12px 18px;
+            border-radius: 12px;
+            font-weight: 800;
+            display: inline-block;
+            box-shadow: 0 8px 18px rgba(20, 58, 95, 0.22);
+            margin-bottom: 10px;
+        }
+
+        .sub-pill{
+            background: #214a6b;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            display: inline-block;
+            margin: 6px 0px 10px 0px;
+        }
+
+        .caption-blue{
+            color: #214a6b;
+            font-weight: 700;
+            margin-top: -2px;
+            margin-bottom: 8px;
+        }
+
+        .card-blue{
+            background: white;
+            border-radius: 16px;
+            padding: 14px 14px;
+            box-shadow: none;
+            border: 1px solid #d8e3f0;
+            margin-bottom: 14px;
+        }
+
+        </style>
+        """, unsafe_allow_html=True)
+
+        def tabla_estado_resultados():
+            st.markdown('<div class="header-pill">ESTADO DE RESULTADOS</div>', unsafe_allow_html=True)
+
+            col1, = st.columns([1])
+
+            OPCIONES_EMPRESA = ["ACUMULADO"] + EMPRESAS
+            empresa_sel = col1.selectbox("Empresa", OPCIONES_EMPRESA, index=0)
+
+            df_mapeo_local = cargar_mapeo(mapeo_url)
+            if df_mapeo_local.empty:
+                st.stop()
+
+            req = {"Cuenta", "CLASIFICACION_A", "CATEGORIA_A"}
+            if not req.issubset(df_mapeo_local.columns):
+                st.error(f"❌ Al mapeo le faltan columnas: {req - set(df_mapeo_local.columns)}")
+                st.stop()
+
+            df_map = df_mapeo_local.copy()
+            df_map["Cuenta"] = df_map["Cuenta"].apply(limpiar_cuenta)
+            df_map["CLASIFICACION_A"] = df_map["CLASIFICACION_A"].astype("string").str.upper().str.strip()
+            df_map["CATEGORIA_A"] = df_map["CATEGORIA_A"].astype("string").str.upper().str.strip()
+            df_map = df_map.dropna(subset=["CLASIFICACION_A", "CATEGORIA_A"])
+            df_map = df_map[(df_map["CLASIFICACION_A"] != "") & (df_map["CATEGORIA_A"] != "")]
+            df_map = df_map.drop_duplicates(subset=["Cuenta"])
+
+            if empresa_sel == "ACUMULADO":
+                empresas_cargar = EMPRESAS[:]
+            else:
+                empresas_cargar = [empresa_sel]
+
+            data_2026 = cargar_balance_multi_hojas(balance_url, empresas_cargar)
+            data_2025 = cargar_balance_multi_hojas(balance_ly, empresas_cargar)
+
+            def prep(df_raw, col_cta, col_amt, nombre_monto):
+                df = df_raw.copy()
+                df[col_cta] = df[col_cta].apply(limpiar_cuenta)
+                df[col_amt] = _to_numeric_money(df[col_amt])
+                df = df.dropna(subset=[col_cta])
+                df = df.groupby(col_cta, as_index=False)[col_amt].sum()
+                df = df.rename(columns={col_cta: "Cuenta", col_amt: nombre_monto})
+                return df
+
+            def build_df_year(data_dict, nombre_monto):
+                partes = []
+                for emp in empresas_cargar:
+                    df_raw = data_dict.get(emp, pd.DataFrame()).copy()
+                    if df_raw.empty:
+                        continue
+
+                    col_cta = _encontrar_columna(df_raw, COLUMNAS_CUENTA)
+                    col_amt = _encontrar_columna(df_raw, COLUMNAS_MONTO)
+
+                    if not col_cta or not col_amt:
+                        st.error(f"❌ {nombre_monto}: columnas inválidas (Cuenta/Saldo) en {emp}.")
+                        st.stop()
+
+                    partes.append(prep(df_raw, col_cta, col_amt, nombre_monto))
+
+                if not partes:
+                    return pd.DataFrame(columns=["Cuenta", nombre_monto])
+
+                df_year = pd.concat(partes, ignore_index=True)
+                df_year = df_year.groupby("Cuenta", as_index=False)[nombre_monto].sum()
+                return df_year
+
+            df_26 = build_df_year(data_2026, "2026")
+            df_25 = build_df_year(data_2025, "2025")
+
+            if df_26.empty:
+                st.warning(f"⚠️ No hay datos 2026 para {empresa_sel}.")
+                st.stop()
+
+            if df_25.empty:
+                st.warning(f"⚠️ No hay datos 2025 para {empresa_sel}.")
+                st.stop()
+
+            df_cta = df_26.merge(df_25, on="Cuenta", how="outer").fillna(0.0)
+
+            df_pl = df_cta.merge(
+                df_map[["Cuenta", "CLASIFICACION_A", "CATEGORIA_A"]],
+                on="Cuenta",
+                how="left",
+            )
+
+            df_no_mapeadas = df_pl[df_pl["CLASIFICACION_A"].isna()].copy()
+            df_pl = df_pl.dropna(subset=["CLASIFICACION_A"])
+
+            if df_pl.empty:
+                st.warning("⚠️ No hay cuentas mapeadas a CLASIFICACION_A para esta selección.")
+                st.stop()
+
+            flip_clasif = {
+                "INGRESO",
+                "OTROS INGRESOS",
+                "INGRESO FINANCIERO",
+            }
+            mask_flip = df_pl["CLASIFICACION_A"].astype(str).str.upper().str.strip().isin(flip_clasif)
+            df_pl.loc[mask_flip, ["2026", "2025"]] = df_pl.loc[mask_flip, ["2026", "2025"]] * -1
+
+            df_tot = df_pl.groupby("CLASIFICACION_A", as_index=False)[["2026", "2025"]].sum()
+
+
+            def tot(*nombres):
+                """Suma total por una o varias CLASIFICACION_A (case-insensitive)."""
+                if len(nombres) == 1 and isinstance(nombres[0], (list, tuple, set)):
+                    nombres = tuple(nombres[0])
+                claves = [str(x).upper().strip() for x in nombres]
+                sub = df_tot[df_tot["CLASIFICACION_A"].isin(claves)]
+                return float(sub["2026"].sum()), float(sub["2025"].sum())
+
+            def tot_cat(*nombres):
+                """Suma total por CATEGORIA_A."""
+                if len(nombres) == 1 and isinstance(nombres[0], (list, tuple, set)):
+                    nombres = tuple(nombres[0])
+                claves = [str(x).upper().strip() for x in nombres]
+                sub = df_pl[df_pl["CATEGORIA_A"].str.upper().str.strip().isin(claves)]
+                return float(sub["2026"].sum()), float(sub["2025"].sum())
+
+            def pct(a, b):
+                return (a / b - 1.0) if abs(b) > 1e-9 else None
+
+
+            ing_26, ing_25 = tot("INGRESO")
+            coss_26, coss_25 = tot("COSS")
+            gadm_26, gadm_25 = tot("G.ADMN")
+
+            otros_ing_26, otros_ing_25 = tot("OTROS INGRESOS", "OTROS INGRESO")
+            gasto_fin_26, gasto_fin_25 = tot("GASTO FIN", "GASTO FINANCIERO")
+            ingreso_fin_26, ingreso_fin_25 = tot("INGRESO FIN", "INGRESO FINANCIERO")
+
+
+            imp_26, imp_25 = tot_cat("IMPUESTOS")
+            dep_26, dep_25 = tot_cat("DEPRECIACION")
+            amo1_26, amo1_25 = tot_cat("AMORTIZACION")
+            amo2_26, amo2_25 = tot_cat("AMORT ARRENDAMIENTO")
+
+            amo_26 = amo1_26 + amo2_26
+            amo_25 = amo1_25 + amo2_25
+
+            ub_26 = ing_26 - coss_26
+            ub_25 = ing_25 - coss_25
+
+            uo_26 = ub_26 - gadm_26
+            uo_25 = ub_25 - gadm_25
+
+            ebit_26 = uo_26 + otros_ing_26
+            ebit_25 = uo_25 + otros_ing_25
+
+            ebt_26 = ebit_26 - gasto_fin_26 + ingreso_fin_26
+            ebt_25 = ebit_25 - gasto_fin_25 + ingreso_fin_25
+
+            udi_26 = ebt_26 - imp_26
+            udi_25 = ebt_25 - imp_25
+
+            ebitda_26 = ebit_26 + dep_26 + amo_26
+            ebitda_25 = ebit_25 + dep_25 + amo_25
+
+            panel = [
+                ("INGRESO", ing_26, ing_25, "money"),
+                ("COSS", coss_26, coss_25, "money"),
+                ("UTILIDAD BRUTA", ub_26, ub_25, "money_bold"),
+                ("% UB", (ub_26 / ing_26 if abs(ing_26) > 1e-9 else None), (ub_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
+                ("G.ADMN", gadm_26, gadm_25, "money"),
+                ("UTILIDAD OPERATIVA", uo_26, uo_25, "money_bold"),
+                ("%UO", (uo_26 / ing_26 if abs(ing_26) > 1e-9 else None), (uo_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
+                ("OTROS INGRESOS", otros_ing_26, otros_ing_25, "money"),
+                ("EBIT", ebit_26, ebit_25, "money_bold"),
+                ("% EBIT", (ebit_26 / ing_26 if abs(ing_26) > 1e-9 else None), (ebit_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
+                ("GASTO FIN", gasto_fin_26, gasto_fin_25, "money"),
+                ("INGRESO FIN", ingreso_fin_26, ingreso_fin_25, "money"),
+                ("EBT", ebt_26, ebt_25, "money_bold"),
+                ("% EBT", (ebt_26 / ing_26 if abs(ing_26) > 1e-9 else None), (ebt_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
+                ("IMPUESTOS", imp_26, imp_25, "money"),
+                ("Utilidad D.Imp.", udi_26, udi_25, "money_bold"),
+                ("%UDI", (udi_26 / ing_26 if abs(ing_26) > 1e-9 else None), (udi_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
+                ("EBITDA", ebitda_26, ebitda_25, "money_bold"),
+            ]
+
+            df_panel = pd.DataFrame(panel, columns=["CONCEPTO", "2026", "2025", "_fmt"])
+            df_panel["% CAMBIO"] = df_panel.apply(
+                lambda r: pct(r["2026"], r["2025"]) if r["_fmt"] != "pct" else None,
+                axis=1,
+            )
+
+            def fmt_money(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    return ""
+                return f"$ {float(v):,.0f}"
+
+            def fmt_pct(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    return ""
+                return f"{float(v) * 100:,.2f}%"
+
+            df_show = df_panel.copy()
+            is_pct = df_show["_fmt"].eq("pct")
+
+            df_show.loc[~is_pct, "2026"] = df_show.loc[~is_pct, "2026"].apply(fmt_money)
+            df_show.loc[~is_pct, "2025"] = df_show.loc[~is_pct, "2025"].apply(fmt_money)
+            df_show.loc[~is_pct, "% CAMBIO"] = df_show.loc[~is_pct, "% CAMBIO"].apply(
+                lambda x: "" if x is None else f"{x * 100:,.0f}%"
+            )
+
+            df_show.loc[is_pct, "2026"] = df_show.loc[is_pct, "2026"].apply(fmt_pct)
+            df_show.loc[is_pct, "2025"] = df_show.loc[is_pct, "2025"].apply(fmt_pct)
+            df_show.loc[is_pct, "% CAMBIO"] = ""
+
+            def style_panel(row):
+                concepto = str(row.get("CONCEPTO", "")).upper().strip()
+
+                if concepto in ["UTILIDAD BRUTA", "UTILIDAD OPERATIVA", "EBIT", "EBT", "UTILIDAD D.IMP.", "EBITDA"]:
+                    return ["font-weight:800; background:#dbe8f6; color:#163a5f; border-top:1px solid #b8cde3;"] * len(row)
+
+                if concepto in ["INGRESO", "COSS", "G.ADMN", "OTROS INGRESOS", "GASTO FIN", "INGRESO FIN", "IMPUESTOS"]:
+                    return ["font-weight:700; background:#f7fbff; color:#1f2937;"] * len(row)
+
+                if concepto in ["% UB", "%UO", "% EBIT", "% EBT", "%UDI"]:
+                    return ["font-weight:700; color:#214a6b; background:#f8fbff;"] * len(row)
+
+                return ["background:#ffffff; color:#1f2937;"] * len(row)
+            
+            st.markdown(f'<div class="sub-pill">{empresa_sel}</div>', unsafe_allow_html=True)
+            st.markdown('<div class="caption-blue">Miles MXN</div>', unsafe_allow_html=True)
+
+            st.dataframe(
+                df_show[["CONCEPTO", "2026", "2025", "% CAMBIO"]]
+                    .style
+                    .apply(style_panel, axis=1)
+                    .set_properties(**{
+                        "border": "1px solid #e6eef7",
+                        "font-size": "14px",
+                        "padding": "6px"
+                    })
+                    .set_table_styles([
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#163a5f"),
+                                ("color", "white"),
+                                ("font-weight", "bold"),
+                                ("text-align", "center"),
+                                ("border", "1px solid #d8e3f0"),
+                                ("padding", "8px")
+                            ]
+                        },
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("border", "1px solid #e6eef7"),
+                                ("padding", "7px")
+                            ]
+                        }
+                    ]),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.markdown('<div class="sub-pill">Detalle por Categoría</div>', unsafe_allow_html=True)
+
+            df_cat = (
+                df_pl.groupby(["CLASIFICACION_A", "CATEGORIA_A"], as_index=False)[["2026", "2025"]]
+                .sum()
+            )
+
+            def _pct(a, b):
+                return (a / b - 1.0) if abs(b) > 1e-9 else np.nan
+
+            def _fmt_money(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    return ""
+                v = float(v)
+                if v < 0:
+                    return f"-$ {abs(v):,.0f}"
+                return f"$ {v:,.0f}"
+
+            def _fmt_pct(v):
+                if v is None or (isinstance(v, float) and pd.isna(v)):
+                    return ""
+                return f"{float(v) * 100:,.0f}%"
+
+            rows = []
+
+            def add_header(nombre, v26, v25, is_pct=False):
+                rows.append({
+                    "SECCION": nombre,
+                    "CATEGORIA": "",
+                    "2026": v26,
+                    "CATEGORIA2": "",
+                    "2025": v25,
+                    "% CAMBIO": (None if is_pct else _pct(v26, v25)),
+                    "_t": "header",
+                    "_is_pct": bool(is_pct),
+                })
+
+            def add_detail(cat, v26, v25):
+                rows.append({
+                    "SECCION": "",
+                    "CATEGORIA": str(cat),
+                    "2026": v26,
+                    "CATEGORIA2": str(cat),
+                    "2025": v25,
+                    "% CAMBIO": _pct(v26, v25),
+                    "_t": "detail",
+                    "_is_pct": False,
+                })
+
+            def add_section(clasif_list, header_name, total26, total25):
+                add_header(header_name, total26, total25)
+                sub = df_cat[
+                    df_cat["CLASIFICACION_A"].astype(str).str.upper().str.strip().isin(
+                        [str(x).upper().strip() for x in clasif_list]
+                    )
+                ].copy()
+
+                if not sub.empty:
+                    sub = sub.sort_values("CATEGORIA_A")
+                    for _, r in sub.iterrows():
+                        add_detail(r["CATEGORIA_A"], float(r["2026"]), float(r["2025"]))
+
+            add_section(["INGRESO"], "INGRESO", ing_26, ing_25)
+            add_section(["COSS"], "COSS", coss_26, coss_25)
+
+            add_header("UTILIDAD BRUTA", ub_26, ub_25)
+            add_header(
+                "% UB",
+                (ub_26 / ing_26) if abs(ing_26) > 1e-9 else np.nan,
+                (ub_25 / ing_25) if abs(ing_25) > 1e-9 else np.nan,
+                is_pct=True,
+            )
+
+            add_section(["G.ADMN"], "G.ADMN", gadm_26, gadm_25)
+
+            add_header("UTILIDAD OPERATIVA", uo_26, uo_25)
+            add_header(
+                "%UO",
+                (uo_26 / ing_26) if abs(ing_26) > 1e-9 else np.nan,
+                (uo_25 / ing_25) if abs(ing_25) > 1e-9 else np.nan,
+                is_pct=True,
+            )
+
+            add_section(["OTROS INGRESOS", "OTROS INGRESO"], "OTROS INGRESOS", otros_ing_26, otros_ing_25)
+
+            add_header("EBIT", ebit_26, ebit_25)
+            add_header(
+                "% EBIT",
+                (ebit_26 / ing_26) if abs(ing_26) > 1e-9 else np.nan,
+                (ebit_25 / ing_25) if abs(ing_25) > 1e-9 else np.nan,
+                is_pct=True,
+            )
+
+            add_section(["GASTO FIN", "GASTO FINANCIERO"], "GASTO FINANCIERO", gasto_fin_26, gasto_fin_25)
+            add_section(["INGRESO FIN", "INGRESO FINANCIERO"], "INGRESO FINANCIERO", ingreso_fin_26, ingreso_fin_25)
+
+            add_header("EBT", ebt_26, ebt_25)
+            add_header(
+                "% EBT",
+                (ebt_26 / ing_26) if abs(ing_26) > 1e-9 else np.nan,
+                (ebt_25 / ing_25) if abs(ing_25) > 1e-9 else np.nan,
+                is_pct=True,
+            )
+
+            add_section(["IMPUESTOS"], "IMPUESTOS", imp_26, imp_25)
+
+            add_header("Uti.D. impuestos", udi_26, udi_25)
+            add_header(
+                "%UDI",
+                (udi_26 / ing_26) if abs(ing_26) > 1e-9 else np.nan,
+                (udi_25 / ing_25) if abs(ing_25) > 1e-9 else np.nan,
+                is_pct=True,
+            )
+
+            add_header("EBITDA", ebitda_26, ebitda_25)
+
+            df_det = pd.DataFrame(rows)
+            df_show2 = df_det.copy()
+
+            mask_pct = df_show2["_is_pct"].fillna(False)
+
+            df_show2.loc[~mask_pct, "2026"] = df_show2.loc[~mask_pct, "2026"].apply(_fmt_money)
+            df_show2.loc[~mask_pct, "2025"] = df_show2.loc[~mask_pct, "2025"].apply(_fmt_money)
+            df_show2.loc[~mask_pct, "% CAMBIO"] = df_show2.loc[~mask_pct, "% CAMBIO"].apply(_fmt_pct)
+
+            df_show2.loc[mask_pct, "2026"] = df_show2.loc[mask_pct, "2026"].apply(_fmt_pct)
+            df_show2.loc[mask_pct, "2025"] = df_show2.loc[mask_pct, "2025"].apply(_fmt_pct)
+            df_show2.loc[mask_pct, "% CAMBIO"] = ""
+
+            def _style_detalle(row):
+                titulo = str(row.get(str(empresa_sel), "")).upper().strip()
+                tipo = str(row.get("_t", "")).strip().lower()
+
+                if tipo == "header":
+                    return ["font-weight:800; background:#214a6b; color:white; border-top:1px solid #163a5f; border-bottom:1px solid #163a5f;"] * len(row)
+
+                if titulo in ["UTILIDAD BRUTA", "UTILIDAD OPERATIVA", "EBIT", "EBT", "UTI.D. IMPUESTOS", "EBITDA"]:
+                    return ["font-weight:800; background:#dbe8f6; color:#163a5f;"] * len(row)
+
+                if titulo in ["% UB", "%UO", "% EBIT", "% EBT", "%UDI"]:
+                    return ["font-weight:700; background:#f8fbff; color:#214a6b;"] * len(row)
+
+                return ["background:#ffffff; color:#1f2937;"] * len(row)
+
+            df_show2 = df_show2.rename(columns={"SECCION": str(empresa_sel)})
+
+            st.dataframe(
+                df_show2[[str(empresa_sel), "CATEGORIA", "2026", "CATEGORIA2", "2025", "% CAMBIO"]]
+                    .style
+                    .apply(_style_detalle, axis=1)
+                    .set_properties(**{
+                        "border": "1px solid #e6eef7",
+                        "font-size": "13.5px",
+                        "padding": "6px"
+                    })
+                    .set_table_styles([
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#163a5f"),
+                                ("color", "white"),
+                                ("font-weight", "bold"),
+                                ("text-align", "center"),
+                                ("border", "1px solid #d8e3f0"),
+                                ("padding", "8px")
+                            ]
+                        },
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("border", "1px solid #e6eef7"),
+                                ("padding", "7px")
+                            ]
+                        }
+                    ]),
+                use_container_width=True,
+                hide_index=True,
+            )
+
+            st.markdown('<div class="sub-pill">Detalle 360</div>', unsafe_allow_html=True)
+
+            df_grid = df_excel_cuentas.copy()
+
+            df_grid = df_grid.rename(columns={
+                "CLASIFICACION_A": "Clasificacion",
+                "CATEGORIA_A": "Categoria",
+                "Descripcion": "Descripcion",
+                "Cuenta": "Cuenta"
+            })
+
+            currency_formatter = JsCode("""
+            function(params) {
+
+                if (params.value === null || params.value === undefined)
+                    return '';
+
+                return new Intl.NumberFormat(
+                    'es-MX',
+                    {
+                        style: 'currency',
+                        currency: 'MXN',
+                        minimumFractionDigits: 0
+                    }
+                ).format(params.value);
+            }
+            """)
+
+            pct_formatter = JsCode("""
+            function(params) {
+
+                if (params.value === null || params.value === undefined)
+                    return '';
+
+                return (params.value * 100).toFixed(1) + '%';
+            }
+            """)
+
+            gb = GridOptionsBuilder.from_dataframe(df_grid)
+
+            gb.configure_default_column(
+                resizable=True,
+                sortable=True,
+                filter=True
+            )
+
+            gb.configure_column(
+                "Clasificacion",
+                rowGroup=True,
+                hide=True
+            )
+
+            gb.configure_column(
+                "Categoria",
+                rowGroup=True,
+                hide=True
+            )
+
+            gb.configure_column(
+                "Descripcion",
+                headerName="Descripcion",
+                pinned="left",
+                minWidth=320
+            )
+
+            gb.configure_column(
+                "Cuenta",
+                headerName="Cuenta",
+                minWidth=130
+            )
+
+            gb.configure_column(
+                "2026",
+                headerName="2026",
+                type=["numericColumn"],
+                aggFunc="sum",
+                valueFormatter=currency_formatter,
+                cellStyle={"textAlign": "right"}
+            )
+
+            gb.configure_column(
+                "2025",
+                headerName="2025",
+                type=["numericColumn"],
+                aggFunc="sum",
+                valueFormatter=currency_formatter,
+                cellStyle={"textAlign": "right"}
+            )
+
+            gb.configure_column(
+                "% CAMBIO",
+                headerName="% CAMBIO",
+                type=["numericColumn"],
+                valueFormatter=pct_formatter,
+                cellStyle={"textAlign": "right"}
+            )
+
+            grid_options = gb.build()
+
+            grid_options.update({
+                "groupDisplayType": "singleColumn",
+                "groupDefaultExpanded": 1,
+                "suppressAggFuncInHeader": False
+            })
+
+            AgGrid(
+                df_grid,
+                gridOptions=grid_options,
+                enable_enterprise_modules=True,
+                allow_unsafe_jscode=True,
+                fit_columns_on_grid_load=True,
+                height=650,
+                theme="streamlit",
+                key=f"detalle_360_{empresa_sel}"
+            )
+
+            df_excel_cuentas = df_pl.copy()
+
+            df_excel_cuentas["CLASIFICACION_A"] = (
+                df_excel_cuentas["CLASIFICACION_A"].astype(str).str.upper().str.strip()
+            )
+            df_excel_cuentas["CATEGORIA_A"] = (
+                df_excel_cuentas["CATEGORIA_A"].astype(str).str.upper().str.strip()
+            )
+
+            df_excel_cuentas = df_excel_cuentas[
+                ["Cuenta", "Descripcion", "CLASIFICACION_A", "CATEGORIA_A", "2026", "2025"]
+            ].copy()
+
+            df_excel_cuentas["% CAMBIO"] = np.where(
+                df_excel_cuentas["2025"].abs() > 1e-9,
+                (df_excel_cuentas["2026"] / df_excel_cuentas["2025"]) - 1.0,
+                np.nan
+            )
+
+            df_excel_cuentas = df_excel_cuentas.sort_values(
+                ["CLASIFICACION_A", "CATEGORIA_A", "Cuenta", "Descripcion"]
+            )
+
+
+            output = BytesIO()
+            with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+                df_show.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_resumen")
+                df_show2.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_agrupado")
+                df_excel_cuentas.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_cuentas")
+
+            nombre_archivo = (
+                "Estado_de_Resultados.xlsx"
+                if empresa_sel == "ACUMULADO"
+                else f"Estado_de_Resultados_{empresa_sel}.xlsx"
+            )
+
+            st.download_button(
+                label=f"💾 Descargar Excel ({empresa_sel})",
+                data=output.getvalue(),
+                file_name=nombre_archivo,
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            return
+
+        tabla_estado_resultados()
+
+    elif selected == 'WACC Esgari':
+        st.markdown("<h2 style='text-align: center;'>Análisis de Tasa de Descuento (WACC)</h2>", unsafe_allow_html=True)
+        st.markdown("---")
+
+        sec = option_menu(
+            "Cálculos Financieros",
+            ["Cálculo del WACC", "Costo de Capital Propio", "Deuda"],
+            icons=["graph-up-arrow", "percent", "bank"],
+            orientation="horizontal"
+        )
+
+        if sec == "Costo de Capital Propio":
+            with st.container():
+                st.subheader("Empresas Comparables")
+                st.dataframe(com.style.format(precision=2))
+
+                st.markdown("### Parámetros de Mercado")
+                col1, col2 = st.columns(2)
+                col1.metric("Beta desapalancada Promedio", f"{beta_pro:.2f}")
+                col2.metric("Beta Apalancado Esgari", f"{beta_esg:.2f}")
+                col1.metric("Equity Risk Premium (ERP) México", f"{erp_mex*100:.2f}%")
+                col2.metric("Tasa Libre de Riesgo", f"{risk_free*100:.2f}%")
+
+                st.markdown("### Resultado Final")
+                st.success(f"Costo de Capital Propio: {eq*100:.2f}%", icon="📊")
+
+                st.markdown("---")
+                st.markdown("### Explicación y Fórmula")
+                st.markdown("""
+                El **Costo de Capital Propio (Ke)** representa el rendimiento mínimo que los accionistas esperan por su inversión.
+
+                Este valor es clave para decidir si una empresa debe seguir financiando sus operaciones con capital propio o buscar otras fuentes.
+
+                Se basa en la sensibilidad de la empresa al mercado (Beta), ajustada por el apalancamiento financiero y el riesgo país.
+
+                **Fórmula utilizada:**
+
+                $$
+                K_e = R_f + \\beta_{apal} \\times ERP
+                $$
+
+                Donde:
+
+                - $R_f$ = Tasa libre de riesgo (CETES 28 dias)  
+                - $\\beta_{apal}$ = Beta apalancada del proyecto  
+                - $ERP$ = Prima de riesgo del mercado / Retorno esperado del mercado - $R_f$ (en este caso, para México)
+                """)
+
+        elif sec == "Cálculo del WACC":
+            with st.container():
+                st.subheader("Composición del WACC")
+                col1, col2 = st.columns(2)
+                col1.metric("Peso de la Deuda", f"{debt_weight*100:.2f}%")
+                col2.metric("Costo de la Deuda (Neta)", f"{kd*100:.2f}%")
+                col2.metric("Costo de Capital Propio", f"{eq*100:.2f}%")
+                col1.metric("Peso del Capital", f"{(1-debt_weight)*100:.2f}%")
+
+                st.markdown("### Resultado Final")
+                st.success(f"WACC ESGARI: {wacc*100:.2f}%", icon="📊")
+
+                st.markdown("---")
+                st.markdown("### Explicación y Fórmula")
+                st.markdown("""
+                El **WACC (Weighted Average Cost of Capital)** es una métrica fundamental en finanzas corporativas.
+
+                Indica el costo promedio que tiene una empresa para financiarse, considerando el costo del capital propio y de la deuda.
+
+                Se utiliza para descontar flujos de caja en evaluaciones de proyectos, valuaciones y análisis de retorno.
+
+                Un proyecto es financieramente viable si su retorno es **mayor al WACC**, lo que implica generación de valor.
+
+                **Fórmula utilizada:**
+
+                $$
+                WACC = \\left(\\frac{D}{D + E}\\right) \\cdot K_d + \\left(\\frac{E}{D + E}\\right) \\cdot K_e
+                $$
+
+                Donde:
+
+                - $D$ = Deuda neta  
+                - $E$ = Capital contable  
+                - $K_d$ = Costo de la deuda después de impuestos  
+                - $K_e$ = Costo de capital propio
+                """)
+
+        else:
+            with st.container():
+                st.subheader("Deuda Neta")
+                col1, col2 = st.columns(2)
+                col1.metric("Deuda Neta", f"${deuda_neta:,.0f}")
+                col2.metric("Deuda Total", f"${deuda:,.0f}")
+                col1.metric("Costo de la Deuda", f"{co_de*100:.2f}%")
+                col2.metric("Costo de la deuda con escudo fiscal", f"{kd*100:.2f}%")
+
+                st.markdown("### Resultado Final")
+                st.success(f"Deuda Neta: ${deuda_neta:,.2f}", icon="💰")
+
+                st.markdown("---")
+                st.markdown("### Explicación y Fórmula")
+                st.markdown("""
+                La **deuda neta** representa la deuda total descontando el efectivo disponible, reflejando lo que realmente se debe financiar con recursos externos.
+
+                El **costo de la deuda** se ajusta con el beneficio fiscal que representa el poder deducir intereses.
+
+                Estas métricas permiten valorar si es más conveniente financiar con deuda o capital, dependiendo de la tasa efectiva que se obtiene.
+
+                **Fórmulas utilizadas:**
+
+                $$
+                K_d = K_{deuda} \\cdot (1 - T)
+                $$
+
+                $$
+                Deuda\\ Neta = Deuda\\ Total - Efectivo
+                $$
+
+                Donde:
+
+                - $K_{deuda}$ = Tasa de interés nominal sobre la deuda  
+                - $T$ = Tasa de impuesto corporativo  
+                - $Efectivo$ = Saldo en bancos disponible
+                """)
+
+    elif selected == 'Balance':
+        
+        def limpiar_valores(valor):
+            if isinstance(valor, str):
+                valor = valor.replace('$', '').replace(',', '').strip()
+                if valor in ['-', '', '–', '—']:
+                    return 0.0
+                try:
+                    return float(valor)
+                except ValueError:
+                    return 0.0
+            return float(valor)
+        st.markdown("<h2 style='text-align: center;'>Análisis balance</h2>", unsafe_allow_html=True)
+        st.markdown("---")
+        sec_ba = option_menu(
+            "Cálculos Financieros",
+            ["Balance General", "Análisis ratios", "Desglose de ratios"],
+            icons=["graph-up-arrow", "percent", "calculator"],
+            orientation="horizontal"
+        )
+
+
+        if sec_ba == "Balance General":
+
+            st.markdown("## Balance General Comparativo ESGARI")
+            st.markdown("En miles de MXN")
+
+            df = df_balance.copy()
+
+            df["NETO 2025"] = df["NETO 2025"].apply(limpiar_valores)
+            df["NETO 2024"] = df["NETO 2024"].apply(limpiar_valores)
+
+            df["% CAMBIO"] = np.where(
+                df["NETO 2024"] == 0,
+                0,
+                ((df["NETO 2025"] - df["NETO 2024"]) / df["NETO 2024"]) * 100
+            )
+
+            def formato_miles(x):
+                if pd.isna(x):
+                    return "$ -"
+                if x == 0:
+                    return "$ -"
+                return f"$ {x:,.0f}"
+
+            def formato_pct(x):
+                if pd.isna(x):
+                    return "0.0%"
+                return f"{x:.1f}%"
+
+            def crear_tabla_bg(df_lado, titulo_lado):
+
+                filas = []
+
+                filas.append({
+                    "CUENTA": titulo_lado,
+                    "Actual": "",
+                    "LY": "",
+                    "% CAMBIO": "",
+                    "tipo": "titulo"
+                })
+
+                for categoria in df_lado["Categoria"].dropna().unique():
+
+                    filas.append({
+                        "CUENTA": categoria.title(),
+                        "Actual": "",
+                        "LY": "",
+                        "% CAMBIO": "",
+                        "tipo": "categoria"
+                    })
+
+                    df_cat = df_lado[df_lado["Categoria"] == categoria]
+
+                    for _, row in df_cat.iterrows():
+
+                        cuenta = row["CUENTA"]
+
+                        if str(cuenta).upper().startswith("TOTAL"):
+                            tipo = "total"
+                        else:
+                            tipo = "normal"
+
+                        filas.append({
+                            "CUENTA": cuenta,
+                            "Actual": row["NETO 2025"],
+                            "LY": row["NETO 2024"],
+                            "% CAMBIO": row["% CAMBIO"],
+                            "tipo": tipo
+                        })
+
+                    filas.append({
+                        "CUENTA": "",
+                        "Actual": "",
+                        "LY": "",
+                        "% CAMBIO": "",
+                        "tipo": "espacio"
+                    })
+
+                tabla = pd.DataFrame(filas)
+
+                tabla_display = tabla.copy()
+
+                tabla_display["Actual"] = tabla_display["Actual"].apply(
+                    lambda x: formato_miles(x) if x != "" else ""
+                )
+
+                tabla_display["LY"] = tabla_display["LY"].apply(
+                    lambda x: formato_miles(x) if x != "" else ""
+                )
+
+                tabla_display["% CAMBIO"] = tabla_display["% CAMBIO"].apply(
+                    lambda x: formato_pct(x) if x != "" else ""
+                )
+
+                tabla_display = tabla_display[["CUENTA", "Actual", "LY", "% CAMBIO", "tipo"]]
+
+                def estilo_filas(row):
+
+                    if row["tipo"] in ["titulo", "categoria", "total"]:
+
+                        return [
+                            "background-color: #002060; color: white; font-weight: bold; border: 1px solid black;"
+                        ] * 5
+
+                    if row["tipo"] == "espacio":
+
+                        return [
+                            "background-color: white; color: black; height: 18px; border-left: 1px solid black; border-right: 1px solid black;"
+                        ] * 5
+
+                    return [
+                        "background-color: white; color: black; border-left: 1px solid black; border-right: 1px solid black;"
+                    ] * 5
+
+                styled = (
+                    tabla_display.drop(columns=["tipo"])
+                    .style
+                    .apply(lambda row: estilo_filas(tabla_display.loc[row.name]), axis=1)
+                    .hide(axis="index")
+                    .set_properties(**{
+                        "font-size": "14px",
+                        "padding": "3px"
+                    })
+                    .set_table_styles([
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#002060"),
+                                ("color", "white"),
+                                ("font-weight", "bold"),
+                                ("text-align", "center"),
+                                ("border", "1px solid black")
+                            ]
+                        },
+                        {
+                            "selector": "td:nth-child(1)",
+                            "props": [
+                                ("text-align", "left"),
+                                ("min-width", "280px")
+                            ]
+                        },
+                        {
+                            "selector": "td:nth-child(2)",
+                            "props": [
+                                ("text-align", "right"),
+                                ("min-width", "100px")
+                            ]
+                        },
+                        {
+                            "selector": "td:nth-child(3)",
+                            "props": [
+                                ("text-align", "right"),
+                                ("min-width", "100px")
+                            ]
+                        },
+                        {
+                            "selector": "td:nth-child(4)",
+                            "props": [
+                                ("text-align", "center"),
+                                ("min-width", "90px")
+                            ]
+                        }
+                    ])
+                )
+
+                return styled
+
+            col1, col2 = st.columns(2)
+
+            df_activo = df[df["Clasificacion"].str.upper() == "ACTIVO"].copy()
+            df_pasivo_capital = df[df["Clasificacion"].str.upper() != "ACTIVO"].copy()
+
+            with col1:
+                st.table(crear_tabla_bg(df_activo, "Activo"))
+
+            with col2:
+                st.table(crear_tabla_bg(df_pasivo_capital, "Pasivo CP"))
+
+            st.markdown("---")
+            st.markdown("### Explicación")
+            st.markdown("""
+            Este balance general comparativo muestra los cambios entre los ejercicios.
+
+            - **Columna "NETO ACTUAL"**: Datos proyectados o reales del ejercicio.
+            - **Columna "NETO LY"**: Datos históricos del ejercicio anterior.
+            - **Columna "% CAMBIO"**: Variación porcentual entre ambos periodos.
+
+            El análisis permite identificar:
+            - Incrementos o reducciones en activos y pasivos clave.
+            - Tendencias en financiamiento y rentabilidad.
+            - Cambios estructurales importantes en el capital contable.
+
+            > Un cambio positivo en activos o capital puede indicar fortalecimiento, mientras que un aumento en pasivos puede requerir análisis adicional.
+            """)
+
+        elif sec_ba == "Análisis ratios":
+            st.markdown("## 📊 Análisis de Ratios Financieros Comparativos")
+            df = df_balance.copy()
+
+            # Limpieza
+            df['NETO 2025'] = df['NETO 2025'].apply(limpiar_valores)
+            df['NETO 2024'] = df['NETO 2024'].apply(limpiar_valores)
+
+            # Función para buscar valores por categoría
+            def buscar_valor(categoria, year):
+                try:
+                    return df[df['Categoria'].str.upper() == categoria.upper()][f'NETO {year}'].sum()
+                except:
+                    return 0.0
+
+            ratio_definiciones = {
+                "Razón Circulante": lambda a, p: a / p if p else 0,
+                "Endeudamiento": lambda p, a: p / a if a else 0,
+                "Autonomía Financiera": lambda c, a: c / a if a else 0,
+                "Pasivo / Capital": lambda p, c: p / c if c else 0,
+                "Capital / Pasivo Total": lambda c, p: c / p if p else 0,
+                "Activo / Capital": lambda a, c: a / c if c else 0,
+            }
+
+            # Valores base
+            vals = {
+                'ACTIVO': {
+                    2025: buscar_valor('TOTAL ACTIVO', 2025),
+                    2024: buscar_valor('TOTAL ACTIVO', 2024)
+                },
+                'PASIVO': {
+                    2025: buscar_valor('TOTAL PASIVO', 2025),
+                    2024: buscar_valor('TOTAL PASIVO', 2024)
+                },
+                'CAPITAL': {
+                    2025: buscar_valor('TOTAL CAPITAL CONTABLE', 2025),
+                    2024: buscar_valor('TOTAL CAPITAL CONTABLE', 2024)
+                },
+                'ACTIVO CIRCULANTE': {
+                    2025: buscar_valor('TOTAL ACTIVO CIRCULANTE', 2025),
+                    2024: buscar_valor('TOTAL ACTIVO CIRCULANTE', 2024)
+                },
+                'PASIVO CP': {
+                    2025: buscar_valor('TOTAL PASIVO CORTO PLAZO', 2025),
+                    2024: buscar_valor('TOTAL PASIVO CORTO PLAZO', 2024)
+                }
+            }
+
+            # Cálculo de ratios para ambos años
+            resultados = []
+            for nombre, formula in ratio_definiciones.items():
+                if "Circulante" in nombre:
+                    v25 = formula(vals['ACTIVO CIRCULANTE'][2025], vals['PASIVO CP'][2025])
+                    v24 = formula(vals['ACTIVO CIRCULANTE'][2024], vals['PASIVO CP'][2024])
+                elif "Endeudamiento" in nombre:
+                    v25 = formula(vals['PASIVO'][2025], vals['ACTIVO'][2025])
+                    v24 = formula(vals['PASIVO'][2024], vals['ACTIVO'][2024])
+                elif "Autonomía" in nombre:
+                    v25 = formula(vals['CAPITAL'][2025], vals['ACTIVO'][2025])
+                    v24 = formula(vals['CAPITAL'][2024], vals['ACTIVO'][2024])
+                elif "Pasivo / Capital" in nombre:
+                    v25 = formula(vals['PASIVO'][2025], vals['CAPITAL'][2025])
+                    v24 = formula(vals['PASIVO'][2024], vals['CAPITAL'][2024])
+                elif "Capital / Pasivo" in nombre:
+                    v25 = formula(vals['CAPITAL'][2025], vals['PASIVO'][2025])
+                    v24 = formula(vals['CAPITAL'][2024], vals['PASIVO'][2024])
+                elif "Activo / Capital" in nombre:
+                    v25 = formula(vals['ACTIVO'][2025], vals['CAPITAL'][2025])
+                    v24 = formula(vals['ACTIVO'][2024], vals['CAPITAL'][2024])
+                else:
+                    v25 = v24 = 0
+                delta = v25 - v24
+                resultados.append({"Ratio": nombre, "2025": v25, "2024": v24, "Δ": delta})
+
+            df_ratios = pd.DataFrame(resultados)
+
+            # Mostrar métricas individuales
+            st.markdown("### 📈 Comparativo de ratios financieros clave")
+            for i, row in df_ratios.iterrows():
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric(row["Ratio"], f"{row['2025']:.2f}", delta=f"{row['Δ']:+.2f}")
+                with col2:
+                    st.metric(f"**2024:** ", f"{row['2024']:.2f}")
+                with col3:
+                    st.write(f"""
+                        {row['Ratio']}:
+                        {({
+                            'Razón Circulante': "Capacidad para cubrir pasivos de corto plazo con activos líquidos.",
+                            'Endeudamiento': "Porción de activos financiada por deuda.",
+                            'Autonomía Financiera': "Grado de independencia financiera frente a terceros.",
+                            'Pasivo / Capital': "Nivel de apalancamiento sobre capital propio.",
+                            'Capital / Pasivo Total': "Capacidad de capital propio frente a obligaciones.",
+                            'Activo / Capital': "Multiplicador del capital invertido en activos."
+                        })[row['Ratio']]}
+                    """)
+
+            # Visualización interactiva con Plotly
+
+            st.markdown("### 📊 Evolución gráfica comparativa")
+            fig = go.Figure()
+            fig.add_trace(go.Bar(x=df_ratios["Ratio"], y=df_ratios["2024"], name='2024'))
+            fig.add_trace(go.Bar(x=df_ratios["Ratio"], y=df_ratios["2025"], name='2025'))
+            fig.update_layout(
+                barmode='group',
+                title="Ratios Financieros: Comparación 2025 vs 2024",
+                yaxis_title="Valor del Ratio",
+                xaxis_title="Ratio",
+                height=450
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        elif sec_ba == "Desglose de ratios":
+            st.markdown(" Desglose de Ratios Financieros Comparativos")
+            df = df_balance.copy()
+
+            # Limpieza
+            df['NETO 2025'] = df['NETO 2025'].apply(limpiar_valores)
+            df['NETO 2024'] = df['NETO 2024'].apply(limpiar_valores)
+
+            endeudamiento_25 = df[df['CUENTA'] == 'Total Pasivo']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Capital Contable']['NETO 2025'].values[0]
+            endeudamiento_24 = df[df['CUENTA'] == 'Total Pasivo']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Capital Contable']['NETO 2024'].values[0]
+
+            pasivo_LP_25 = (df[df['CUENTA'] == 'Contratos por derecho de uso']['NETO 2025'].values[0]
+            + df[df['CUENTA'] == 'Creditos Bancarios']['NETO 2025'].values[0]
+            + df[df['CUENTA'] == 'Impuestos Diferidos']['NETO 2025'].values[0])
+            endeudamiento_LP_25 = pasivo_LP_25 / df[df['CUENTA'] == 'Total Capital Contable']['NETO 2025'].values[0]
+
+            pasivo_LP_24 = (df[df['CUENTA'] == 'Contratos por derecho de uso']['NETO 2024'].values[0]
+            + df[df['CUENTA'] == 'Creditos Bancarios']['NETO 2024'].values[0]
+            + df[df['CUENTA'] == 'Impuestos Diferidos']['NETO 2024'].values[0])
+            endeudamiento_LP_24 = pasivo_LP_24 / df[df['CUENTA'] == 'Total Capital Contable']['NETO 2024'].values[0]
+
+            deuda_25 = df[df['CUENTA'] == 'Total Pasivo']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2025'].values[0]
+            deuda_24 = df[df['CUENTA'] == 'Total Pasivo']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2024'].values[0]
+
+            apalancamiento_25 = df[df['CUENTA'] == 'Total Activo']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Capital Contable']['NETO 2025'].values[0]
+            apalancamiento_24 = df[df['CUENTA'] == 'Total Activo']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Capital Contable']['NETO 2024'].values[0]
+
+            razon_circulante_25 = df[df['CUENTA'] == 'Total Activo Circulante']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Pasivos CP']['NETO 2025'].values[0]
+            razon_circulante_24 = df[df['CUENTA'] == 'Total Activo Circulante']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Pasivos CP']['NETO 2024'].values[0]
+
+            caja_25 = df[df['CUENTA'] == 'Bancos']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Pasivos CP']['NETO 2025'].values[0]
+            caja_24 = df[df['CUENTA'] == 'Bancos']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Pasivos CP']['NETO 2024'].values[0]
+
+            activo_circulante_25 = df[df['CUENTA'] == 'Total Activo Circulante']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2025'].values[0]
+            activo_circulante_24 = df[df['CUENTA'] == 'Total Activo Circulante']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2024'].values[0]
+
+            activo_fijo_25 = df[df['CUENTA'] == 'Total Activos Fijos, Neto']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2025'].values[0]
+            activo_fijo_24 = df[df['CUENTA'] == 'Total Activos Fijos, Neto']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2024'].values[0]
+
+            activo_diferido_25 = df[df['CUENTA'] == 'Total Activo Diferido']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2025'].values[0]
+            activo_diferido_24 = df[df['CUENTA'] == 'Total Activo Diferido']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Activo']['NETO 2024'].values[0]
+
+            pasivo_cp_25 = df[df['CUENTA'] == 'Total Pasivos CP']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2025'].values[0]
+            pasivo_cp_24 = df[df['CUENTA'] == 'Total Pasivos CP']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2024'].values[0]
+
+            pasivo_lp_25 = (df[df['CUENTA'] == 'Contratos por derecho de uso']['NETO 2025'].values[0] 
+            + df[df['CUENTA'] == 'Creditos Bancarios']['NETO 2025'].values[0]
+            + df[df['CUENTA'] == 'Impuestos Diferidos']['NETO 2025'].values[0]
+            + df[df['CUENTA'] == 'Reserva indemnizaciones']['NETO 2025'].values[0])
+
+            pasivo_lp_total_25 = pasivo_lp_25 / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2025'].values[0]
+
+            pasivo_lp_24 = (df[df['CUENTA'] == 'Contratos por derecho de uso']['NETO 2024'].values[0]
+            + df[df['CUENTA'] == 'Creditos Bancarios']['NETO 2024'].values[0]
+            + df[df['CUENTA'] == 'Impuestos Diferidos']['NETO 2024'].values[0]
+            + df[df['CUENTA'] == 'Reserva indemnizaciones']['NETO 2024'].values[0])
+            pasivo_lp_total_24 = pasivo_lp_24 / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2024'].values[0]
+
+            pasivo_total_25 = df[df['CUENTA'] == 'Total Pasivo']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2025'].values[0]
+            pasivo_total_24 = df[df['CUENTA'] == 'Total Pasivo']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2024'].values[0]
+
+            capital_contable_25 = df[df['CUENTA'] == 'Total Capital Contable']['NETO 2025'].values[0] / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2025'].values[0]
+            capital_contable_24 = df[df['CUENTA'] == 'Total Capital Contable']['NETO 2024'].values[0] / df[df['CUENTA'] == 'Total Pasivo y Capital']['NETO 2024'].values[0]
+
+            pasivo_capital_25 = pasivo_lp_total_25 + capital_contable_25 + pasivo_cp_25
+            pasivo_capital_24 = pasivo_lp_total_24 + capital_contable_24 + pasivo_cp_24
+
+            Activo_total_25 = activo_circulante_25 + activo_fijo_25 + activo_diferido_25
+            Activo_total_24 = activo_circulante_24 + activo_fijo_24 + activo_diferido_24
+
+            filas_azules = [
+                "Ratio de solvencia",
+                "Ratio de liquidez",
+                "PROPORCIONES BG",
+                "Activo Total",
+                "Pasivo + Capital"
+            ]
+
+            # Flechas
+            def flecha(actual, ly, invertido=False):
+
+                if pd.isna(actual) or pd.isna(ly):
+                    return ""
+
+                if invertido:
+                    if actual < ly:
+                        return "🔼"
+                    elif actual > ly:
+                        return "🔽"
+                    else:
+                        return "➡️"
+
+                else:
+                    if actual > ly:
+                        return "🔼"
+                    elif actual < ly:
+                        return "🔽"
+                    else:
+                        return "➡️"
+
+
+            cambios = [
+                "",  # Ratio de solvencia
+                flecha(endeudamiento_25, endeudamiento_24, invertido=True),
+                flecha(endeudamiento_LP_25, endeudamiento_LP_24, invertido=True),
+                flecha(deuda_25, deuda_24, invertido=True),
+                flecha(apalancamiento_25, apalancamiento_24, invertido=True),
+
+                "",  # Ratio de liquidez
+                flecha(razon_circulante_25, razon_circulante_24),
+                flecha(caja_25, caja_24),
+
+                "",  # PROPORCIONES BG
+                flecha(activo_circulante_25, activo_circulante_24),
+                flecha(activo_fijo_25, activo_fijo_24, invertido=True),
+                flecha(activo_diferido_25, activo_diferido_24, invertido=True),
+                "",  # Activo Total
+
+                flecha(pasivo_cp_25, pasivo_cp_24, invertido=True),
+                flecha(pasivo_lp_total_25, pasivo_lp_total_24, invertido=True),
+                flecha(pasivo_total_25, pasivo_total_24, invertido=True),
+                flecha(capital_contable_25, capital_contable_24),
+                ""  # Pasivo + Capital
+            ]
+
+            df_ratios = pd.DataFrame({
+                "Ratios": [
+                    "Ratio de solvencia",
+                    "De Endeudamiento",
+                    "De Endeudamiento LP",
+                    "De Deuda",
+                    "De Apalancamiento",
+
+                    "Ratio de liquidez",
+                    "Razón Circulante",
+                    "De Caja",
+
+                    "PROPORCIONES BG",
+                    "Activo Circulante",
+                    "Activo Fijo",
+                    "Activo Diferido",
+                    "Activo Total",
+
+                    "Pasivo CP",
+                    "Pasivo LP",
+                    "Pasivo Total",
+                    "Capital Contable",
+                    "Pasivo + Capital"
+                ],
+
+                "Actual": [
+                    "",
+                    endeudamiento_25,
+                    endeudamiento_LP_25,
+                    deuda_25,
+                    apalancamiento_25,
+
+                    "",
+                    razon_circulante_25,
+                    caja_25,
+
+                    "",
+                    activo_circulante_25,
+                    activo_fijo_25,
+                    activo_diferido_25,
+                    Activo_total_25,
+
+                    pasivo_cp_25,
+                    pasivo_lp_total_25,
+                    pasivo_total_25,
+                    capital_contable_25,
+                    pasivo_capital_25
+                ],
+
+                "LY": [
+                    "",
+                    endeudamiento_24,
+                    endeudamiento_LP_24,
+                    deuda_24,
+                    apalancamiento_24,
+
+                    "",
+                    razon_circulante_24,
+                    caja_24,
+
+                    "",
+                    activo_circulante_24,
+                    activo_fijo_24,
+                    activo_diferido_24,
+                    Activo_total_24,
+
+                    pasivo_cp_24,
+                    pasivo_lp_total_24,
+                    pasivo_total_24,
+                    capital_contable_24,
+                    pasivo_capital_24
+                ],
+
+                "Cambio": cambios
+            })
+
+            filas_porcentaje = [
+                "Activo Circulante",
+                "Activo Fijo",
+                "Activo Diferido",
+                "Activo Total",
+                "Pasivo CP",
+                "Pasivo LP",
+                "Pasivo Total",
+                "Capital Contable",
+                "Pasivo + Capital"
+            ]
+
+            def formato_valor(row, col):
+
+                valor = row[col]
+
+                if valor == "":
+                    return ""
+
+                if row["Ratios"] in filas_porcentaje:
+                    return f"{valor:.0%}"
+
+                return f"{valor:,.2f}"
+
+            df_display = df_ratios.copy()
+
+            df_display["Actual"] = df_display.apply(
+                lambda row: formato_valor(row, "Actual"),
+                axis=1
+            )
+
+            df_display["LY"] = df_display.apply(
+                lambda row: formato_valor(row, "LY"),
+                axis=1
+            )
+
+            def estilo_filas(row):
+
+                if row["Ratios"] in filas_azules:
+
+                    return [
+                        'background-color: #002060; color: white; font-weight: bold'
+                    ] * len(row)
+
+                return [''] * len(row)
+
+            styled_df = (
+                df_display.style
+                .apply(estilo_filas, axis=1)
+                .hide(axis="index")
+                .set_properties(**{
+                    'text-align': 'left',
+                    'padding': '6px',
+                    'font-size': '14px'
+                })
+                .set_table_styles([
+                    {
+                        'selector': 'th',
+                        'props': [
+                            ('background-color', '#002060'),
+                            ('color', 'white'),
+                            ('font-weight', 'bold'),
+                            ('text-align', 'center')
+                        ]
+                    },
+                    {
+                        'selector': 'td:nth-child(2)',
+                        'props': [('text-align', 'center')]
+                    },
+                    {
+                        'selector': 'td:nth-child(3)',
+                        'props': [('text-align', 'center')]
+                    },
+                    {
+                        'selector': 'td:nth-child(4)',
+                        'props': [('text-align', 'center')]
+                    }
+                ])
+            )
+
+            st.table(styled_df)
+
+
+    elif selected == 'E.Resultados':
+        
+        def limpiar_valores(valor):
+            if isinstance(valor, str):
+                valor = valor.replace('$', '').replace(',', '').strip()
+                if valor in ['-', '', '–', '—']:
+                    return 0.0
+                try:
+                    return float(valor)
+                except ValueError:
+                    return 0.0
+            return float(valor)
+        st.markdown("<h2 style='text-align: center;'>Información Financiera ESGARI</h2>", unsafe_allow_html=True)
+        st.markdown("---")
+        sec_ba = option_menu(
+            "Cálculos Financieros",
+            ["E.Resultados", "Flujo de Efectivo", "Ratios", "Dupont"],
+            icons=["clipboard-data", "briefcase", "percent", "diagram-3"],            
+            orientation="horizontal"
+        )
+        if sec_ba == "E.Resultados":
+
+            st.markdown("## Estado de Resultados ESGARI")
+            st.markdown("En miles de MXN")
+
+            df = df_er.copy()
+            df['Monto'] = df['Monto'].apply(limpiar_valores)
+
+            # 🔹 Jerarquía (indentación)
+            indent_map = {
+                "Fletes": 1,
+                "Combustible & Casetas": 1,
+                "Activos por derecho de uso": 1,
+                "Nomina Operadores": 1,
+                "Otros": 1,
+            }
+
+            def aplicar_indentacion(cuenta):
+                nivel = indent_map.get(cuenta, 0)
+                return "&nbsp;" * 6 * nivel + cuenta
+
+            df["Cuenta"] = df["Cuenta"].apply(aplicar_indentacion)
+
+            # 🔹 Filas especiales
+            filas_azules = [
+                "Ingreso", "Utilidad Bruta", "Utilidad de Operación",
+                "Utilidad Antes de Impuestos", "UTILIDAD NETA"
+            ]
+
+            filas_gris = ["Costo De Ventas"]
+
+            # 🔹 Estilos
+            def estilo_filas(row):
+                if row["Cuenta"] in filas_azules:
+                    return ['background-color: #0b2e6b; color: white; font-weight: bold'] * 2
+                elif row["Cuenta"] in filas_gris:
+                    return ['background-color: #8e6e6e6; font-weight: bold'] * 2
+                else:
+                    return [''] * 2
+
+            styled_df = df[["Cuenta", "Monto"]].style \
+                .apply(estilo_filas, axis=1) \
+                .format({"Monto": "${:,.0f}"}) \
+                .hide(axis="index") \
+                .set_properties(**{
+                    'text-align': 'left',
+                    'padding': '6px'
+                }) \
+                .set_table_styles([
+                    {
+                        'selector': 'th',
+                        'props': [
+                            ('background-color', '#4f81bd'),
+                            ('color', 'white'),
+                            ('font-weight', 'bold'),
+                            ('text-align', 'left')
+                        ]
+                    },
+                    {
+                        'selector': 'td:nth-child(2)',
+                        'props': [('text-align', 'right')]
+                    }
+                ])
+
+            st.table(styled_df)
+        
+
+
+        elif sec_ba == "Flujo de Efectivo":
+            st.markdown("## Flujo de Efectivo ESGARI")
+            st.markdown("En miles de MXN")
+            df = df_balance.copy()
+            df = df_er.copy()
+
+            Utilidad_neta = df_er[df_er["Cuenta"] == "UTILIDAD NETA"]["Monto"].values[0]
+            Dep_amortizacion = df_er[df_er["Cuenta"] == "AMORT Y DEP"]["Monto"].values[0]
+            Utilidad_DA = Utilidad_neta + Dep_amortizacion
+
+            ac_2025 = (
+                df_balance[df_balance["CUENTA"] == "Cuentas por cobrar."]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Deudores diversos."]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Otros Activos"]["NETO 2025"].values[0]
+            )
+
+            ac_2024 = (
+                df_balance[df_balance["CUENTA"] == "Cuentas por cobrar."]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Deudores diversos."]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Otros Activos"]["NETO 2024"].values[0]
+            )
+
+            Variacion_AC = ac_2024 - ac_2025
+
+            pc_2025 = (
+                df_balance[df_balance["CUENTA"] == "Proveedores"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "IVA trasladado"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Pasivos Acumulados"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Provision ISR y PTU"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Reserva indemnizaciones"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Impuestos Diferidos"]["NETO 2025"].values[0]
+            )
+
+            pc_2024 = (
+                df_balance[df_balance["CUENTA"] == "Proveedores"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "IVA trasladado"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Pasivos Acumulados"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Provision ISR y PTU"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Reserva indemnizaciones"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Impuestos Diferidos"]["NETO 2024"].values[0]
+            )
+
+            Variacion_PC = pc_2025 - pc_2024
+
+            Cambio_AD = (
+                df_balance[df_balance["CUENTA"] == "Total Activo Diferido"]["NETO 2024"].values[0]
+                - df_balance[df_balance["CUENTA"] == "Total Activo Diferido"]["NETO 2025"].values[0]
+            )
+
+            Flujo_operativo = Utilidad_DA + Variacion_AC + Variacion_PC + Cambio_AD
+
+            inversion = (
+                df_balance[df_balance["CUENTA"] == "Total Activos Fijos, Neto"]["NETO 2024"].values[0]
+                - df_balance[df_balance["CUENTA"] == "Total Activos Fijos, Neto"]["NETO 2025"].values[0]
+            )
+
+            inversion_total = inversion - Dep_amortizacion
+
+            arrenda_25 = (
+                df_balance[df_balance["CUENTA"] == "Contrato de derecho de uso (CP)"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Contratos por derecho de uso"]["NETO 2025"].values[0]
+            )
+
+            arrenda_24 = (
+                df_balance[df_balance["CUENTA"] == "Contrato de derecho de uso (CP)"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Contratos por derecho de uso"]["NETO 2024"].values[0]
+            )
+
+            arrenda_total = arrenda_25 - arrenda_24
+
+            ## cambiar variable, no se considera todo el capital
+            capital1 = (
+                df_balance[df_balance["CUENTA"] == "Capital social"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Utilidades Acumuladas"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Adquisicion de Negocio"]["NETO 2025"].values[0]
+            )
+
+            capital2 = (
+                df_balance[df_balance["CUENTA"] == "Capital social"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Utilidades Acumuladas"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Adquisicion de Negocio"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Utilidad del Ejercicio"]["NETO 2024"].values[0]
+            )
+
+            adquisicion = capital1 - capital2
+
+            deuda_25 = (
+                df_balance[df_balance["CUENTA"] == "Creditos Bancarios"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Acreedores diversos"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Creditos Bancarios CP"]["NETO 2025"].values[0]
+            )
+
+            deuda_24 = (
+                df_balance[df_balance["CUENTA"] == "Creditos Bancarios"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Acreedores diversos"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Creditos Bancarios CP"]["NETO 2024"].values[0]
+            )
+
+            pago_deuda = deuda_25 - deuda_24
+
+            flujo_financiamiento = adquisicion + pago_deuda + arrenda_total
+
+            efectivo_periodo = Flujo_operativo + inversion_total + flujo_financiamiento
+
+            flujo_inicial = df_balance[df_balance["CUENTA"] == "Bancos"]["NETO 2024"].values[0]
+            flujo_final = efectivo_periodo + flujo_inicial
+            Saldo_bancos = df_balance[df_balance["CUENTA"] == "Bancos"]["NETO 2025"].values[0]
+
+            st.session_state["Flujo operativo"] = Flujo_operativo
+            st.session_state["Utilidad neta"] = Utilidad_neta
+            st.session_state["Efectivo del periodo"] = efectivo_periodo
+            st.session_state["Flujo financiamiento"] = flujo_financiamiento
+            st.session_state["Inversion total"] = inversion_total
+            st.session_state["Flujo final"] = flujo_final
+
+            # Tabla detallada estilo reporte 
+            df_flujo = pd.DataFrame({
+                "Concepto": [
+                    "Estado de flujo de efectivo",
+                    "",
+                    "Utilidad neta",
+                    "Depreciaciones y amortizaciones",
+                    "Utilidad después de depreciaciones y amortizaciones",
+                    "",
+                    "Cambios en capital de trabajo",
+                    "Cambio Activo Circulante",
+                    "Cambio Pasivo Circulante",
+                    "Cambio diferido",
+                    "",
+                    "Flujo de efectivo de actividades de operación",
+                    "",
+                    "Inversiones (+ desinversiones)",
+                    "Flujo de efectivo de actividades de inversión",
+                    "",
+                    "Arrendamientos",
+                    "Adquisicion de Negocio// Dividendos",
+                    "Adquisicion de deuda",
+                    "Flujo de efectivo de actividades de financiamiento",
+                    "",
+                    "Efectivo del periodo",
+                    "Flujo inicial del periodo",
+                    "Flujo final de periodo",
+                    "SALDO EN BANCOS"
+                ],
+                "Monto": [
+                    "",
+                    "",
+                    Utilidad_neta,
+                    Dep_amortizacion,
+                    Utilidad_DA,
+                    "",
+                    "",
+                    Variacion_AC,
+                    Variacion_PC,
+                    Cambio_AD,
+                    "",
+                    Flujo_operativo,
+                    "",
+                    inversion_total,
+                    inversion_total,
+                    "",
+                    arrenda_total,
+                    adquisicion,
+                    pago_deuda,
+                    flujo_financiamiento,
+                    "",
+                    efectivo_periodo,
+                    flujo_inicial,
+                    flujo_final,
+                    Saldo_bancos
+                ]
+            })
+
+            filas_azules = [
+                "Estado de flujo de efectivo",
+                "Utilidad neta",
+                "Depreciaciones y amortizaciones",
+                "Utilidad después de depreciaciones y amortizaciones",
+                "Cambios en capital de trabajo",
+                "Flujo de efectivo de actividades de operación",
+                "Flujo de efectivo de actividades de inversión",
+                "Flujo de efectivo de actividades de financiamiento",
+                "Efectivo del periodo",
+                "SALDO EN BANCOS"
+            ]
+
+            filas_claras = [
+                "Flujo de efectivo de actividades de operación",
+                "Flujo de efectivo de actividades de inversión",
+                "Flujo de efectivo de actividades de financiamiento",
+                "Flujo final de periodo"
+            ]
+
+            def estilo_filas(row):
+                if row["Concepto"] in filas_azules:
+                    return ['background-color: #0b2e6b; color: white; font-weight: bold'] * 2
+                elif row["Concepto"] in filas_claras:
+                    return ['background-color: #b8c6df; font-weight: bold'] * 2
+                elif row["Concepto"] == "":
+                    return ['background-color: #f2f2f2'] * 2
+                else:
+                    return ['background-color: #0b2e6b; color: white'] * 2 if "Cambio" in row["Concepto"] or "Arrendamientos" in row["Concepto"] else [''] * 2
+
+            styled = df_flujo.style \
+                .apply(estilo_filas, axis=1) \
+                .format({"Monto": lambda x: "" if x == "" else f"${x:,.0f}"}) \
+                .hide(axis="index") \
+                .set_properties(**{
+                    'padding': '6px',
+                    'text-align': 'left'
+                }) \
+                .set_table_styles([
+                    {
+                        'selector': 'td:nth-child(2)',
+                        'props': [('text-align', 'right')]
+                    },
+                    {
+                        'selector': 'th',
+                        'props': [
+                            ('background-color', '#d9d9d9'),
+                            ('font-weight', 'bold')
+                        ]
+                    }
+                ])
+
+            st.table(styled)
+
+        elif sec_ba == "Ratios":
+            st.markdown("## Análisis de Ratios Financieros")
+            df = df_balance.copy()
+            df = df_er.copy()
+            
+            Flujo_operativo = st.session_state.get("Flujo operativo", 0)
+            Utilidad_neta = st.session_state.get("Utilidad neta", 0)
+            flujo_financiamiento = st.session_state.get("Flujo financiamiento", 0)
+            inversion_total = st.session_state.get("Inversion total", 0)
+            efectivo_periodo = st.session_state.get("Efectivo del periodo", 0)
+            flujo_final = st.session_state.get("Flujo final", 0)
+
+            cintereses = (
+                Flujo_operativo
+                / df_er[df_er["Cuenta"] == "Resultado Financiero Integral"]["Monto"].values[0]
+                if df_er[df_er["Cuenta"] == "Resultado Financiero Integral"]["Monto"].values[0] != 0
+                else 0
+            )
+
+            deuda2 = (
+                df_balance[df_balance["CUENTA"] == "Contratos por derecho de uso"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Contrato de derecho de uso (CP)"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Creditos Bancarios"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Creditos Bancarios CP"]["NETO 2025"].values[0]
+            )
+
+            cdeuda = Flujo_operativo / deuda2 if deuda2 != 0 else 0
+
+            deuda3 = (
+                df_balance[df_balance["CUENTA"] == "Creditos Bancarios"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Creditos Bancarios CP"]["NETO 2025"].values[0]
+            )
+
+            cdeuda2 = Flujo_operativo / deuda3 if deuda3 != 0 else 0
+
+            cpasivocirculante = (
+                Flujo_operativo
+                / df_balance[df_balance["CUENTA"] == "Total Pasivos CP"]["NETO 2025"].values[0]
+                if df_balance[df_balance["CUENTA"] == "Total Pasivos CP"]["NETO 2025"].values[0] != 0
+                else 0
+            )
+
+            Efectividad_fo = (
+                Flujo_operativo / Utilidad_neta
+                if Utilidad_neta != 0
+                else 0
+            )
+
+            Efectividad_fv = (
+                Flujo_operativo
+                / df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0]
+                if df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0] != 0
+                else 0
+            )
+
+            col1, col2, col3 = st.columns(3)
+
+            col1.metric("Cobertura de Intereses", f"{cintereses:.2f}")
+            col2.metric("Cobertura de Deuda Total", f"{cdeuda:.2f}")
+            col3.metric("Cobertura de Deuda Bancaria", f"{cdeuda2:.2f}")
+
+            st.markdown("### Ratios de Liquidez y Efectividad")
+
+            col1, col2 = st.columns(2)
+
+            col1.metric("Cobertura de Pasivo Circulante", f"{cpasivocirculante:.2f}")
+            col2.metric("Efectividad del Flujo Operativo", f"{Efectividad_fo:.2f}")
+
+            col1.metric("Efectividad del Flujo Operativo Ventas", f"{Efectividad_fv:.2f}")
+
+            st.markdown("---")
+            st.markdown("### ROIC")
+            nopat = df_er[df_er["Cuenta"] == "Utilidad de Operación"]["Monto"].values[0] * (1 - 0.40)
+            aver_inicial = (df_balance[df_balance["CUENTA"] == "Contrato de derecho de uso (CP)"]["NETO 2025"].values[0] + df_balance[df_balance["CUENTA"] == "Contrato de derecho de uso (CP)"]["NETO 2024"].values[0]
+            + df_balance[df_balance["CUENTA"] == "Contratos por derecho de uso"]["NETO 2025"].values[0] + df_balance[df_balance["CUENTA"] == "Contratos por derecho de uso"]["NETO 2024"].values[0]
+            + df_balance[df_balance["CUENTA"] == "Creditos Bancarios"]["NETO 2025"].values[0] + df_balance[df_balance["CUENTA"] == "Creditos Bancarios"]["NETO 2024"].values[0]
+            + df_balance[df_balance["CUENTA"] == "Creditos Bancarios CP"]["NETO 2025"].values[0] + df_balance[df_balance["CUENTA"] == "Creditos Bancarios CP"]["NETO 2024"].values[0]
+            + df_balance[df_balance["CUENTA"] == "Total Capital Contable"]["NETO 2025"].values[0] + df_balance[df_balance["CUENTA"] == "Total Capital Contable"]["NETO 2024"].values[0]
+            )
+            aver = (aver_inicial / 2) - df_balance[df_balance["CUENTA"] == "Bancos"]["NETO 2025"].values[0]
+
+
+            roic = nopat / aver if aver != 0 else 0
+            col1, col2, col3 = st.columns(3)
+            col1.metric("NOPAT", f"${nopat:,.0f}")
+            col2.metric("Capital Invertido Promedio", f"${aver:,.0f}")
+            col3.metric("ROIC", f"{roic:.2%}")
+
+
+            st.markdown("---")
+            st.markdown("### Estructura del Capital")
+
+            saldo_inicial_c = df_balance[df_balance["CUENTA"] == "Capital social"]["NETO 2024"].values[0]
+            saldo_inicial_u = (
+                df_balance[df_balance["CUENTA"] == "Utilidades Acumuladas"]["NETO 2024"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Adquisicion de Negocio"]["NETO 2024"].values[0]
+            )
+            saldo_inicial_r = df_balance[df_balance["CUENTA"] == "Utilidad del Ejercicio"]["NETO 2024"].values[0]
+
+            saldo_inicial_total = saldo_inicial_c + saldo_inicial_u + saldo_inicial_r
+
+            # Traspaso de utilidad
+            traspaso_u = saldo_inicial_r
+            traspaso_r = -saldo_inicial_r
+
+            # Resultado actual
+            resultado_ejercicio = Utilidad_neta
+
+            # Adquisición / goodwill
+            adquisicion = (
+                df_balance[df_balance["CUENTA"] == "Adquisicion de Negocio"]["NETO 2025"].values[0]
+                - df_balance[df_balance["CUENTA"] == "Adquisicion de Negocio"]["NETO 2024"].values[0]
+            )
+
+            # Saldos finales
+            saldo_final_c = saldo_inicial_c
+            saldo_final_u = saldo_inicial_u + traspaso_u + adquisicion
+            saldo_final_r = resultado_ejercicio
+            saldo_final_total = saldo_final_c + saldo_final_u + saldo_final_r
+
+            df_capital = pd.DataFrame({
+                "EN MILES (000 MXN)": [
+                    "Saldo inicial al 1° de enero 2026",
+                    "Traspaso de resultados del ejercicio anterior",
+                    "Resultado del ejercicio",
+                    "Adquisicion del Negocio",
+                    "Saldo final"
+                ],
+
+                "Capital Social": [
+                    saldo_inicial_c,
+                    0,
+                    0,
+                    0,
+                    saldo_final_c
+                ],
+
+                "Utilidad Ejercicios Anteriores": [
+                    saldo_inicial_u,
+                    traspaso_u,
+                    0,
+                    adquisicion,
+                    saldo_final_u
+                ],
+
+                "Resultado del Ejercicio": [
+                    saldo_inicial_r,
+                    traspaso_r,
+                    resultado_ejercicio,
+                    0,
+                    saldo_final_r
+                ],
+
+                "Total Capital Contable": [
+                    saldo_inicial_total,
+                    0,
+                    resultado_ejercicio,
+                    adquisicion,
+                    saldo_final_total
+                ]
+            })
+
+            columnas_numericas = [
+                "Capital Social",
+                "Utilidad Ejercicios Anteriores",
+                "Resultado del Ejercicio",
+                "Total Capital Contable"
+            ]
+
+            def formato_miles(x):
+                if pd.isna(x):
+                    return ""
+                if x == 0:
+                    return "$ -"
+                return f"$ {x:,.0f}"
+
+            df_capital_format = df_capital.copy()
+
+            for col in columnas_numericas:
+                df_capital_format[col] = df_capital_format[col].apply(formato_miles)
+
+            filas_azules = [
+                "Saldo inicial al 1° de enero 2026",
+                "Saldo final"
+            ]
+
+            def estilo_filas(row):
+                if row["EN MILES (000 MXN)"] in filas_azules:
+                    return [
+                        "background-color: #9dc3e6; color: black; font-weight: bold;"
+                    ] * len(row)
+
+                return [
+                    "background-color: white; color: black; font-weight: bold;"
+                ] * len(row)
+
+            styled_df = (
+                df_capital_format.style
+                .apply(estilo_filas, axis=1)
+                .hide(axis="index")
+                .set_properties(**{
+                    "border": "1px solid black",
+                    "padding": "4px",
+                    "font-size": "14px"
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#002060"),
+                            ("color", "white"),
+                            ("font-weight", "bold"),
+                            ("text-align", "center"),
+                            ("border", "1px solid black")
+                        ]
+                    },
+                    {
+                        "selector": "td:nth-child(1)",
+                        "props": [
+                            ("text-align", "left"),
+                            ("min-width", "320px")
+                        ]
+                    },
+                    {
+                        "selector": "td:nth-child(n+2)",
+                        "props": [
+                            ("text-align", "right"),
+                            ("min-width", "120px")
+                        ]
+                    }
+                ])
+            )
+
+            st.table(styled_df)
+
+            st.markdown("---")
+            st.markdown("### Resumen Flujo de Efectivo")
+
+            df_flujo_resumen = pd.DataFrame({
+                "Comparativa": [
+                    "Flujo de efectivo de actividades de operación",
+                    "Flujo de efectivo de actividades de inversión",
+                    "Flujo de efectivo de actividades de financiamiento",
+                    "Efectivo del periodo",
+                    "Flujo final de periodo"
+                ],
+
+                "Actual": [
+                    Flujo_operativo,
+                    inversion_total,
+                    flujo_financiamiento,
+                    efectivo_periodo,
+                    flujo_final
+                ]
+            })
+
+
+            def formato_miles(x):
+
+                if pd.isna(x):
+                    return ""
+
+                if x == 0:
+                    return "$ -"
+
+                return f"$ {x:,.0f}"
+
+            df_flujo_resumen_format = df_flujo_resumen.copy()
+
+            df_flujo_resumen_format["Actual"] = (
+                df_flujo_resumen_format["Actual"]
+                .apply(formato_miles)
+            )
+
+
+            filas_azules = [
+                "Efectivo del periodo",
+                "Flujo final de periodo"
+            ]
+
+            def estilo_filas(row):
+
+                if row["Comparativa"] in filas_azules:
+
+                    return [
+                        "background-color: #9dc3e6; color: black; font-weight: bold;"
+                    ] * len(row)
+
+                return [
+                    "background-color: white; color: black;"
+                ] * len(row)
+
+            styled_df = (
+                df_flujo_resumen_format.style
+                .apply(estilo_filas, axis=1)
+                .hide(axis="index")
+                .set_properties(**{
+                    "border": "1px solid black",
+                    "padding": "4px",
+                    "font-size": "14px"
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#002060"),
+                            ("color", "white"),
+                            ("font-weight", "bold"),
+                            ("text-align", "center"),
+                            ("border", "1px solid black")
+                        ]
+                    },
+                    {
+                        "selector": "td:nth-child(1)",
+                        "props": [
+                            ("text-align", "left"),
+                            ("min-width", "500px")
+                        ]
+                    },
+                    {
+                        "selector": "td:nth-child(2)",
+                        "props": [
+                            ("text-align", "right"),
+                            ("min-width", "150px")
+                        ]
+                    }
+                ])
+            )
+
+            st.table(styled_df)
+
+        elif sec_ba == "Dupont":
+            st.markdown("## Análisis Dupont")
+            df = df_balance.copy()
+            df = df_er.copy()
+
+            Utilidad_neta = st.session_state.get("Utilidad neta", 0)
+
+            Average_equity = (df_balance[df_balance["CUENTA"] == "Total Capital Contable"]["NETO 2025"].values[0] + df_balance[df_balance["CUENTA"] == "Total Capital Contable"]["NETO 2024"].values[0]) / 2
+            Average_assets = (df_balance[df_balance["CUENTA"] == "Total Pasivo y Capital"]["NETO 2025"].values[0] + df_balance[df_balance["CUENTA"] == "Total Pasivo y Capital"]["NETO 2024"].values[0]) / 2
+
+            ROE = Utilidad_neta / Average_equity if Average_equity != 0 else 0
+            ROA = Utilidad_neta / Average_assets if Average_assets != 0 else 0
+            Leverage = Average_assets / Average_equity if Average_equity != 0 else 0
+            Net_profit_margin = Utilidad_neta / df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0] if df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0] != 0 else 0
+            Total_asset_turnover = df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0] / Average_assets if Average_assets != 0 else 0
+            Tax_burden =  Utilidad_neta / df_er[df_er["Cuenta"] == "Utilidad Antes de Impuestos"]["Monto"].values[0]
+            interest_burden = df_er[df_er["Cuenta"] == "Utilidad Antes de Impuestos"]["Monto"].values[0] / df_er[df_er["Cuenta"] == "Utilidad de Operación"]["Monto"].values[0] if df_er[df_er["Cuenta"] == "Utilidad de Operación"]["Monto"].values[0] != 0 else 0
+            ebit_margin = df_er[df_er["Cuenta"] == "Utilidad de Operación"]["Monto"].values[0] / df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0] if df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0] != 0 else 0
+
+
+            st.markdown("### Desglose del ROE por componentes")
+            col1, col2, col3 = st.columns(3)    
+            col1.metric("ROE", f"{ROE:.2%}")
+            col2.metric("ROA", f"{ROA:.2%}")
+            col3.metric("Leverage", f"{Leverage:.2f}")
+
+            st.markdown("### Margen, Rotación y Carga Fiscal")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Margen Neto", f"{Net_profit_margin:.2%}")
+            col2.metric("Rotación de Activos", f"{Total_asset_turnover:.2%}")
+            col3.metric("Carga Fiscal", f"{Tax_burden:.2%}")
+
+            st.markdown("### Carga por Intereses y Margen Operativo")
+            col1, col2 = st.columns(2)
+            col1.metric("Carga por Intereses", f"{interest_burden:.2%}")
+            col2.metric("Margen EBIT", f"{ebit_margin:.2%}")
+            
+            st.markdown("---")
+            st.markdown("### Ciclo Financieros")
+
+            trimestre_sel = st.selectbox(
+                "Selecciona el trimestre para calcular el ciclo financiero",
+                ["1T", "2T", "3T", "4T"]
+            )
+
+            # 🔹 Días por trimestre
+            mapa_trimestre = {
+                "1T": 90,
+                "2T": 180,
+                "3T": 270,
+                "4T": 360
+            }
+
+            dias_trimestre = mapa_trimestre[trimestre_sel]
+
+            promedio_cxp = (
+                df_balance[df_balance["CUENTA"] == "Proveedores"]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Proveedores"]["NETO 2024"].values[0]
+            ) / 2
+
+            promedio_cxc = (
+                df_balance[df_balance["CUENTA"] == "Cuentas por cobrar."]["NETO 2025"].values[0]
+                + df_balance[df_balance["CUENTA"] == "Cuentas por cobrar."]["NETO 2024"].values[0]
+            ) / 2
+
+            dias_cxc = (
+                (promedio_cxc * dias_trimestre)
+                / df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0]
+                if df_er[df_er["Cuenta"] == "Ingreso"]["Monto"].values[0] != 0
+                else 0
+            )
+
+            dias_cxp = (
+                (promedio_cxp * dias_trimestre)
+                / df_er[df_er["Cuenta"] == "Costo de Ventas"]["Monto"].values[0]
+                if df_er[df_er["Cuenta"] == "Costo de Ventas"]["Monto"].values[0] != 0
+                else 0
+            )
+
+            ciclo_operativo = dias_cxc
+            ciclo_financiero = dias_cxc - dias_cxp
+
+            # 🔹 HTML estilo dashboard
+            html = f"""
+            <div style="width: 350px; font-family: Arial;">
+
+                <div style="text-align:center; font-weight:bold; border:1px solid black; padding:5px;">
+                    {trimestre_sel} 2026
+                </div>
+
+                <div style="display:flex;">
+                    <div style="background:#0b2e6b; color:white; padding:8px; width:70%; font-weight:bold;">
+                        CICLO OPERATIVO
+                    </div>
+                    <div style="border:1px solid black; width:30%; text-align:center; padding:8px;">
+                        {ciclo_operativo:,.0f}
+                    </div>
+                </div>
+
+                <div style="background:#0b2e6b; color:white; padding:8px; margin-top:10px; width:70%; font-weight:bold;">
+                    DIAS CXC
+                </div>
+
+                <div style="border:1px solid black; width:70%; text-align:center; padding:8px;">
+                    {dias_cxc:,.0f}
+                </div>
+
+                <div style="display:flex; margin-top:15px;">
+                    <div style="background:#0b2e6b; color:white; padding:8px; width:70%; font-weight:bold;">
+                        CICLO FINANCIERO
+                    </div>
+                    <div style="border:1px solid black; width:30%; text-align:center; padding:8px;">
+                        {ciclo_financiero:,.0f}
+                    </div>
+                </div>
+
+                <div style="display:flex; margin-top:10px;">
+                    <div style="background:#0b2e6b; color:white; padding:8px; width:50%; font-weight:bold;">
+                        DÍAS CXC
+                    </div>
+                    <div style="background:#0b2e6b; color:white; padding:8px; width:50%; font-weight:bold;">
+                        DÍAS CXP
+                    </div>
+                </div>
+
+                <div style="display:flex;">
+                    <div style="border:1px solid black; width:50%; text-align:center; padding:8px;">
+                        {dias_cxc:,.0f}
+                    </div>
+                    <div style="border:1px solid black; width:50%; text-align:center; padding:8px;">
+                        {dias_cxp:,.0f}
+                    </div>
+                </div>
+
+            </div>
+            """
+
+            components.html(html, height=450)
 
 
 
