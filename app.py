@@ -1659,31 +1659,39 @@ else:
     # Ya ha iniciado sesión
     st.sidebar.success(f"👤 Usuario: {st.session_state['username']}")
 
-    if st.session_state['rol'] == "admin":
+with st.sidebar:
+
+    st.markdown("## Menú Principal")
+
+    if st.session_state["rol"] == "admin":
         menu_principal = option_menu(
-        "Menú Principal",
-        options=["General", "Empresas", "Análisis"],
-        icons=["bar-chart", "building", "gear"],
-        menu_icon="cast",
-        default_index=0,
-    )
+            None,
+            options=["General", "Empresas", "Análisis"],
+            icons=["bar-chart", "building", "gear"],
+            default_index=0,
+        )
     else:
         menu_principal = option_menu(
-        "Menú Principal",
-        options=["General"],
-        icons=["bar-chart"],
-        menu_icon="cast",
-        default_index=0,
-    )
+            None,
+            options=["General"],
+            icons=["bar-chart"],
+            default_index=0,
+        )
 
-    if st.sidebar.button("Cerrar sesión"):
+    st.markdown("---")
+
+    st.success(f"Sesión activa como: {st.session_state['username']}")
+
+    if st.button("Cerrar sesión"):
         for key in ["logged_in", "username", "rol", "proyectos"]:
             st.session_state[key] = "" if key != "logged_in" else False
         st.rerun()
-    if st.session_state['rol'] == "admin":
-        if st.sidebar.button("🔄 Recargar datos"):
+
+    if st.session_state["rol"] == "admin":
+        if st.button("🔄 Recargar datos"):
             st.cache_data.clear()
             st.rerun()
+
     if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Fernanda":
         link_360 = "https://drive.google.com/file/d/1bQnGjeBD6ONI3x7ovhEwNl4F-QXa8GSV/view?usp=sharing"
         def get_direct_link(shareable_link):
