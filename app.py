@@ -178,8 +178,6 @@ def mean_beta(com_list):
 
         if beta is not None:
             betas.append(beta)
-        else:
-            st.warning(f"No se pudo calcular beta para {x}")
 
         time.sleep(1)
 
@@ -1678,20 +1676,15 @@ with st.sidebar:
             default_index=0,
         )
 
-    st.markdown("---")
 
-    st.success(f"Sesión activa como: {st.session_state['username']}")
-
-    if st.button("Cerrar sesión"):
+    if st.sidebar.button("Cerrar sesión"):
         for key in ["logged_in", "username", "rol", "proyectos"]:
             st.session_state[key] = "" if key != "logged_in" else False
         st.rerun()
-
-    if st.session_state["rol"] == "admin":
-        if st.button("🔄 Recargar datos"):
+    if st.session_state['rol'] == "admin":
+        if st.sidebar.button("🔄 Recargar datos"):
             st.cache_data.clear()
             st.rerun()
-
     if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Fernanda":
         link_360 = "https://drive.google.com/file/d/1bQnGjeBD6ONI3x7ovhEwNl4F-QXa8GSV/view?usp=sharing"
         def get_direct_link(shareable_link):
@@ -1741,7 +1734,8 @@ with st.sidebar:
     fecha_texto = f"{fecha_act.day} de {meses[fecha_act.month]} de {fecha_act.year}"
     texto_centrado(f"Fecha de actualización: {fecha_texto}")
 
-    
+    selected = None
+
     if menu_principal == "General":
 
         if st.session_state["rol"] in ["director", "admin"] and "ESGARI" in st.session_state["proyectos"]:
@@ -1754,17 +1748,17 @@ with st.sidebar:
                     "CeCo", "Ratios", "Dashboard", "OH"
                 ],
                 icons=[
-                    "house",            #Resumen
-                    "clipboard-data",   #Estado de Resultado
-                    "file-earmark-bar-graph",  #Comparativa
-                    "bar-chart",               #Análisis
-                    "building",                #Proyeccion
-                    "calendar",                #Meses
-                    "clock-history",           #Meses LY/PPT
-                    "person-gear",             #CeCo
-                    "percent",                  #Ratios
-                    "speedometer",      #Dashboard  
-                    "briefcase",        #OH
+                    "house",
+                    "clipboard-data",
+                    "file-earmark-bar-graph",
+                    "bar-chart",
+                    "building",
+                    "calendar",
+                    "clock-history",
+                    "person-gear",
+                    "percent",
+                    "speedometer",
+                    "briefcase",
                 ],
                 default_index=0,
                 orientation="horizontal",
@@ -1780,16 +1774,16 @@ with st.sidebar:
                     "Meses LY/PPT", "CeCo", "Ratios", "Dashboard", "OH"
                 ],
                 icons=[
-                    "clipboard-data",   #Estado de Resultado
-                    "file-earmark-bar-graph",  #Comparativa
-                    "bar-chart",               #Análisis
-                    "building",                #Proyeccion
-                    "calendar",                #Meses
-                    "clock-history",           #Meses LY/PPT
-                    "person-gear",             #CeCo
-                    "percent",                  #Ratios
-                    "speedometer",      #Dashboard  
-                    "briefcase",        #OH
+                    "clipboard-data",
+                    "file-earmark-bar-graph",
+                    "bar-chart",
+                    "building",
+                    "calendar",
+                    "clock-history",
+                    "person-gear",
+                    "percent",
+                    "speedometer",
+                    "briefcase",
                 ],
                 default_index=0,
                 orientation="horizontal",
@@ -1808,8 +1802,8 @@ with st.sidebar:
                     "file-earmark-bar-graph",
                     "bar-chart",
                     "building",
-                    "clock-history",
                     "calendar",
+                    "clock-history",
                     "person-gear",
                     "speedometer"
                 ],
@@ -1835,17 +1829,19 @@ with st.sidebar:
             options=[
                 "Balance General",
                 "Balance por empresa",
-                "Estado de Resultado",
+                "E.R por empresa",
                 "Escenario EDR"
             ],
             icons=[
                 "journal-text",
+                "building",
                 "clipboard-data",
                 "sliders"
             ],
             default_index=0,
             orientation="horizontal",
         )
+
 
     elif menu_principal == "Análisis":
 
@@ -1874,9 +1870,11 @@ with st.sidebar:
         )
 
         if selected == "WACC":
+
             selected = option_menu(
                 menu_title=None,
                 options=[
+                    "WACC",
                     "Costo de capital",
                     "Deuda"
                 ],
@@ -5365,16 +5363,13 @@ with st.sidebar:
     elif selected == "Balance por empresa":
         st.markdown("""
         <style>
-
         .stApp {
-            background: white;
+            background: #f4f7fb;
         }
-
         .block-container {
             padding-top: 1rem;
             padding-bottom: 2rem;
         }
-
         .header-pill{
             background: linear-gradient(90deg, #163a5f 0%, #214a6b 100%);
             color: white;
@@ -5385,7 +5380,6 @@ with st.sidebar:
             box-shadow: 0 8px 18px rgba(20, 58, 95, 0.22);
             margin-bottom: 10px;
         }
-
         .sub-pill{
             background: #214a6b;
             color: white;
@@ -5395,16 +5389,14 @@ with st.sidebar:
             display: inline-block;
             margin: 6px 0px 10px 0px;
         }
-
         .card-blue{
             background: white;
             border-radius: 16px;
             padding: 14px 14px;
-            box-shadow: none;
+            box-shadow: 0 8px 20px rgba(16, 24, 40, 0.08);
             border: 1px solid #d8e3f0;
             margin-bottom: 14px;
         }
-
         </style>
         """, unsafe_allow_html=True)
 
@@ -6527,16 +6519,27 @@ with st.sidebar:
 
         tabla_estado_resultados()
 
-    elif selected == 'WACC Esgari':
+    elif selected in ['WACC Esgari', 'WACC', 'Costo de capital', 'Deuda']:
+
         st.markdown("<h2 style='text-align: center;'>Análisis de Tasa de Descuento (WACC)</h2>", unsafe_allow_html=True)
         st.markdown("---")
 
-        sec = option_menu(
-            "Cálculos Financieros",
-            ["Cálculo del WACC", "Costo de Capital Propio", "Deuda"],
-            icons=["graph-up-arrow", "percent", "bank"],
-            orientation="horizontal"
-        )
+        if selected == "Costo de capital":
+            sec = "Costo de Capital Propio"
+
+        elif selected == "Deuda":
+            sec = "Deuda"
+
+        elif selected == "WACC":
+            sec = "Cálculo del WACC"
+
+        else:
+            sec = option_menu(
+                "Cálculos Financieros",
+                ["Cálculo del WACC", "Costo de Capital Propio", "Deuda"],
+                icons=["graph-up-arrow", "percent", "bank"],
+                orientation="horizontal"
+            )
 
         if sec == "Costo de Capital Propio":
             with st.container():
@@ -6650,8 +6653,9 @@ with st.sidebar:
                 - $Efectivo$ = Saldo en bancos disponible
                 """)
 
-    elif selected == 'Balance':
-        
+####PENDIENTE ------------------------------------
+    elif selected in ['Balance', 'Balance General', 'Análisis ratios', 'D. de ratios']:
+
         def limpiar_valores(valor):
             if isinstance(valor, str):
                 valor = valor.replace('$', '').replace(',', '').strip()
@@ -6662,15 +6666,25 @@ with st.sidebar:
                 except ValueError:
                     return 0.0
             return float(valor)
+
         st.markdown("<h2 style='text-align: center;'>Análisis balance</h2>", unsafe_allow_html=True)
         st.markdown("---")
-        sec_ba = option_menu(
-            "Cálculos Financieros",
-            ["Balance General", "Análisis ratios", "Desglose de ratios"],
-            icons=["graph-up-arrow", "percent", "calculator"],
-            orientation="horizontal"
-        )
+        if selected == "Balance General":
+            sec_ba = "Balance General"
 
+        elif selected == "Análisis ratios":
+            sec_ba = "Análisis ratios"
+
+        elif selected == "D. de ratios":
+            sec_ba = "D. de ratios"
+
+        else:
+            sec_ba = option_menu(
+                "Cálculos Financieros",
+                ["Balance General", "Análisis ratios", "D. de ratios"],
+                icons=["graph-up-arrow", "percent", "calculator"],
+                orientation="horizontal"
+            )
 
         if sec_ba == "Balance General":
 
@@ -6978,7 +6992,7 @@ with st.sidebar:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-        elif sec_ba == "Desglose de ratios":
+        elif sec_ba == "D. de ratios":
             st.markdown(" Desglose de Ratios Financieros Comparativos")
             df = df_balance.copy()
 
@@ -7261,9 +7275,9 @@ with st.sidebar:
 
             st.table(styled_df)
 
+###Estado de resultados   ------------------------------------
+    elif selected in ['E.Resultados', 'Flujo de Efectivo', 'Ratios', 'Dupont']:
 
-    elif selected == 'E.Resultados':
-        
         def limpiar_valores(valor):
             if isinstance(valor, str):
                 valor = valor.replace('$', '').replace(',', '').strip()
@@ -7274,14 +7288,29 @@ with st.sidebar:
                 except ValueError:
                     return 0.0
             return float(valor)
+
         st.markdown("<h2 style='text-align: center;'>Información Financiera ESGARI</h2>", unsafe_allow_html=True)
         st.markdown("---")
-        sec_ba = option_menu(
-            "Cálculos Financieros",
-            ["E.Resultados", "Flujo de Efectivo", "Ratios", "Dupont"],
-            icons=["clipboard-data", "briefcase", "percent", "diagram-3"],            
-            orientation="horizontal"
-        )
+
+        if selected == "E.Resultados":
+            sec_ba = "E.Resultados"
+
+        elif selected == "Flujo de Efectivo":
+            sec_ba = "Flujo de Efectivo"
+
+        elif selected == "Ratios":
+            sec_ba = "Ratios"
+
+        elif selected == "Dupont":
+            sec_ba = "Dupont"
+
+        else:
+            sec_ba = option_menu(
+                "Cálculos Financieros",
+                ["E.Resultados", "Flujo de Efectivo", "Ratios", "Dupont"],
+                icons=["clipboard-data", "briefcase", "percent", "diagram-3"],
+                orientation="horizontal"
+            )
         if sec_ba == "E.Resultados":
 
             st.markdown("## Estado de Resultados ESGARI")
@@ -8046,6 +8075,7 @@ with st.sidebar:
             """
 
             components.html(html, height=450)
+
 
 
 
