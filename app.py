@@ -1605,47 +1605,55 @@ if not st.session_state["logged_in"]:
         submitted = st.form_submit_button("Iniciar sesión")
 
         if submitted:
-            user, rol, proyectos, cecos = validar_credenciales(df_usuarios, username, password)
+            user, rol, proyectos_user, cecos_user = validar_credenciales(
+                df_usuarios,
+                username,
+                password
+            )
+
             if user:
                 st.session_state["logged_in"] = True
                 st.session_state["username"] = user
                 st.session_state["rol"] = rol
-                st.session_state["proyectos"] = proyectos
-                st.session_state["cecos"] = cecos
+                st.session_state["proyectos"] = proyectos_user
+                st.session_state["cecos"] = cecos_user
                 st.success("¡Inicio de sesión exitoso!")
                 st.rerun()
             else:
                 st.error("Usuario o contraseña incorrectos")
+
 else:
+
     df_2025 = cargar_datos(base_2025)
     df_2025 = (
-    df_2025
-    .groupby([
-        "Mes_A", "Empresa_A", "CeCo_A", "Proyecto_A", "Cuenta_A",
-        "Clasificacion_A", "Cuenta_Nombre_A", "Categoria_A"
-    ], as_index=False)["Neto_A"]
-    .sum()
-)
+        df_2025
+        .groupby([
+            "Mes_A", "Empresa_A", "CeCo_A", "Proyecto_A", "Cuenta_A",
+            "Clasificacion_A", "Cuenta_Nombre_A", "Categoria_A"
+        ], as_index=False)["Neto_A"]
+        .sum()
+    )
+
     df_ly = cargar_datos(base_ly)
     df_ly = (
-    df_ly
-    .groupby([
-        "Mes_A", "Empresa_A", "CeCo_A", "Proyecto_A", "Cuenta_A",
-        "Clasificacion_A", "Cuenta_Nombre_A", "Categoria_A"
-    ], as_index=False)["Neto_A"]
-    .sum()
-)
+        df_ly
+        .groupby([
+            "Mes_A", "Empresa_A", "CeCo_A", "Proyecto_A", "Cuenta_A",
+            "Clasificacion_A", "Cuenta_Nombre_A", "Categoria_A"
+        ], as_index=False)["Neto_A"]
+        .sum()
+    )
 
     df_ppt = cargar_datos(base_ppt)
     df_ppt = (
-    df_ppt
-    .groupby([
-        "Mes_A", "Empresa_A", "CeCo_A", "Proyecto_A", "Cuenta_A",
-        "Clasificacion_A", "Cuenta_Nombre_A", "Categoria_A"
-    ], as_index=False)["Neto_A"]
-    .sum()
-)
-    
+        df_ppt
+        .groupby([
+            "Mes_A", "Empresa_A", "CeCo_A", "Proyecto_A", "Cuenta_A",
+            "Clasificacion_A", "Cuenta_Nombre_A", "Categoria_A"
+        ], as_index=False)["Neto_A"]
+        .sum()
+    )
+
     proyectos = cargar_datos(proyectos)
     fecha_actualizacion = cargar_datos(fecha)
 
@@ -1653,85 +1661,88 @@ else:
     df_ly["Proyecto_A"] = df_ly["Proyecto_A"].astype(str).str.strip()
     df_ppt["Proyecto_A"] = df_ppt["Proyecto_A"].astype(str).str.strip()
     proyectos["proyectos"] = proyectos["proyectos"].astype(str).str.strip()
+
     list_pro = proyectos["proyectos"].tolist()
-    # Ya ha iniciado sesión
-    st.sidebar.success(f"👤 Usuario: {st.session_state['username']}")
 
-with st.sidebar:
+    with st.sidebar:
 
-    st.markdown("## Menú Principal")
+        st.markdown("## Menú Principal")
 
-    if st.session_state["rol"] == "admin":
-        menu_principal = option_menu(
-            None,
-            options=["General", "Empresas", "Análisis"],
-            icons=["bar-chart", "building", "gear"],
-            default_index=0,
-        )
-    else:
-        menu_principal = option_menu(
-            None,
-            options=["General"],
-            icons=["bar-chart"],
-            default_index=0,
-        )
+        if st.session_state["rol"] == "admin":
+            menu_principal = option_menu(
+                None,
+                options=["General", "Empresas", "Análisis"],
+                icons=["bar-chart", "building", "gear"],
+                default_index=0,
+            )
+        else:
+            menu_principal = option_menu(
+                None,
+                options=["General"],
+                icons=["bar-chart"],
+                default_index=0,
+            )
 
+        st.markdown("---")
 
-    if st.sidebar.button("Cerrar sesión"):
-        for key in ["logged_in", "username", "rol", "proyectos"]:
-            st.session_state[key] = "" if key != "logged_in" else False
-        st.rerun()
-    if st.session_state['rol'] == "admin":
-        if st.sidebar.button("🔄 Recargar datos"):
-            st.cache_data.clear()
+        if st.button("Cerrar sesión"):
+            for key in ["logged_in", "username", "rol", "proyectos", "cecos"]:
+                st.session_state[key] = "" if key != "logged_in" else False
             st.rerun()
-    if st.session_state["username"] == "gonza" or st.session_state["username"] == "Octavio" or st.session_state["username"] == "Karla" or st.session_state["username"] == "Fernanda":
-        link_360 = "https://drive.google.com/file/d/1bQnGjeBD6ONI3x7ovhEwNl4F-QXa8GSV/view?usp=sharing"
-        def get_direct_link(shareable_link):
-            # Extraer el ID del enlace compartido
-            file_id = shareable_link.split("/d/")[1].split("/")[0]
-            return f"https://drive.google.com/uc?id={file_id}"
-        excel_360 = get_direct_link(link_360)
-        @st.cache_data
-        def download_file_from_drive(url):
-            response = requests.get(url)
-            if response.status_code == 200:
-                return response.content
-            else:
-                st.error("Error al descargar el archivo.")
-                return None
-        # Mostrar botones de descarga para cada archivo
-        def create_download_buttons():
-            # Diccionario de enlaces con nombres de archivos
-            files = {
-                "Excel P&L 360.xlsm": excel_360,
-            }
 
-            for file_name, file_url in files.items():
-                # Descargar el archivo desde el enlace de Google Drive
-            
-                file_data = download_file_from_drive(file_url)
-                
-                # Mostrar el botón de descarga
-                if file_data:
-                    st.sidebar.download_button(
-                        label=f"Descargar {file_name}",
-                        data=file_data,
-                        file_name=file_name,
-                        mime="application/vnd.ms-excel.sheet.macroEnabled.12",  # MIME type para .xlsm
-                    )
+        if st.session_state["rol"] == "admin":
+            if st.button("🔄 Recargar datos"):
+                st.cache_data.clear()
+                st.rerun()
 
-        # Crear los botones de descarga
-        create_download_buttons()
+        if st.session_state["username"] in ["gonza", "Octavio", "Karla", "Fernanda"]:
+
+            link_360 = "https://drive.google.com/file/d/1bQnGjeBD6ONI3x7ovhEwNl4F-QXa8GSV/view?usp=sharing"
+
+            def get_direct_link(shareable_link):
+                file_id = shareable_link.split("/d/")[1].split("/")[0]
+                return f"https://drive.google.com/uc?id={file_id}"
+
+            excel_360 = get_direct_link(link_360)
+
+            @st.cache_data
+            def download_file_from_drive(url):
+                response = requests.get(url)
+                if response.status_code == 200:
+                    return response.content
+                else:
+                    st.error("Error al descargar el archivo.")
+                    return None
+
+            def create_download_buttons():
+                files = {
+                    "Excel P&L 360.xlsm": excel_360,
+                }
+
+                for file_name, file_url in files.items():
+                    file_data = download_file_from_drive(file_url)
+
+                    if file_data:
+                        st.download_button(
+                            label=f"Descargar {file_name}",
+                            data=file_data,
+                            file_name=file_name,
+                            mime="application/vnd.ms-excel.sheet.macroEnabled.12",
+                        )
+
+            create_download_buttons()
 
     ct("ESGARI 360")
-    fecha_act = fecha_actualizacion['fecha'].iloc[0]
-    meses = {
+
+    fecha_act = fecha_actualizacion["fecha"].iloc[0]
+
+    meses_fecha = {
         1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
         5: "mayo", 6: "junio", 7: "julio", 8: "agosto",
         9: "septiembre", 10: "octubre", 11: "noviembre", 12: "diciembre"
     }
-    fecha_texto = f"{fecha_act.day} de {meses[fecha_act.month]} de {fecha_act.year}"
+
+    fecha_texto = f"{fecha_act.day} de {meses_fecha[fecha_act.month]} de {fecha_act.year}"
     texto_centrado(f"Fecha de actualización: {fecha_texto}")
 
     selected = None
@@ -1821,7 +1832,6 @@ with st.sidebar:
                 orientation="horizontal",
             )
 
-
     elif menu_principal == "Empresas":
 
         selected = option_menu(
@@ -1841,7 +1851,6 @@ with st.sidebar:
             default_index=0,
             orientation="horizontal",
         )
-
 
     elif menu_principal == "Análisis":
 
@@ -1880,6 +1889,7 @@ with st.sidebar:
                 ],
                 icons=[
                     "graph-up-arrow",
+                    "percent",
                     "bank"
                 ],
                 default_index=0,
