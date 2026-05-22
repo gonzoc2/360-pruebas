@@ -34,6 +34,9 @@ gspread
 oauth2client
 beautifulsoup4
 yfinance
+scipy
+numpy-financial
+pyxlsb
 
 google-auth==2.35.0
 google-auth-oauthlib==1.2.0
