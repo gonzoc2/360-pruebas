@@ -5079,45 +5079,6 @@ else:
         tabla_balance_por_empresa()
 
     elif selected == "Balance por empresa":
-        st.markdown("""
-        <style>
-        .stApp {    
-            background-color: transparent;
-        }
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 2rem;
-        }
-        .header-pill{
-            background: linear-gradient(90deg, #163a5f 0%, #214a6b 100%);
-            color: white;
-            padding: 12px 18px;
-            border-radius: 12px;
-            font-weight: 800;
-            display: inline-block;
-            box-shadow: 0 8px 18px rgba(20, 58, 95, 0.22);
-            margin-bottom: 10px;
-        }
-        .sub-pill{
-            background: #214a6b;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 10px;
-            font-weight: 700;
-            display: inline-block;
-            margin: 6px 0px 10px 0px;
-        }
-        .card-blue{
-            background: white;
-            border-radius: 16px;
-            padding: 14px 14px;
-            box-shadow: none;
-            border: 1px solid #d8e3f0;
-            margin-bottom: 14px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
         def tabla_balance_general_acumulado():
             col1, = st.columns([1])
 
@@ -5586,51 +5547,6 @@ else:
         tabla_balance_general_acumulado()
 
     elif selected == "E.R por empresa":
-        st.markdown("""
-        <style>
-        .stApp {
-            background-color: transparent;
-        }
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 2rem;
-        }
-        .header-pill{
-            background: linear-gradient(90deg, #163a5f 0%, #214a6b 100%);
-            color: white;
-            padding: 12px 18px;
-            border-radius: 12px;
-            font-weight: 800;
-            display: inline-block;
-            box-shadow: 0 8px 18px rgba(20, 58, 95, 0.22);
-            margin-bottom: 10px;
-        }
-        .sub-pill{
-            background: #214a6b;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 10px;
-            font-weight: 700;
-            display: inline-block;
-            margin: 6px 0px 10px 0px;
-        }
-        .caption-blue{
-            color: #214a6b;
-            font-weight: 700;
-            margin-top: -2px;
-            margin-bottom: 8px;
-        }
-        .card-blue{
-            background: white;
-            border-radius: 16px;
-            padding: 14px 14px;
-            box-shadow: none;
-            border: 1px solid #d8e3f0;
-            margin-bottom: 14px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
         def tabla_estado_resultados():
             st.markdown('<div class="header-pill">ESTADO DE RESULTADOS</div>', unsafe_allow_html=True)
 
@@ -6115,51 +6031,6 @@ else:
         tabla_estado_resultados()
 
     elif selected == "Escenario EDR":
-        st.markdown("""
-        <style>
-        .stApp {
-            background-color: transparent;
-        }
-        .block-container {
-            padding-top: 1rem;
-            padding-bottom: 2rem;
-        }
-        .header-pill{
-            background: linear-gradient(90deg, #163a5f 0%, #214a6b 100%);
-            color: white;
-            padding: 12px 18px;
-            border-radius: 12px;
-            font-weight: 800;
-            display: inline-block;
-            box-shadow: 0 8px 18px rgba(20, 58, 95, 0.22);
-            margin-bottom: 10px;
-        }
-        .sub-pill{
-            background: #214a6b;
-            color: white;
-            padding: 8px 12px;
-            border-radius: 10px;
-            font-weight: 700;
-            display: inline-block;
-            margin: 6px 0px 10px 0px;
-        }
-        .caption-blue{
-            color: #214a6b;
-            font-weight: 700;
-            margin-top: -2px;
-            margin-bottom: 8px;
-        }
-        .card-blue{
-            background: white;
-            border-radius: 16px;
-            padding: 14px 14px;
-            box-shadow: none;
-            border: 1px solid #d8e3f0;
-            margin-bottom: 14px;
-        }
-        </style>
-        """, unsafe_allow_html=True)
-
         def tabla_escenarios_edr():
             st.markdown('<div class="header-pill">ESCENARIO ESTADO DE RESULTADOS</div>', unsafe_allow_html=True)
 
