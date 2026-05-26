@@ -5918,27 +5918,11 @@ else:
             df_show2.loc[mask_pct, "2025"] = df_show2.loc[mask_pct, "2025"].apply(_fmt_pct)
             df_show2.loc[mask_pct, "% CAMBIO"] = ""
 
-            def _style_detalle(row):
-                titulo = str(row.get(str(empresa_sel), "")).upper().strip()
-                tipo = str(row.get("_t", "")).strip().lower()
-
-                if tipo == "header":
-                    return ["font-weight:800; background:#214a6b; color:white; border-top:1px solid #163a5f; border-bottom:1px solid #163a5f;"] * len(row)
-
-                if titulo in ["UTILIDAD BRUTA", "UTILIDAD OPERATIVA", "EBIT", "EBT", "UTI.D. IMPUESTOS", "EBITDA"]:
-                    return ["font-weight:800; background:#dbe8f6; color:#163a5f;"] * len(row)
-
-                if titulo in ["% UB", "%UO", "% EBIT", "% EBT", "%UDI"]:
-                    return ["font-weight:700; background:#f8fbff; color:#214a6b;"] * len(row)
-
-                return ["background:#ffffff; color:#1f2937;"] * len(row)
-
             df_show2 = df_show2.rename(columns={"SECCION": str(empresa_sel)})
 
             st.dataframe(
                 df_show2[[str(empresa_sel), "CATEGORIA", "2026", "CATEGORIA2", "2025", "% CAMBIO"]]
                     .style
-                    .apply(_style_detalle, axis=1)
                     .set_properties(**{
                         "border": "1px solid #e6eef7",
                         "font-size": "13.5px",
