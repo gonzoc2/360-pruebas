@@ -5753,20 +5753,6 @@ else:
             df_show.loc[is_pct, "2026"] = df_show.loc[is_pct, "2026"].apply(fmt_pct)
             df_show.loc[is_pct, "2025"] = df_show.loc[is_pct, "2025"].apply(fmt_pct)
             df_show.loc[is_pct, "% CAMBIO"] = ""
-
-            def style_panel(row):
-                concepto = str(row.get("CONCEPTO", "")).upper().strip()
-
-                if concepto in ["UTILIDAD BRUTA", "UTILIDAD OPERATIVA", "EBIT", "EBT", "UTILIDAD D.IMP.", "EBITDA"]:
-                    return ["font-weight:800; background:#dbe8f6; color:#163a5f; border-top:1px solid #b8cde3;"] * len(row)
-
-                if concepto in ["INGRESO", "COSS", "G.ADMN", "OTROS INGRESOS", "GASTO FIN", "INGRESO FIN", "IMPUESTOS"]:
-                    return ["font-weight:700; background:#f7fbff; color:#1f2937;"] * len(row)
-
-                if concepto in ["% UB", "%UO", "% EBIT", "% EBT", "%UDI"]:
-                    return ["font-weight:700; color:#214a6b; background:#f8fbff;"] * len(row)
-
-                return ["background:#ffffff; color:#1f2937;"] * len(row)
             
             st.markdown(f'<div class="sub-pill">{empresa_sel}</div>', unsafe_allow_html=True)
             st.markdown('<div class="caption-blue">Miles MXN</div>', unsafe_allow_html=True)
@@ -6203,20 +6189,6 @@ else:
                 if v is None or (isinstance(v, float) and pd.isna(v)):
                     return ""
                 return f"{float(v) * 100:,.2f}%"
-
-            def style_panel(row):
-                concepto = str(row.get("CONCEPTO", "")).upper().strip()
-
-                if concepto in ["UTILIDAD BRUTA", "UTILIDAD OPERATIVA", "EBIT", "EBT", "UTILIDAD D.IMP.", "UTI.D. IMPUESTOS", "EBITDA"]:
-                    return ["font-weight:800; background:#dbe8f6; color:#163a5f; border-top:1px solid #b8cde3;"] * len(row)
-
-                if concepto in ["INGRESO", "COSS", "G.ADMN", "OTROS INGRESOS", "GASTO FIN", "INGRESO FIN", "IMPUESTOS"]:
-                    return ["font-weight:700; background:#f7fbff; color:#1f2937;"] * len(row)
-
-                if concepto in ["% UB", "%UO", "% EBIT", "% EBT", "%UDI"]:
-                    return ["font-weight:700; color:#214a6b; background:#f8fbff;"] * len(row)
-
-                return ["background:#ffffff; color:#1f2937;"] * len(row)
 
             def render_empresa(nombre_empresa, df_base):
                 df_pl = df_base.copy()
