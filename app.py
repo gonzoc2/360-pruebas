@@ -5760,7 +5760,6 @@ else:
             st.dataframe(
                 df_show[["CONCEPTO", "2026", "2025", "% CAMBIO"]]
                     .style
-                    .apply(style_panel, axis=1)
                     .set_properties(**{
                         "border": "1px solid #e6eef7",
                         "font-size": "14px",
@@ -6298,7 +6297,6 @@ else:
                 st.dataframe(
                     df_show[["CONCEPTO", "2026", "2025", "% CAMBIO"]]
                         .style
-                        .apply(style_panel, axis=1)
                         .set_properties(**{
                             "border": "1px solid #e6eef7",
                             "font-size": "14px",
