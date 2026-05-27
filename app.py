@@ -1403,7 +1403,7 @@ else:
 
         st.markdown("## Menú Principal")
 
-        if st.session_state["rol"] == "admin":
+        if st.session_state["rol"] in ["admin", "director"]:
             menu_principal = option_menu(
                 None,
                 options=["General", "Empresas"],
