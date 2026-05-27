@@ -5225,8 +5225,8 @@ else:
                 }])
                 df_resultados_ly = pd.concat([df_resultados_ly, df_total_ly], ignore_index=True)
 
-            st.markdown('<div class="header-pill">BALANCE GENERAL POR EMPRESA</div>', unsafe_allow_html=True)
-            st.markdown('<div class="sub-pill">Estado de Resultados por Empresa</div>', unsafe_allow_html=True)
+            st.markdown("BALANCE GENERAL POR EMPRESA")
+            st.markdown("Estado de Resultados por Empresa")
 
             st.dataframe(
                 df_resultados.style
@@ -5467,7 +5467,7 @@ else:
 
                 return ["background:#ffffff; color:#000000;"] * len(row)
 
-            st.markdown(f'<div class="sub-pill">{empresa_sel}</div>', unsafe_allow_html=True)
+            st.markdown(f"{empresa_sel}")
 
             styled_df = (
                 df_out_show[["SECCION", "CUENTA", "MONTO", "MONTO_LY", "% VARIACION"]]
@@ -5548,7 +5548,7 @@ else:
 
     elif selected == "E.R por empresa":
         def tabla_estado_resultados():
-            st.markdown('<div class="header-pill">ESTADO DE RESULTADOS</div>', unsafe_allow_html=True)
+            st.markdown("ESTADO DE RESULTADOS")
 
             col1, = st.columns([1])
 
@@ -5754,7 +5754,7 @@ else:
             df_show.loc[is_pct, "2025"] = df_show.loc[is_pct, "2025"].apply(fmt_pct)
             df_show.loc[is_pct, "% CAMBIO"] = ""
             
-            st.markdown(f'<div class="sub-pill">{empresa_sel}</div>', unsafe_allow_html=True)
+            st.markdown(f"{empresa_sel}")
             st.markdown('<div class="caption-blue">Miles MXN</div>', unsafe_allow_html=True)
 
             st.dataframe(
@@ -5789,7 +5789,7 @@ else:
                 hide_index=True,
             )
 
-            st.markdown('<div class="sub-pill">Detalle por Categoría</div>', unsafe_allow_html=True)
+            st.markdown("Detalle por Categoría")
 
             df_cat = (
                 df_pl.groupby(["CLASIFICACION_A", "CATEGORIA_A"], as_index=False)[["2026", "2025"]]
@@ -6001,7 +6001,7 @@ else:
 
     elif selected == "Escenario EDR":
         def tabla_escenarios_edr():
-            st.markdown('<div class="header-pill">ESCENARIO ESTADO DE RESULTADOS</div>', unsafe_allow_html=True)
+            st.markdown("ESCENARIO ESTADO DE RESULTADOS")
 
             col1, = st.columns([1])
 
@@ -6142,7 +6142,7 @@ else:
             df_reparto["ESCENARIO_2026"] = df_reparto["%_INGRESO_2026"] * total_ajuste_2026
             df_reparto["ESCENARIO_2025"] = df_reparto["%_INGRESO_2025"] * total_ajuste_2025
 
-            st.markdown('<div class="sub-pill">Reparto de Escenario</div>', unsafe_allow_html=True)
+            st.markdown("Reparto de Escenario")
 
             df_reparto_show = df_reparto.copy()
             df_reparto_show["% INGRESO 2026"] = df_reparto_show["%_INGRESO_2026"].apply(lambda x: f"{x:.0%}")
@@ -6275,7 +6275,7 @@ else:
                 df_show.loc[is_pct, "2025"] = df_show.loc[is_pct, "2025"].apply(fmt_pct)
                 df_show.loc[is_pct, "% CAMBIO"] = ""
 
-                st.markdown(f'<div class="sub-pill">{nombre_empresa} - ESCENARIO</div>', unsafe_allow_html=True)
+                st.markdown(f"{nombre_empresa} - ESCENARIO")
                 st.markdown('<div class="caption-blue">Miles MXN</div>', unsafe_allow_html=True)
 
                 st.dataframe(
@@ -6310,7 +6310,7 @@ else:
                     hide_index=True,
                 )
 
-                st.markdown('<div class="sub-pill">Detalle por Categoría</div>', unsafe_allow_html=True)
+                st.markdown("Detalle por Categoría")
 
                 df_cat = (
                     df_pl.groupby(["CLASIFICACION_A", "CATEGORIA_A"], as_index=False)[["2026", "2025"]]
