@@ -5225,8 +5225,8 @@ else:
                 }])
                 df_resultados_ly = pd.concat([df_resultados_ly, df_total_ly], ignore_index=True)
 
-            st.markdown("BALANCE GENERAL POR EMPRESA")
-            st.markdown("Estado de Resultados por Empresa")
+            st.markdown("### BALANCE GENERAL POR EMPRESA")
+            st.markdown("### Estado de Resultados por Empresa")
 
             st.dataframe(
                 df_resultados.style
@@ -5467,7 +5467,7 @@ else:
 
                 return ["background:#ffffff; color:#000000;"] * len(row)
 
-            st.markdown(f"{empresa_sel}")
+            st.markdown(f"### {empresa_sel}")
 
             styled_df = (
                 df_out_show[["SECCION", "CUENTA", "MONTO", "MONTO_LY", "% VARIACION"]]
@@ -5548,7 +5548,7 @@ else:
 
     elif selected == "E.R por empresa":
         def tabla_estado_resultados():
-            st.markdown("ESTADO DE RESULTADOS")
+            st.subheader("ESTADO DE RESULTADOS")
 
             col1, = st.columns([1])
 
@@ -5789,7 +5789,7 @@ else:
                 hide_index=True,
             )
 
-            st.markdown("Detalle por Categoría")
+            st.markdown("### Detalle por Categoría")
 
             df_cat = (
                 df_pl.groupby(["CLASIFICACION_A", "CATEGORIA_A"], as_index=False)[["2026", "2025"]]
@@ -6001,7 +6001,7 @@ else:
 
     elif selected == "Escenario EDR":
         def tabla_escenarios_edr():
-            st.markdown("ESCENARIO ESTADO DE RESULTADOS")
+            st.subheader("ESCENARIO ESTADO DE RESULTADOS")
 
             col1, = st.columns([1])
 
