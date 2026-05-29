@@ -4939,7 +4939,45 @@ else:
                     if col != "CONCEPTO":
                         df_resultados_t[col] = df_resultados_t[col].apply(lambda x: f"${x:,.2f}")
 
-                st.dataframe(df_resultados_t, use_container_width=True, hide_index=True)
+                def style_er_empresa(row):
+
+                    if str(row["CONCEPTO"]).upper().strip() in [
+                        "INGRESO",
+                        "GASTO",
+                        "UTILIDAD"
+                    ]:
+                        return [
+                            "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                        ] * len(row)
+
+                    return [
+                        "background-color:white; color:black; border:1px solid black;"
+                    ] * len(row)
+
+
+                styled_er = (
+                    df_resultados_t.style
+                    .hide(axis="index")
+                    .apply(style_er_empresa, axis=1)
+                    .set_properties(**{
+                        "font-size": "14px",
+                        "padding": "4px",
+                        "border": "1px solid black"
+                    })
+                    .set_table_styles([
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#073763"),
+                                ("color", "white"),
+                                ("font-weight", "bold"),
+                                ("border", "1px solid black")
+                            ]
+                        }
+                    ])
+                )
+
+                st.table(styled_er)
 
             utilidad_por_empresa = {}
             utilidad_total = 0.0
@@ -5002,11 +5040,50 @@ else:
                     df_show[col] = df_show[col].apply(lambda x: f"${x:,.2f}")
 
                 with st.expander(f"{clasif}", expanded=(clasif == "CAPITAL")):
-                    st.dataframe(
-                        df_show.drop(columns=["CLASIFICACION"]),
-                        use_container_width=True,
-                        hide_index=True
+                    df_balance_show = df_show.drop(columns=["CLASIFICACION"])
+
+                    def style_balance(row):
+
+                        categoria = str(row["CATEGORIA"]).upper().strip()
+
+                        if categoria.startswith("TOTAL"):
+                            return [
+                                "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                            ] * len(row)
+
+                        if categoria == "UTILIDAD DEL EJERCICIO":
+                            return [
+                                "background-color:#0b5394; color:white; font-weight:bold; border:1px solid black;"
+                            ] * len(row)
+
+                        return [
+                            "background-color:white; color:black; border:1px solid black;"
+                        ] * len(row)
+
+
+                    styled_balance = (
+                        df_balance_show.style
+                        .hide(axis="index")
+                        .apply(style_balance, axis=1)
+                        .set_properties(**{
+                            "font-size": "14px",
+                            "padding": "4px",
+                            "border": "1px solid black"
+                        })
+                        .set_table_styles([
+                            {
+                                "selector": "th",
+                                "props": [
+                                    ("background-color", "#073763"),
+                                    ("color", "white"),
+                                    ("font-weight", "bold"),
+                                    ("border", "1px solid black")
+                                ]
+                            }
+                        ])
                     )
+
+                    st.table(styled_balance)
 
                     if clasif == "CAPITAL" and utilidad_por_empresa:
                         st.markdown("La utilidad del ejercicio fue integrada y mostrada dentro del capital.")
@@ -5033,7 +5110,41 @@ else:
             })
 
             st.markdown("### Resumen Consolidado")
-            st.dataframe(resumen_final, use_container_width=True, hide_index=True)
+            def style_resumen(row):
+
+                if str(row["Concepto"]).upper().startswith("TOTAL"):
+                    return [
+                        "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                    ] * len(row)
+
+                if str(row["Concepto"]).upper() == "DIFERENCIA":
+                    return [
+                        "background-color:#0b5394; color:white; font-weight:bold; border:1px solid black;"
+                    ] * len(row)
+
+                return [
+                    "background-color:white; color:black; border:1px solid black;"
+                ] * len(row)
+
+
+            styled_resumen = (
+                resumen_final.style
+                .hide(axis="index")
+                .apply(style_resumen, axis=1)
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#073763"),
+                            ("color", "white"),
+                            ("font-weight", "bold"),
+                            ("border", "1px solid black")
+                        ]
+                    }
+                ])
+            )
+
+            st.table(styled_resumen)
 
             if abs(diferencia) < 1:
                 st.success("✅ El balance está cuadrado (ACTIVO = PASIVO + CAPITAL).")
@@ -5079,6 +5190,7 @@ else:
         tabla_balance_por_empresa()
 
     elif selected == "Balance por empresa":
+
         def tabla_balance_general_acumulado():
             col1, = st.columns([1])
 
@@ -5225,42 +5337,63 @@ else:
                 }])
                 df_resultados_ly = pd.concat([df_resultados_ly, df_total_ly], ignore_index=True)
 
-            st.markdown("### BALANCE GENERAL POR EMPRESA")
-            st.markdown("### Estado de Resultados por Empresa")
+            st.markdown("BALANCE GENERAL POR EMPRESA")
+            st.markdown("Estado de Resultados por Empresa")
 
-            st.dataframe(
-                df_resultados.style
-                    .format({
-                        "INGRESO": "${:,.2f}",
-                        "GASTO": "${:,.2f}",
-                        "UTILIDAD": "${:,.2f}",
-                    })
-                    .set_properties(**{
-                        "text-align": "right",
-                        "border-color": "#d8e3f0"
-                    })
-                    .set_table_styles([
-                        {
-                            "selector": "th",
-                            "props": [
-                                ("background-color", "#214a6b"),
-                                ("color", "white"),
-                                ("font-weight", "bold"),
-                                ("text-align", "center"),
-                                ("border", "1px solid #d8e3f0")
-                            ]
-                        },
-                        {
-                            "selector": "td",
-                            "props": [
-                                ("border", "1px solid #e6eef7")
-                            ]
-                        }
-                    ]),
-                use_container_width=True,
-                hide_index=True
+            df_resultados_format = df_resultados.copy()
+
+            def formato_miles(x):
+                if pd.isna(x):
+                    return ""
+                if x == 0:
+                    return "$ -"
+                return f"$ {x:,.0f}"
+
+            for col in ["INGRESO", "GASTO", "UTILIDAD"]:
+                df_resultados_format[col] = df_resultados_format[col].apply(formato_miles)
+
+            def estilo_er_empresa(row):
+                if str(row["EMPRESA"]).upper().strip() == "TOTAL":
+                    return [
+                        "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                    ] * len(row)
+
+                return [
+                    "background-color:white; color:black; border:1px solid black;"
+                ] * len(row)
+
+            styled_er_empresa = (
+                df_resultados_format.style
+                .hide(axis="index")
+                .apply(estilo_er_empresa, axis=1)
+                .set_properties(**{
+                    "font-size": "14px",
+                    "padding": "4px",
+                    "border": "1px solid black"
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#073763"),
+                            ("color", "white"),
+                            ("font-weight", "bold"),
+                            ("text-align", "center"),
+                            ("border", "1px solid black")
+                        ]
+                    },
+                    {
+                        "selector": "td:nth-child(1)",
+                        "props": [("text-align", "left")]
+                    },
+                    {
+                        "selector": "td:nth-child(n+2)",
+                        "props": [("text-align", "right")]
+                    }
+                ])
             )
 
+            st.table(styled_er_empresa)
             df_emp[col_cuenta] = df_emp[col_cuenta].apply(limpiar_cuenta)
             df_emp[col_monto] = _to_numeric_money(df_emp[col_monto])
             df_emp = df_emp.dropna(subset=[col_cuenta])
@@ -5467,12 +5600,12 @@ else:
 
                 return ["background:#ffffff; color:#000000;"] * len(row)
 
-            st.markdown(f"### {empresa_sel}")
+            st.markdown(f'<div class="sub-pill">{empresa_sel}</div>', unsafe_allow_html=True)
 
             styled_df = (
                 df_out_show[["SECCION", "CUENTA", "MONTO", "MONTO_LY", "% VARIACION"]]
                 .style
-                .hide(axis="index")
+                .hide_index()
                 .apply(estilo_reporte, axis=1)
                 .set_properties(**{
                     "border": "1px solid #e6eef7",
@@ -5757,37 +5890,61 @@ else:
             st.markdown(f"{empresa_sel}")
             st.markdown('<div class="caption-blue">Miles MXN</div>', unsafe_allow_html=True)
 
-            st.dataframe(
+            filas_azules = [
+                "INGRESO",
+                "UTILIDAD BRUTA",
+                "UTILIDAD OPERATIVA",
+                "EBIT",
+                "EBT",
+                "EBITDA"
+            ]
+
+            def style_panel_excel(row):
+                concepto = str(row.get("CONCEPTO", "")).upper().strip()
+
+                if concepto in filas_azules:
+                    return [
+                        "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                    ] * len(row)
+
+                return [
+                    "background-color:white; color:black; border:1px solid black;"
+                ] * len(row)
+
+
+            styled_er = (
                 df_show[["CONCEPTO", "2026", "2025", "% CAMBIO"]]
-                    .style
-                    .set_properties(**{
-                        "border": "1px solid #e6eef7",
-                        "font-size": "14px",
-                        "padding": "6px"
-                    })
-                    .set_table_styles([
-                        {
-                            "selector": "th",
-                            "props": [
-                                ("background-color", "#163a5f"),
-                                ("color", "white"),
-                                ("font-weight", "bold"),
-                                ("text-align", "center"),
-                                ("border", "1px solid #d8e3f0"),
-                                ("padding", "8px")
-                            ]
-                        },
-                        {
-                            "selector": "td",
-                            "props": [
-                                ("border", "1px solid #e6eef7"),
-                                ("padding", "7px")
-                            ]
-                        }
-                    ]),
-                use_container_width=True,
-                hide_index=True,
+                .style
+                .hide(axis="index")
+                .apply(style_panel_excel, axis=1)
+                .set_properties(**{
+                    "font-size": "14px",
+                    "padding": "4px",
+                    "border": "1px solid black"
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#073763"),
+                            ("color", "white"),
+                            ("font-weight", "bold"),
+                            ("text-align", "left"),
+                            ("border", "1px solid black")
+                        ]
+                    },
+                    {
+                        "selector": "td:nth-child(1)",
+                        "props": [("text-align", "left")]
+                    },
+                    {
+                        "selector": "td:nth-child(n+2)",
+                        "props": [("text-align", "right")]
+                    }
+                ])
             )
+
+            st.table(styled_er)
 
             st.markdown("### Detalle por Categoría")
 
@@ -5920,37 +6077,89 @@ else:
 
             df_show2 = df_show2.rename(columns={"SECCION": str(empresa_sel)})
 
-            st.dataframe(
+            filas_azules_detalle = [
+                "INGRESO",
+                "UTILIDAD BRUTA",
+                "% UB",
+                "G.ADMN",
+                "UTILIDAD OPERATIVA",
+                "%UO",
+                "OTROS INGRESOS",
+                "EBIT",
+                "% EBIT",
+                "GASTO FINANCIERO",
+                "INGRESO FINANCIERO",
+                "EBT",
+                "% EBT",
+                "IMPUESTOS",
+                "UTI.D. IMPUESTOS",
+                "%UDI",
+                "EBITDA"
+            ]
+
+            def style_detalle_excel(row):
+                col_empresa = str(empresa_sel)
+                titulo = str(row.get(col_empresa, "")).upper().strip()
+
+                if titulo in filas_azules_detalle:
+                    return [
+                        "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                    ] * len(row)
+
+                return [
+                    "background-color:white; color:black; border:1px solid black;"
+                ] * len(row)
+
+
+            styled_detalle = (
                 df_show2[[str(empresa_sel), "CATEGORIA", "2026", "CATEGORIA2", "2025", "% CAMBIO"]]
-                    .style
-                    .set_properties(**{
-                        "border": "1px solid #e6eef7",
-                        "font-size": "13.5px",
-                        "padding": "6px"
-                    })
-                    .set_table_styles([
-                        {
-                            "selector": "th",
-                            "props": [
-                                ("background-color", "#163a5f"),
-                                ("color", "white"),
-                                ("font-weight", "bold"),
-                                ("text-align", "center"),
-                                ("border", "1px solid #d8e3f0"),
-                                ("padding", "8px")
-                            ]
-                        },
-                        {
-                            "selector": "td",
-                            "props": [
-                                ("border", "1px solid #e6eef7"),
-                                ("padding", "7px")
-                            ]
-                        }
-                    ]),
-                use_container_width=True,
-                hide_index=True,
+                .style
+                .hide(axis="index")
+                .apply(style_detalle_excel, axis=1)
+                .set_properties(**{
+                    "font-size": "14px",
+                    "padding": "4px",
+                    "border": "1px solid black"
+                })
+                .set_table_styles([
+                    {
+                        "selector": "th",
+                        "props": [
+                            ("background-color", "#073763"),
+                            ("color", "white"),
+                            ("font-weight", "bold"),
+                            ("text-align", "left"),
+                            ("border", "1px solid black")
+                        ]
+                    },
+                    {
+                        "selector": "td:nth-child(1)",
+                        "props": [("text-align", "left")]
+                    },
+                    {
+                        "selector": "td:nth-child(2)",
+                        "props": [("text-align", "left")]
+                    },
+                    {
+                        "selector": "td:nth-child(4)",
+                        "props": [("text-align", "left")]
+                    },
+                    {
+                        "selector": "td:nth-child(3)",
+                        "props": [("text-align", "right")]
+                    },
+                    {
+                        "selector": "td:nth-child(5)",
+                        "props": [("text-align", "right")]
+                    },
+                    {
+                        "selector": "td:nth-child(6)",
+                        "props": [("text-align", "right")]
+                    }
+                ])
             )
+
+            st.table(styled_detalle)
 
             df_excel_cuentas = df_pl.copy()
 
@@ -6278,38 +6487,61 @@ else:
                 st.markdown(f"{nombre_empresa} - ESCENARIO")
                 st.markdown('<div class="caption-blue">Miles MXN</div>', unsafe_allow_html=True)
 
-                st.dataframe(
+                filas_azules = [
+                    "INGRESO",
+                    "UTILIDAD BRUTA",
+                    "UTILIDAD OPERATIVA",
+                    "EBIT",
+                    "EBT",
+                    "EBITDA"
+                ]
+
+                def style_panel_excel(row):
+                    concepto = str(row.get("CONCEPTO", "")).upper().strip()
+
+                    if concepto in filas_azules:
+                        return [
+                            "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                        ] * len(row)
+
+                    return [
+                        "background-color:white; color:black; border:1px solid black;"
+                    ] * len(row)
+
+
+                styled_er = (
                     df_show[["CONCEPTO", "2026", "2025", "% CAMBIO"]]
-                        .style
-                        .set_properties(**{
-                            "border": "1px solid #e6eef7",
-                            "font-size": "14px",
-                            "padding": "6px"
-                        })
-                        .set_table_styles([
-                            {
-                                "selector": "th",
-                                "props": [
-                                    ("background-color", "#163a5f"),
-                                    ("color", "white"),
-                                    ("font-weight", "bold"),
-                                    ("text-align", "center"),
-                                    ("border", "1px solid #d8e3f0"),
-                                    ("padding", "8px")
-                                ]
-                            },
-                            {
-                                "selector": "td",
-                                "props": [
-                                    ("border", "1px solid #e6eef7"),
-                                    ("padding", "7px")
-                                ]
-                            }
-                        ]),
-                    use_container_width=True,
-                    hide_index=True,
+                    .style
+                    .hide(axis="index")
+                    .apply(style_panel_excel, axis=1)
+                    .set_properties(**{
+                        "font-size": "14px",
+                        "padding": "4px",
+                        "border": "1px solid black"
+                    })
+                    .set_table_styles([
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#073763"),
+                                ("color", "white"),
+                                ("font-weight", "bold"),
+                                ("text-align", "left"),
+                                ("border", "1px solid black")
+                            ]
+                        },
+                        {
+                            "selector": "td:nth-child(1)",
+                            "props": [("text-align", "left")]
+                        },
+                        {
+                            "selector": "td:nth-child(n+2)",
+                            "props": [("text-align", "right")]
+                        }
+                    ])
                 )
 
+                st.table(styled_er)
                 st.markdown("Detalle por Categoría")
 
                 df_cat = (
@@ -6412,11 +6644,86 @@ else:
                 df_detalle_show.loc[mask_pct, "2025"] = df_detalle_show.loc[mask_pct, "2025"].apply(_fmt_pct)
                 df_detalle_show.loc[mask_pct, "% CAMBIO"] = ""
 
-                st.dataframe(
-                    df_detalle_show[["SECCION", "CATEGORIA", "2026", "2025", "% CAMBIO"]],
-                    use_container_width=True,
-                    hide_index=True
+                filas_azules_detalle = [
+                    "INGRESO",
+                    "COSS",
+                    "UTILIDAD BRUTA",
+                    "% UB",
+                    "G.ADMN",
+                    "UTILIDAD OPERATIVA",
+                    "%UO",
+                    "OTROS INGRESOS",
+                    "EBIT",
+                    "% EBIT",
+                    "GASTO FINANCIERO",
+                    "INGRESO FINANCIERO",
+                    "EBT",
+                    "% EBT",
+                    "IMPUESTOS",
+                    "UTI.D. IMPUESTOS",
+                    "%UDI",
+                    "EBITDA"
+                ]
+
+                def style_detalle_excel(row):
+
+                    titulo = str(row.get("SECCION", "")).upper().strip()
+
+                    if titulo in filas_azules_detalle:
+                        return [
+                            "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                        ] * len(row)
+
+                    return [
+                        "background-color:white; color:black; border:1px solid black;"
+                    ] * len(row)
+
+
+                styled_detalle = (
+                    df_detalle_show[["SECCION", "CATEGORIA", "2026", "2025", "% CAMBIO"]]
+                    .style
+                    .hide(axis="index")
+                    .apply(style_detalle_excel, axis=1)
+                    .set_properties(**{
+                        "font-size": "14px",
+                        "padding": "4px",
+                        "border": "1px solid black"
+                    })
+                    .set_table_styles([
+                        {
+                            "selector": "th",
+                            "props": [
+                                ("background-color", "#073763"),
+                                ("color", "white"),
+                                ("font-weight", "bold"),
+                                ("text-align", "left"),
+                                ("border", "1px solid black")
+                            ]
+                        },
+                        {
+                            "selector": "td:nth-child(1)",
+                            "props": [("text-align", "left")]
+                        },
+                        {
+                            "selector": "td:nth-child(2)",
+                            "props": [("text-align", "left")]
+                        },
+                        {
+                            "selector": "td:nth-child(3)",
+                            "props": [("text-align", "right")]
+                        },
+                        {
+                            "selector": "td:nth-child(4)",
+                            "props": [("text-align", "right")]
+                        },
+                        {
+                            "selector": "td:nth-child(5)",
+                            "props": [("text-align", "right")]
+                        }
+                    ])
                 )
+
+                st.table(styled_detalle)
 
             if mostrar_acumulado:
                 df_acum = pd.concat(dict_empresas_df.values(), ignore_index=True)
@@ -6438,7 +6745,6 @@ else:
                         render_empresa(emp, dict_empresas_df[emp])
 
         tabla_escenarios_edr()
-
 
 
 
