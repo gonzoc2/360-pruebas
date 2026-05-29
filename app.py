@@ -4941,11 +4941,9 @@ else:
 
                 def style_er_empresa(row):
 
-                    if str(row["CONCEPTO"]).upper().strip() in [
-                        "INGRESO",
-                        "GASTO",
-                        "UTILIDAD"
-                    ]:
+                    concepto = str(row["CONCEPTO"]).upper().strip()
+
+                    if concepto in ["INGRESO", "GASTO", "UTILIDAD"]:
                         return [
                             "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
                         ] * len(row)
@@ -4972,6 +4970,23 @@ else:
                                 ("color", "white"),
                                 ("font-weight", "bold"),
                                 ("border", "1px solid black")
+                            ]
+                        },
+                        {
+                            "selector": ".row_heading",
+                            "props": [("display", "none")]
+                        },
+                        {
+                            "selector": ".blank",
+                            "props": [("display", "none")]
+                        },
+
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("padding", "7px"),
+                                ("border", "1px solid #e6eef7"),
+                                ("color", "#000000")
                             ]
                         }
                     ])
@@ -5079,6 +5094,23 @@ else:
                                     ("font-weight", "bold"),
                                     ("border", "1px solid black")
                                 ]
+                            },
+                            {
+                                "selector": ".row_heading",
+                                "props": [("display", "none")]
+                            },
+                            {
+                                "selector": ".blank",
+                                "props": [("display", "none")]
+                            },
+
+                            {
+                                "selector": "td",
+                                "props": [
+                                    ("padding", "7px"),
+                                    ("border", "1px solid #e6eef7"),
+                                    ("color", "#000000")
+                                ]
                             }
                         ])
                     )
@@ -5112,12 +5144,14 @@ else:
             st.markdown("### Resumen Consolidado")
             def style_resumen(row):
 
-                if str(row["Concepto"]).upper().startswith("TOTAL"):
+                concepto = str(row["Concepto"]).upper().strip()
+
+                if concepto.startswith("TOTAL"):
                     return [
                         "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
                     ] * len(row)
 
-                if str(row["Concepto"]).upper() == "DIFERENCIA":
+                if concepto == "DIFERENCIA":
                     return [
                         "background-color:#0b5394; color:white; font-weight:bold; border:1px solid black;"
                     ] * len(row)
@@ -5131,6 +5165,11 @@ else:
                 resumen_final.style
                 .hide(axis="index")
                 .apply(style_resumen, axis=1)
+                .set_properties(**{
+                    "font-size": "14px",
+                    "padding": "4px",
+                    "border": "1px solid black"
+                })
                 .set_table_styles([
                     {
                         "selector": "th",
@@ -5139,6 +5178,23 @@ else:
                             ("color", "white"),
                             ("font-weight", "bold"),
                             ("border", "1px solid black")
+                        ]
+                    },
+                    {
+                        "selector": ".row_heading",
+                        "props": [("display", "none")]
+                    },
+                    {
+                        "selector": ".blank",
+                        "props": [("display", "none")]
+                    },
+
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "7px"),
+                            ("border", "1px solid #e6eef7"),
+                            ("color", "#000000")
                         ]
                     }
                 ])
@@ -5337,8 +5393,8 @@ else:
                 }])
                 df_resultados_ly = pd.concat([df_resultados_ly, df_total_ly], ignore_index=True)
 
-            st.markdown("BALANCE GENERAL POR EMPRESA")
-            st.markdown("Estado de Resultados por Empresa")
+            st.markdown("### BALANCE GENERAL POR EMPRESA")
+            st.markdown("### Estado de Resultados por Empresa")
 
             df_resultados_format = df_resultados.copy()
 
@@ -5389,6 +5445,23 @@ else:
                     {
                         "selector": "td:nth-child(n+2)",
                         "props": [("text-align", "right")]
+                    },
+                    {
+                        "selector": ".row_heading",
+                        "props": [("display", "none")]
+                    },
+                    {
+                        "selector": ".blank",
+                        "props": [("display", "none")]
+                    },
+
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "7px"),
+                            ("border", "1px solid #e6eef7"),
+                            ("color", "#000000")
+                        ]
                     }
                 ])
             )
@@ -5600,12 +5673,12 @@ else:
 
                 return ["background:#ffffff; color:#000000;"] * len(row)
 
-            st.markdown(f'<div class="sub-pill">{empresa_sel}</div>', unsafe_allow_html=True)
+            st.markdown(f"## {empresa_sel}")
 
             styled_df = (
                 df_out_show[["SECCION", "CUENTA", "MONTO", "MONTO_LY", "% VARIACION"]]
                 .style
-                .hide_index()
+                .hide(axis="index")
                 .apply(estilo_reporte, axis=1)
                 .set_properties(**{
                     "border": "1px solid #e6eef7",
@@ -5624,6 +5697,23 @@ else:
                             ("padding", "8px")
                         ]
                     },
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "7px"),
+                            ("border", "1px solid #e6eef7"),
+                            ("color", "#000000")
+                        ]
+                    },
+                    {
+                        "selector": ".row_heading",
+                        "props": [("display", "none")]
+                    },
+                    {
+                        "selector": ".blank",
+                        "props": [("display", "none")]
+                    },
+
                     {
                         "selector": "td",
                         "props": [
@@ -5940,6 +6030,23 @@ else:
                     {
                         "selector": "td:nth-child(n+2)",
                         "props": [("text-align", "right")]
+                    },
+                    {
+                        "selector": ".row_heading",
+                        "props": [("display", "none")]
+                    },
+                    {
+                        "selector": ".blank",
+                        "props": [("display", "none")]
+                    },
+
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "7px"),
+                            ("border", "1px solid #e6eef7"),
+                            ("color", "#000000")
+                        ]
                     }
                 ])
             )
@@ -6080,20 +6187,15 @@ else:
             filas_azules_detalle = [
                 "INGRESO",
                 "UTILIDAD BRUTA",
-                "% UB",
                 "G.ADMN",
                 "UTILIDAD OPERATIVA",
-                "%UO",
                 "OTROS INGRESOS",
                 "EBIT",
-                "% EBIT",
                 "GASTO FINANCIERO",
                 "INGRESO FINANCIERO",
                 "EBT",
-                "% EBT",
                 "IMPUESTOS",
                 "UTI.D. IMPUESTOS",
-                "%UDI",
                 "EBITDA"
             ]
 
@@ -6155,6 +6257,23 @@ else:
                     {
                         "selector": "td:nth-child(6)",
                         "props": [("text-align", "right")]
+                    },
+                    {
+                        "selector": ".row_heading",
+                        "props": [("display", "none")]
+                    },
+                    {
+                        "selector": ".blank",
+                        "props": [("display", "none")]
+                    },
+
+                    {
+                        "selector": "td",
+                        "props": [
+                            ("padding", "7px"),
+                            ("border", "1px solid #e6eef7"),
+                            ("color", "#000000")
+                        ]
                     }
                 ])
             )
@@ -6493,6 +6612,7 @@ else:
                     "UTILIDAD OPERATIVA",
                     "EBIT",
                     "EBT",
+                    "Uti.D. impuestos",
                     "EBITDA"
                 ]
 
@@ -6537,12 +6657,29 @@ else:
                         {
                             "selector": "td:nth-child(n+2)",
                             "props": [("text-align", "right")]
+                        },
+                        {
+                            "selector": ".row_heading",
+                            "props": [("display", "none")]
+                        },
+                        {
+                            "selector": ".blank",
+                            "props": [("display", "none")]
+                        },
+
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("padding", "7px"),
+                                ("border", "1px solid #e6eef7"),
+                                ("color", "#000000")
+                            ]
                         }
                     ])
                 )
 
                 st.table(styled_er)
-                st.markdown("Detalle por Categoría")
+                st.markdown("### Detalle por Categoría")
 
                 df_cat = (
                     df_pl.groupby(["CLASIFICACION_A", "CATEGORIA_A"], as_index=False)[["2026", "2025"]]
@@ -6648,20 +6785,15 @@ else:
                     "INGRESO",
                     "COSS",
                     "UTILIDAD BRUTA",
-                    "% UB",
                     "G.ADMN",
                     "UTILIDAD OPERATIVA",
-                    "%UO",
                     "OTROS INGRESOS",
                     "EBIT",
-                    "% EBIT",
                     "GASTO FINANCIERO",
                     "INGRESO FINANCIERO",
                     "EBT",
-                    "% EBT",
                     "IMPUESTOS",
                     "UTI.D. IMPUESTOS",
-                    "%UDI",
                     "EBITDA"
                 ]
 
@@ -6719,6 +6851,23 @@ else:
                         {
                             "selector": "td:nth-child(5)",
                             "props": [("text-align", "right")]
+                        },
+                        {
+                            "selector": ".row_heading",
+                            "props": [("display", "none")]
+                        },
+                        {
+                            "selector": ".blank",
+                            "props": [("display", "none")]
+                        },
+
+                        {
+                            "selector": "td",
+                            "props": [
+                                ("padding", "7px"),
+                                ("border", "1px solid #e6eef7"),
+                                ("color", "#000000")
+                            ]
                         }
                     ])
                 )
@@ -6745,7 +6894,6 @@ else:
                         render_empresa(emp, dict_empresas_df[emp])
 
         tabla_escenarios_edr()
-
 
 
 
