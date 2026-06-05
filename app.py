@@ -6197,7 +6197,7 @@ else:
                 "INGRESO FINANCIERO",
                 "EBT",
                 "IMPUESTOS",
-                "UTILIDAD D.IMP.",
+                "Uti.D.impuestos",
                 "EBITDA"
             ]
 
@@ -6613,7 +6613,7 @@ else:
                     "UTILIDAD OPERATIVA",
                     "EBIT",
                     "EBT",
-                    "UTILIDAD D.IMP.",
+                    "Uti.D. impuestos",
                     "EBITDA"
                 ]
 
@@ -6793,7 +6793,7 @@ else:
                     "INGRESO FINANCIERO",
                     "EBT",
                     "IMPUESTOS",
-                    "UTILIDAD D.IMP.",
+                    "Uti.D. impuestos",
                     "EBITDA"
                 ]
 
