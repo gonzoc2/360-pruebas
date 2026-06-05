@@ -4942,16 +4942,20 @@ else:
                 def style_er_empresa(row):
 
                     concepto = str(row["CONCEPTO"]).upper().strip()
+                    estilos = []
 
-                    if concepto in ["INGRESO", "GASTO", "UTILIDAD"]:
-                        return [
-                            "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
-                        ] * len(row)
+                    for col in row.index:
 
-                    return [
-                        "background-color:white; color:black; border:1px solid black;"
-                    ] * len(row)
+                        if col == "CONCEPTO" and concepto in ["INGRESO", "GASTO", "UTILIDAD"]:
+                            estilos.append(
+                                "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                            )
+                        else:
+                            estilos.append(
+                                "background-color:white; color:black; border:1px solid black;"
+                            )
 
+                    return estilos
 
                 styled_er = (
                     df_resultados_t.style
@@ -5145,21 +5149,23 @@ else:
             def style_resumen(row):
 
                 concepto = str(row["Concepto"]).upper().strip()
+                estilos = []
 
-                if concepto.startswith("TOTAL"):
-                    return [
-                        "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
-                    ] * len(row)
+                for col in row.index:
 
-                if concepto == "DIFERENCIA":
-                    return [
-                        "background-color:#0b5394; color:white; font-weight:bold; border:1px solid black;"
-                    ] * len(row)
+                    if col == "Concepto" and (
+                        concepto.startswith("TOTAL")
+                        or concepto == "DIFERENCIA"
+                    ):
+                        estilos.append(
+                            "background-color:#073763; color:white; font-weight:bold; border:1px solid black;"
+                        )
+                    else:
+                        estilos.append(
+                            "background-color:white; color:black; border:1px solid black;"
+                        )
 
-                return [
-                    "background-color:white; color:black; border:1px solid black;"
-                ] * len(row)
-
+                return estilos
 
             styled_resumen = (
                 resumen_final.style
@@ -5459,8 +5465,7 @@ else:
                         "selector": "td",
                         "props": [
                             ("padding", "7px"),
-                            ("border", "1px solid #e6eef7"),
-                            ("color", "#000000")
+                            ("border", "1px solid #e6eef7")
                         ]
                     }
                 ])
@@ -5986,6 +5991,7 @@ else:
                 "UTILIDAD OPERATIVA",
                 "EBIT",
                 "EBT",
+                "Utilidad D.Imp.",
                 "EBITDA"
             ]
 
@@ -6044,8 +6050,7 @@ else:
                         "selector": "td",
                         "props": [
                             ("padding", "7px"),
-                            ("border", "1px solid #e6eef7"),
-                            ("color", "#000000")
+                            ("border", "1px solid #e6eef7")
                         ]
                     }
                 ])
@@ -6271,8 +6276,7 @@ else:
                         "selector": "td",
                         "props": [
                             ("padding", "7px"),
-                            ("border", "1px solid #e6eef7"),
-                            ("color", "#000000")
+                            ("border", "1px solid #e6eef7")
                         ]
                     }
                 ])
@@ -6671,8 +6675,7 @@ else:
                             "selector": "td",
                             "props": [
                                 ("padding", "7px"),
-                                ("border", "1px solid #e6eef7"),
-                                ("color", "#000000")
+                                ("border", "1px solid #e6eef7")
                             ]
                         }
                     ])
@@ -6865,8 +6868,7 @@ else:
                             "selector": "td",
                             "props": [
                                 ("padding", "7px"),
-                                ("border", "1px solid #e6eef7"),
-                                ("color", "#000000")
+                                ("border", "1px solid #e6eef7")
                             ]
                         }
                     ])
@@ -6894,7 +6896,6 @@ else:
                         render_empresa(emp, dict_empresas_df[emp])
 
         tabla_escenarios_edr()
-
 
 
 
