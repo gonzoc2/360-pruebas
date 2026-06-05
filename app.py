@@ -4989,8 +4989,7 @@ else:
                             "selector": "td",
                             "props": [
                                 ("padding", "7px"),
-                                ("border", "1px solid #e6eef7"),
-                                ("color", "#000000")
+                                ("border", "1px solid #e6eef7")
                             ]
                         }
                     ])
@@ -5112,8 +5111,7 @@ else:
                                 "selector": "td",
                                 "props": [
                                     ("padding", "7px"),
-                                    ("border", "1px solid #e6eef7"),
-                                    ("color", "#000000")
+                                    ("border", "1px solid #e6eef7")
                                 ]
                             }
                         ])
@@ -5199,8 +5197,7 @@ else:
                         "selector": "td",
                         "props": [
                             ("padding", "7px"),
-                            ("border", "1px solid #e6eef7"),
-                            ("color", "#000000")
+                            ("border", "1px solid #e6eef7")
                         ]
                     }
                 ])
@@ -5991,7 +5988,7 @@ else:
                 "UTILIDAD OPERATIVA",
                 "EBIT",
                 "EBT",
-                "Utilidad D.Imp.",
+                "UTILIDAD D.IMP.",
                 "EBITDA"
             ]
 
@@ -6164,7 +6161,7 @@ else:
 
             add_section(["IMPUESTOS"], "IMPUESTOS", imp_26, imp_25)
 
-            add_header("Uti.D. impuestos", udi_26, udi_25)
+            add_header("Uti.D.impuestos", udi_26, udi_25)
             add_header(
                 "%UDI",
                 (udi_26 / ing_26) if abs(ing_26) > 1e-9 else np.nan,
@@ -6616,7 +6613,7 @@ else:
                     "UTILIDAD OPERATIVA",
                     "EBIT",
                     "EBT",
-                    "Uti.D. impuestos",
+                    "UTILIDAD D.IMP.",
                     "EBITDA"
                 ]
 
