@@ -5988,7 +5988,7 @@ else:
                 "UTILIDAD OPERATIVA",
                 "EBIT",
                 "EBT",
-                "UTILIDAD D.IMP.",
+                "Utilidad D.Imp.",
                 "EBITDA"
             ]
 
@@ -6580,7 +6580,7 @@ else:
                     ("EBT", ebt_26, ebt_25, "money_bold"),
                     ("% EBT", (ebt_26 / ing_26 if abs(ing_26) > 1e-9 else None), (ebt_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
                     ("IMPUESTOS", imp_26, imp_25, "money"),
-                    ("Uti.D. impuestos", udi_26, udi_25, "money_bold"),
+                    ("Utilidad D.Imp.", udi_26, udi_25, "money_bold"),
                     ("%UDI", (udi_26 / ing_26 if abs(ing_26) > 1e-9 else None), (udi_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
                     ("EBITDA", ebitda_26, ebitda_25, "money_bold"),
                 ]
@@ -6613,7 +6613,7 @@ else:
                     "UTILIDAD OPERATIVA",
                     "EBIT",
                     "EBT",
-                    "Uti.D. impuestos",
+                    "Utilidad D.Imp.",
                     "EBITDA"
                 ]
 
@@ -6750,7 +6750,7 @@ else:
 
                 add_section(["IMPUESTOS"], "IMPUESTOS", imp_26, imp_25)
 
-                add_header("Uti.D. impuestos", udi_26, udi_25)
+                add_header("Utilidad D.Imp.", udi_26, udi_25)
                 add_header("%UDI", (udi_26 / ing_26) if abs(ing_26) > 1e-9 else np.nan, (udi_25 / ing_25) if abs(ing_25) > 1e-9 else np.nan, is_pct=True)
 
                 add_header("EBITDA", ebitda_26, ebitda_25)
@@ -6793,7 +6793,7 @@ else:
                     "INGRESO FINANCIERO",
                     "EBT",
                     "IMPUESTOS",
-                    "Uti.D. impuestos",
+                    "Utilidad D.Imp.",
                     "EBITDA"
                 ]
 
