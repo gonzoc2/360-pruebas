@@ -6332,7 +6332,7 @@ else:
                             df_tab,
                             gridOptions=gb.build(),
                             height=520,
-                            theme="alpine-dark",
+                            theme="alpine",
                             fit_columns_on_grid_load=True,
                             enable_enterprise_modules=True,
                             allow_unsafe_jscode=True,
