@@ -6594,7 +6594,7 @@ else:
                             gridOptions=gb.build(),
                             height=560,
                             theme="streamlit",
-                            fit_columns_on_grid_load=True,
+                            fit_columns_on_grid_load=False,
                             enable_enterprise_modules=True,
                             allow_unsafe_jscode=True,
                         )
@@ -6931,7 +6931,7 @@ else:
                     ("EBT", ebt_26, ebt_25, "money_bold"),
                     ("% EBT", (ebt_26 / ing_26 if abs(ing_26) > 1e-9 else None), (ebt_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
                     ("IMPUESTOS", imp_26, imp_25, "money"),
-                    ("Uti.D. impuestos", udi_26, udi_25, "money_bold"),
+                    ("UTILIDAD D.IMP.", udi_26, udi_25, "money_bold"),
                     ("%UDI", (udi_26 / ing_26 if abs(ing_26) > 1e-9 else None), (udi_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
                     ("EBITDA", ebitda_26, ebitda_25, "money_bold"),
                 ]
@@ -6964,7 +6964,7 @@ else:
                     "UTILIDAD OPERATIVA",
                     "EBIT",
                     "EBT",
-                    "Uti.D.impuestos",
+                    "UTILIDAD D.IMP.",
                     "EBITDA"
                 ]
 
@@ -7145,7 +7145,7 @@ else:
                     "INGRESO FINANCIERO",
                     "EBT",
                     "IMPUESTOS",
-                    "UTI.D. IMPUESTOS",
+                    "UTILIDAD D.IMP.",
                     "EBITDA"
                 ]
 
