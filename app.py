@@ -5938,11 +5938,29 @@ else:
 
             df_cta = df_26.merge(df_25, on="Cuenta", how="outer").fillna(0.0)
 
+            # Detectar columna descripción en el mapeo
+            col_desc_map = None
+            for c in ["Descripción", "Descripcion", "Cuenta_Nombre_A"]:
+                if c in df_map.columns:
+                    col_desc_map = c
+                    break
+
+            cols_map_merge = ["Cuenta", "CLASIFICACION_A", "CATEGORIA_A"]
+
+            if col_desc_map:
+                cols_map_merge.append(col_desc_map)
+
             df_pl = df_cta.merge(
-                df_map[["Cuenta", "CLASIFICACION_A", "CATEGORIA_A"]],
+                df_map[cols_map_merge],
                 on="Cuenta",
                 how="left",
             )
+
+            # Estandarizar descripción
+            if col_desc_map and col_desc_map in df_pl.columns:
+                df_pl = df_pl.rename(columns={col_desc_map: "Descripción"})
+            else:
+                df_pl["Descripción"] = df_pl["Cuenta"].astype(str)
 
             df_no_mapeadas = df_pl[df_pl["CLASIFICACION_A"].isna()].copy()
             df_pl = df_pl.dropna(subset=["CLASIFICACION_A"])
@@ -6142,204 +6160,6 @@ else:
             )
 
             st.table(styled_er)
-            st.markdown("### Detalle por Clasificación")
-
-            df_agrid = df_pl.copy()
-
-            df_agrid["CLASIFICACION_A"] = (
-                df_agrid["CLASIFICACION_A"]
-                .astype(str)
-                .str.upper()
-                .str.strip()
-            )
-
-            df_agrid["CATEGORIA_A"] = (
-                df_agrid["CATEGORIA_A"]
-                .astype(str)
-                .str.upper()
-                .str.strip()
-            )
-
-                # Descripción
-            if "Cuenta_Nombre_A" not in df_agrid.columns:
-                df_agrid["Cuenta_Nombre_A"] = df_agrid["Cuenta"].astype(str)
-
-                # Clasificaciones que aparecerán como ventanas
-            tabs_clasif = [
-                "INGRESO",
-                "COSS",
-                "G.ADMN",
-                "GASTOS FINANCIEROS",
-                "INGRESO FINANCIERO",
-            ]
-
-                # Homologar nombres por si vienen con variaciones
-            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_A"]
-
-            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_TAB"].replace({
-                "GASTO FIN": "GASTOS FINANCIEROS",
-                "GASTO FINANCIERO": "GASTOS FINANCIEROS",
-                "INGRESO FIN": "INGRESO FINANCIERO",
-            })
-
-            df_agrid = df_agrid[
-                df_agrid["CLASIFICACION_TAB"].isin(tabs_clasif)
-            ].copy()
-
-            if not df_agrid.empty:
-
-                df_agrid = (
-                    df_agrid
-                    .groupby(
-                        ["CLASIFICACION_TAB", "CATEGORIA_A", "Cuenta_Nombre_A"],
-                        as_index=False
-                    )[["2026", "2025"]]
-                    .sum()
-                )
-
-                df_agrid["% SOBRE INGRESO"] = np.where(
-                    abs(ing_26) > 1e-9,
-                    df_agrid["2026"] / ing_26,
-                    np.nan
-                )
-
-                df_agrid["% CAMBIO"] = np.where(
-                    df_agrid["2025"].abs() > 1e-9,
-                    (df_agrid["2026"] / df_agrid["2025"]) - 1,
-                    np.nan
-                )
-
-                tabs = st.tabs(tabs_clasif)
-
-                for tab, clasif in zip(tabs, tabs_clasif):
-                    with tab:
-                        st.markdown(f"#### Tabla {clasif}")
-
-                        df_tab = df_agrid[
-                            df_agrid["CLASIFICACION_TAB"] == clasif
-                        ].copy()
-
-                        if df_tab.empty:
-                            st.info(f"No hay datos para {clasif}.")
-                            continue
-
-                        df_tab = df_tab[
-                            [
-                                "CATEGORIA_A",
-                                "Cuenta_Nombre_A",
-                                "2026",
-                                "2025",
-                                "% SOBRE INGRESO",
-                                "% CAMBIO",
-                            ]
-                        ]
-
-                        gb = GridOptionsBuilder.from_dataframe(df_tab)
-
-                        gb.configure_default_column(
-                            sortable=True,
-                            filter=True,
-                            resizable=True,
-                            minWidth=120,
-                        )
-
-                        gb.configure_column(
-                            "CATEGORIA_A",
-                            header_name="Group",
-                            rowGroup=True,
-                            hide=True,
-                        )
-
-                        gb.configure_column(
-                            "Cuenta_Nombre_A",
-                            header_name="Cuenta_Nombre_A",
-                            minWidth=320,
-                        )
-
-                        gb.configure_column(
-                            "2026",
-                            header_name="2026",
-                            type=["numericColumn"],
-                            aggFunc="sum",
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : '$' + Number(value).toLocaleString('es-MX', {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0
-                                })
-                            """,
-                        )
-
-                        gb.configure_column(
-                            "2025",
-                            header_name="2025",
-                            type=["numericColumn"],
-                            aggFunc="sum",
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : '$' + Number(value).toLocaleString('es-MX', {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0
-                                })
-                            """,
-                        )
-
-                        gb.configure_column(
-                            "% SOBRE INGRESO",
-                            header_name="% sobre Ingreso",
-                            type=["numericColumn"],
-                            aggFunc="sum",
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : (Number(value) * 100).toLocaleString('es-MX', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                }) + '%'
-                            """,
-                        )
-
-                        gb.configure_column(
-                            "% CAMBIO",
-                            header_name="% Cambio",
-                            type=["numericColumn"],
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : (Number(value) * 100).toLocaleString('es-MX', {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0
-                                }) + '%'
-                            """,
-                        )
-
-                        gb.configure_grid_options(
-                            groupDefaultExpanded=1,
-                            animateRows=True,
-                            suppressAggFuncInHeader=True,
-                            autoGroupColumnDef={
-                                "headerName": "Group",
-                                "minWidth": 260,
-                                "cellRendererParams": {
-                                    "suppressCount": False
-                                },
-                            },
-                        )
-
-                        AgGrid(
-                            df_tab,
-                            gridOptions=gb.build(),
-                            height=520,
-                            theme="alpine",
-                            fit_columns_on_grid_load=True,
-                            enable_enterprise_modules=True,
-                            allow_unsafe_jscode=True,
-                        )
-
-            else:
-                st.info("No hay información para mostrar en el detalle AgGrid.")
 
             st.markdown("### Detalle por Categoría")
 
@@ -6566,6 +6386,228 @@ else:
             )
 
             st.table(styled_detalle)
+            st.markdown("### Detalle por Clasificación")
+
+            df_agrid = df_pl.copy()
+
+            df_agrid["CLASIFICACION_A"] = (
+                df_agrid["CLASIFICACION_A"]
+                .astype(str)
+                .str.upper()
+                .str.strip()
+            )
+
+            df_agrid["CATEGORIA_A"] = (
+                df_agrid["CATEGORIA_A"]
+                .astype(str)
+                .str.upper()
+                .str.strip()
+            )
+
+                # Descripción
+            if "Descripción" not in df_agrid.columns:
+                df_agrid["Descripción"] = df_agrid["Cuenta"].astype(str)
+
+                # Clasificaciones que aparecerán como ventanas
+            tabs_clasif = [
+                "INGRESO",
+                "COSS",
+                "G.ADMN",
+                "GASTOS FINANCIEROS",
+                "INGRESO FINANCIERO",
+            ]
+
+                # Homologar nombres por si vienen con variaciones
+            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_A"]
+
+            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_TAB"].replace({
+                "GASTO FIN": "GASTOS FINANCIEROS",
+                "GASTO FINANCIERO": "GASTOS FINANCIEROS",
+                "INGRESO FIN": "INGRESO FINANCIERO",
+            })
+
+            df_agrid = df_agrid[
+                df_agrid["CLASIFICACION_TAB"].isin(tabs_clasif)
+            ].copy()
+
+            if not df_agrid.empty:
+
+                df_agrid = (
+                    df_agrid
+                    .groupby(
+                        ["CLASIFICACION_TAB", "CATEGORIA_A", "Descripción"],
+                        as_index=False
+                    )[["2026", "2025"]]
+                    .sum()
+                )
+
+                df_agrid["% SOBRE INGRESO"] = np.where(
+                    abs(ing_26) > 1e-9,
+                    df_agrid["2026"] / ing_26,
+                    np.nan
+                )
+
+                df_agrid["% CAMBIO"] = np.where(
+                    df_agrid["2025"].abs() > 1e-9,
+                    (df_agrid["2026"] / df_agrid["2025"]) - 1,
+                    np.nan
+                )
+
+                tabs = st.tabs(tabs_clasif)
+
+                for tab, clasif in zip(tabs, tabs_clasif):
+                    with tab:
+                        st.markdown(f"#### Tabla {clasif}")
+
+                        df_tab = df_agrid[
+                            df_agrid["CLASIFICACION_TAB"] == clasif
+                        ].copy()
+
+                        if df_tab.empty:
+                            st.info(f"No hay datos para {clasif}.")
+                            continue
+
+                        df_tab = df_tab[
+                            [
+                                "CATEGORIA_A",
+                                "Descripción",
+                                "2026",
+                                "2025",
+                                "% SOBRE INGRESO",
+                                "% CAMBIO",
+                            ]
+                        ]
+
+                        gb = GridOptionsBuilder.from_dataframe(df_tab)
+
+                        gb.configure_default_column(
+                            sortable=True,
+                            filter=True,
+                            resizable=True,
+                            minWidth=120,
+                        )
+
+                        gb.configure_column(
+                            "CATEGORIA_A",
+                            header_name="Group",
+                            rowGroup=True,
+                            hide=True,
+                        )
+
+                        gb.configure_column(
+                            "Descripción",
+                            header_name="Descripción",
+                            minWidth=420,
+                            pinned="left",
+                            wrapText=True,
+                            autoHeight=True,
+                        )
+
+                        gb.configure_column(
+                            "2026",
+                            header_name="2026",
+                            type=["numericColumn"],
+                            aggFunc="sum",
+                            cellStyle={"textAlign": "right"},
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : '$ ' + Number(value).toLocaleString(
+                                    'es-MX',
+                                    {
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0
+                                    }
+                                )
+                            """
+                        )
+
+                        gb.configure_column(
+                            "2025",
+                            header_name="2025",
+                            type=["numericColumn"],
+                            aggFunc="sum",
+                            cellStyle={"textAlign": "right"},
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : '$ ' + Number(value).toLocaleString(
+                                    'es-MX',
+                                    {
+                                        minimumFractionDigits: 0,
+                                        maximumFractionDigits: 0
+                                    }
+                                )
+                            """
+                        )
+
+                        gb.configure_column(
+                            "% SOBRE INGRESO",
+                            header_name="% sobre Ingreso",
+                            type=["numericColumn"],
+                            cellStyle={"textAlign": "right"},
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : (Number(value) * 100).toLocaleString(
+                                    'es-MX',
+                                    {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2
+                                    }
+                                ) + '%'
+                            """
+                        )
+
+                        gb.configure_column(
+                            "% CAMBIO",
+                            header_name="% Cambio",
+                            type=["numericColumn"],
+                            cellStyle={"textAlign": "right"},
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : (Number(value) * 100).toLocaleString(
+                                    'es-MX',
+                                    {
+                                        minimumFractionDigits: 1,
+                                        maximumFractionDigits: 1
+                                    }
+                                ) + '%'
+                            """
+                        )
+
+                        gb.configure_grid_options(
+                            groupDefaultExpanded=1,
+                            animateRows=True,
+                            suppressAggFuncInHeader=True,
+                            rowHeight=34,
+                            headerHeight=38,
+                            enableCellTextSelection=True,
+                            suppressRowClickSelection=True,
+                            autoGroupColumnDef={
+                                "headerName": "Categoría",
+                                "minWidth": 280,
+                                "pinned": "left",
+                                "cellRendererParams": {
+                                    "suppressCount": False
+                                },
+                            },
+                        )
+
+                        AgGrid(
+                            df_tab,
+                            gridOptions=gb.build(),
+                            height=560,
+                            theme="streamlit",
+                            fit_columns_on_grid_load=True,
+                            enable_enterprise_modules=True,
+                            allow_unsafe_jscode=True,
+                        )
+
+            else:
+                st.info("No hay información para mostrar en el detalle AgGrid.")
+
 
             df_excel_cuentas = df_pl.copy()
 
@@ -6577,7 +6619,7 @@ else:
             )
 
             df_excel_cuentas = df_excel_cuentas[
-                ["Cuenta", "Descripción", "CLASIFICACION_A", "CATEGORIA_A", "2026", "2025"]
+                ["Cuenta","Descripción", "CLASIFICACION_A", "CATEGORIA_A", "2026", "2025"]
             ].copy()
 
             df_excel_cuentas["% CAMBIO"] = np.where(
@@ -6662,6 +6704,19 @@ else:
             df_map["Cuenta"] = df_map["Cuenta"].apply(limpiar_cuenta)
             df_map["CLASIFICACION_A"] = df_map["CLASIFICACION_A"].astype("string").str.upper().str.strip()
             df_map["CATEGORIA_A"] = df_map["CATEGORIA_A"].astype("string").str.upper().str.strip()
+
+            col_desc_map = None
+            for c in ["Descripción", "Descripcion", "Cuenta_Nombre_A"]:
+                if c in df_map.columns:
+                    col_desc_map = c
+                    break
+
+            if col_desc_map:
+                df_map[col_desc_map] = df_map[col_desc_map].astype("string").str.strip()
+                df_map = df_map.rename(columns={col_desc_map: "Descripción"})
+            else:
+                df_map["Descripción"] = df_map["Cuenta"].astype(str)
+
             df_map = df_map.dropna(subset=["CLASIFICACION_A", "CATEGORIA_A"])
             df_map = df_map[(df_map["CLASIFICACION_A"] != "") & (df_map["CATEGORIA_A"] != "")]
             df_map = df_map.drop_duplicates(subset=["Cuenta"])
@@ -6695,12 +6750,16 @@ else:
                 df_26 = prep(df_raw_26, col_cta_26, col_amt_26, "2026") if col_cta_26 and col_amt_26 and not df_raw_26.empty else pd.DataFrame(columns=["Cuenta", "2026"])
                 df_25 = prep(df_raw_25, col_cta_25, col_amt_25, "2025") if col_cta_25 and col_amt_25 and not df_raw_25.empty else pd.DataFrame(columns=["Cuenta", "2025"])
 
-                df_emp = df_26.merge(df_25, on="Cuenta", how="outer").fillna(0.0)
                 df_emp = df_emp.merge(
-                    df_map[["Cuenta", "CLASIFICACION_A", "CATEGORIA_A"]],
+                    df_map[["Cuenta", "Descripción", "CLASIFICACION_A", "CATEGORIA_A"]],
                     on="Cuenta",
                     how="left"
                 )
+
+                if "Descripción" not in df_emp.columns:
+                    df_emp["Descripción"] = df_emp["Cuenta"].astype(str)
+
+                df_emp["Descripción"] = df_emp["Descripción"].fillna(df_emp["Cuenta"].astype(str))
                 df_emp = df_emp.dropna(subset=["CLASIFICACION_A"]).copy()
 
                 mask_flip = df_emp["CLASIFICACION_A"].astype(str).str.upper().str.strip().isin(flip_clasif)
@@ -6866,7 +6925,7 @@ else:
                     ("EBT", ebt_26, ebt_25, "money_bold"),
                     ("% EBT", (ebt_26 / ing_26 if abs(ing_26) > 1e-9 else None), (ebt_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
                     ("IMPUESTOS", imp_26, imp_25, "money"),
-                    ("UTILIDAD D.IMP.", udi_26, udi_25, "money_bold"),
+                    ("Uti.D. impuestos", udi_26, udi_25, "money_bold"),
                     ("%UDI", (udi_26 / ing_26 if abs(ing_26) > 1e-9 else None), (udi_25 / ing_25 if abs(ing_25) > 1e-9 else None), "pct"),
                     ("EBITDA", ebitda_26, ebitda_25, "money_bold"),
                 ]
@@ -6899,7 +6958,7 @@ else:
                     "UTILIDAD OPERATIVA",
                     "EBIT",
                     "EBT",
-                    "UTILIDAD D.IMP.",
+                    "Uti.D.impuestos",
                     "EBITDA"
                 ]
 
@@ -6965,6 +7024,7 @@ else:
                 )
 
                 st.table(styled_er)
+
                 st.markdown("### Detalle por Categoría")
 
                 df_cat = (
@@ -7079,7 +7139,7 @@ else:
                     "INGRESO FINANCIERO",
                     "EBT",
                     "IMPUESTOS",
-                    "UTILIDAD D.IMP.",
+                    "UTI.D. IMPUESTOS",
                     "EBITDA"
                 ]
 
