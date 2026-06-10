@@ -6391,24 +6391,16 @@ else:
             df_agrid = df_pl.copy()
 
             df_agrid["CLASIFICACION_A"] = (
-                df_agrid["CLASIFICACION_A"]
-                .astype(str)
-                .str.upper()
-                .str.strip()
+                df_agrid["CLASIFICACION_A"].astype(str).str.upper().str.strip()
             )
 
             df_agrid["CATEGORIA_A"] = (
-                df_agrid["CATEGORIA_A"]
-                .astype(str)
-                .str.upper()
-                .str.strip()
+                df_agrid["CATEGORIA_A"].astype(str).str.upper().str.strip()
             )
 
-                # Descripción
             if "Descripción" not in df_agrid.columns:
                 df_agrid["Descripción"] = df_agrid["Cuenta"].astype(str)
 
-                # Clasificaciones que aparecerán como ventanas
             tabs_clasif = [
                 "INGRESO",
                 "COSS",
@@ -6417,10 +6409,7 @@ else:
                 "INGRESO FINANCIERO",
             ]
 
-                # Homologar nombres por si vienen con variaciones
-            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_A"]
-
-            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_TAB"].replace({
+            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_A"].replace({
                 "GASTO FIN": "GASTOS FINANCIEROS",
                 "GASTO FINANCIERO": "GASTOS FINANCIEROS",
                 "INGRESO FIN": "INGRESO FINANCIERO",
@@ -6441,15 +6430,17 @@ else:
                     .sum()
                 )
 
+                df_agrid["DIFERENCIA"] = df_agrid["2026"] - df_agrid["2025"]
+
                 df_agrid["% SOBRE INGRESO"] = np.where(
                     abs(ing_26) > 1e-9,
                     df_agrid["2026"] / ing_26,
                     np.nan
                 )
 
-                df_agrid["% CAMBIO"] = np.where(
-                    df_agrid["2025"].abs() > 1e-9,
-                    (df_agrid["2026"] / df_agrid["2025"]) - 1,
+                df_agrid["% SOBRE INGRESO LY"] = np.where(
+                    abs(ing_25) > 1e-9,
+                    df_agrid["2025"] / ing_25,
                     np.nan
                 )
 
@@ -6473,8 +6464,9 @@ else:
                                 "Descripción",
                                 "2026",
                                 "2025",
+                                "DIFERENCIA",
                                 "% SOBRE INGRESO",
-                                "% CAMBIO",
+                                "% SOBRE INGRESO LY",
                             ]
                         ]
 
@@ -6489,7 +6481,7 @@ else:
 
                         gb.configure_column(
                             "CATEGORIA_A",
-                            header_name="Group",
+                            header_name="Categoría",
                             rowGroup=True,
                             hide=True,
                         )
@@ -6497,16 +6489,14 @@ else:
                         gb.configure_column(
                             "Descripción",
                             header_name="Descripción",
-                            minWidth=420,
-                            pinned="left",
+                            minWidth=460,
                             wrapText=True,
                             autoHeight=True,
                         )
+
                         money_formatter = JsCode("""
                         function(params) {
-                            if (params.value == null || isNaN(params.value)) {
-                                return '';
-                            }
+                            if (params.value == null || isNaN(params.value)) return '';
                             return '$ ' + Number(params.value).toLocaleString('es-MX', {
                                 minimumFractionDigits: 0,
                                 maximumFractionDigits: 0
@@ -6514,26 +6504,12 @@ else:
                         }
                         """)
 
-                        pct_formatter_2 = JsCode("""
+                        pct_formatter = JsCode("""
                         function(params) {
-                            if (params.value == null || isNaN(params.value)) {
-                                return '';
-                            }
+                            if (params.value == null || isNaN(params.value)) return '';
                             return (Number(params.value) * 100).toLocaleString('es-MX', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2
-                            }) + '%';
-                        }
-                        """)
-
-                        pct_formatter_1 = JsCode("""
-                        function(params) {
-                            if (params.value == null || isNaN(params.value)) {
-                                return '';
-                            }
-                            return (Number(params.value) * 100).toLocaleString('es-MX', {
-                                minimumFractionDigits: 1,
-                                maximumFractionDigits: 1
                             }) + '%';
                         }
                         """)
@@ -6557,32 +6533,43 @@ else:
                         )
 
                         gb.configure_column(
-                            "% SOBRE INGRESO",
-                            header_name="% sobre Ingreso",
+                            "DIFERENCIA",
+                            header_name="Diferencia",
                             type=["numericColumn"],
+                            aggFunc="sum",
                             cellStyle={"textAlign": "right"},
-                            valueFormatter=pct_formatter_2,
+                            valueFormatter=money_formatter,
                         )
 
                         gb.configure_column(
-                            "% CAMBIO",
-                            header_name="% Cambio",
+                            "% SOBRE INGRESO",
+                            header_name="% sobre Ingreso",
                             type=["numericColumn"],
+                            aggFunc="sum",
                             cellStyle={"textAlign": "right"},
-                            valueFormatter=pct_formatter_1,
+                            valueFormatter=pct_formatter,
                         )
+
+                        gb.configure_column(
+                            "% SOBRE INGRESO LY",
+                            header_name="% sobre Ingreso LY",
+                            type=["numericColumn"],
+                            aggFunc="sum",
+                            cellStyle={"textAlign": "right"},
+                            valueFormatter=pct_formatter,
+                        )
+
                         gb.configure_grid_options(
-                            groupDefaultExpanded=1,
+                            groupDefaultExpanded=0,
                             animateRows=True,
                             suppressAggFuncInHeader=True,
-                            rowHeight=34,
-                            headerHeight=38,
+                            rowHeight=38,
+                            headerHeight=40,
                             enableCellTextSelection=True,
                             suppressRowClickSelection=True,
                             autoGroupColumnDef={
                                 "headerName": "Categoría",
-                                "minWidth": 280,
-                                "pinned": "left",
+                                "minWidth": 300,
                                 "cellRendererParams": {
                                     "suppressCount": False
                                 },
@@ -6601,8 +6588,6 @@ else:
 
             else:
                 st.info("No hay información para mostrar en el detalle AgGrid.")
-
-
             df_excel_cuentas = df_pl.copy()
 
             df_excel_cuentas["CLASIFICACION_A"] = (
