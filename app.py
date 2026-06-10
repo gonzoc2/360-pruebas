@@ -6489,9 +6489,9 @@ else:
                         gb.configure_column(
                             "Descripción",
                             header_name="Descripción",
-                            minWidth=460,
+                            width=280,
+                            maxWidth=350,
                             wrapText=True,
-                            autoHeight=True,
                         )
 
                         money_formatter = JsCode("""
