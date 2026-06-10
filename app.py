@@ -6502,6 +6502,41 @@ else:
                             wrapText=True,
                             autoHeight=True,
                         )
+                        money_formatter = JsCode("""
+                        function(params) {
+                            if (params.value == null || isNaN(params.value)) {
+                                return '';
+                            }
+                            return '$ ' + Number(params.value).toLocaleString('es-MX', {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0
+                            });
+                        }
+                        """)
+
+                        pct_formatter_2 = JsCode("""
+                        function(params) {
+                            if (params.value == null || isNaN(params.value)) {
+                                return '';
+                            }
+                            return (Number(params.value) * 100).toLocaleString('es-MX', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            }) + '%';
+                        }
+                        """)
+
+                        pct_formatter_1 = JsCode("""
+                        function(params) {
+                            if (params.value == null || isNaN(params.value)) {
+                                return '';
+                            }
+                            return (Number(params.value) * 100).toLocaleString('es-MX', {
+                                minimumFractionDigits: 1,
+                                maximumFractionDigits: 1
+                            }) + '%';
+                        }
+                        """)
 
                         gb.configure_column(
                             "2026",
@@ -6509,17 +6544,7 @@ else:
                             type=["numericColumn"],
                             aggFunc="sum",
                             cellStyle={"textAlign": "right"},
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : '$ ' + Number(value).toLocaleString(
-                                    'es-MX',
-                                    {
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0
-                                    }
-                                )
-                            """
+                            valueFormatter=money_formatter,
                         )
 
                         gb.configure_column(
@@ -6528,17 +6553,7 @@ else:
                             type=["numericColumn"],
                             aggFunc="sum",
                             cellStyle={"textAlign": "right"},
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : '$ ' + Number(value).toLocaleString(
-                                    'es-MX',
-                                    {
-                                        minimumFractionDigits: 0,
-                                        maximumFractionDigits: 0
-                                    }
-                                )
-                            """
+                            valueFormatter=money_formatter,
                         )
 
                         gb.configure_column(
@@ -6546,17 +6561,7 @@ else:
                             header_name="% sobre Ingreso",
                             type=["numericColumn"],
                             cellStyle={"textAlign": "right"},
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : (Number(value) * 100).toLocaleString(
-                                    'es-MX',
-                                    {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2
-                                    }
-                                ) + '%'
-                            """
+                            valueFormatter=pct_formatter_2,
                         )
 
                         gb.configure_column(
@@ -6564,19 +6569,8 @@ else:
                             header_name="% Cambio",
                             type=["numericColumn"],
                             cellStyle={"textAlign": "right"},
-                            valueFormatter="""
-                                value == null
-                                ? ''
-                                : (Number(value) * 100).toLocaleString(
-                                    'es-MX',
-                                    {
-                                        minimumFractionDigits: 1,
-                                        maximumFractionDigits: 1
-                                    }
-                                ) + '%'
-                            """
+                            valueFormatter=pct_formatter_1,
                         )
-
                         gb.configure_grid_options(
                             groupDefaultExpanded=1,
                             animateRows=True,
@@ -6750,8 +6744,17 @@ else:
                 df_26 = prep(df_raw_26, col_cta_26, col_amt_26, "2026") if col_cta_26 and col_amt_26 and not df_raw_26.empty else pd.DataFrame(columns=["Cuenta", "2026"])
                 df_25 = prep(df_raw_25, col_cta_25, col_amt_25, "2025") if col_cta_25 and col_amt_25 and not df_raw_25.empty else pd.DataFrame(columns=["Cuenta", "2025"])
 
+                df_emp = pd.merge(
+                    df_26,
+                    df_25,
+                    on="Cuenta",
+                    how="outer"
+                ).fillna(0)
+
                 df_emp = df_emp.merge(
-                    df_map[["Cuenta", "Descripción", "CLASIFICACION_A", "CATEGORIA_A"]],
+                    df_map[
+                        ["Cuenta", "Descripción", "CLASIFICACION_A", "CATEGORIA_A"]
+                    ],
                     on="Cuenta",
                     how="left"
                 )
@@ -6759,7 +6762,10 @@ else:
                 if "Descripción" not in df_emp.columns:
                     df_emp["Descripción"] = df_emp["Cuenta"].astype(str)
 
-                df_emp["Descripción"] = df_emp["Descripción"].fillna(df_emp["Cuenta"].astype(str))
+                df_emp["Descripción"] = (
+                    df_emp["Descripción"]
+                    .fillna(df_emp["Cuenta"].astype(str))
+                )
                 df_emp = df_emp.dropna(subset=["CLASIFICACION_A"]).copy()
 
                 mask_flip = df_emp["CLASIFICACION_A"].astype(str).str.upper().str.strip().isin(flip_clasif)
@@ -7239,8 +7245,6 @@ else:
                         render_empresa(emp, dict_empresas_df[emp])
 
         tabla_escenarios_edr()
-
-
 
 
 
