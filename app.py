@@ -4834,10 +4834,23 @@ else:
                     st.warning(f"⚠️ {empresa}: columnas inválidas (Cuenta / Saldo).")
                     continue
 
+                # Detectar columna descripción
+                col_desc = None
+                for c in ["Descripción", "Descripcion", "Cuenta_Nombre_A"]:
+                    if c in df.columns:
+                        col_desc = c
+                        break
+
                 df[col_cuenta] = df[col_cuenta].apply(limpiar_cuenta)
                 df[col_monto] = _to_numeric_money(df[col_monto])
                 df = df.dropna(subset=[col_cuenta])
-                df = df.groupby(col_cuenta, as_index=False)[col_monto].sum()
+
+                # Agrupar conservando descripción
+                if col_desc:
+                    df[col_desc] = df[col_desc].astype(str).str.strip()
+                    df = df.groupby([col_cuenta, col_desc], as_index=False)[col_monto].sum()
+                else:
+                    df = df.groupby(col_cuenta, as_index=False)[col_monto].sum()
 
                 df_merged = df.merge(
                     df_mapeo_local[["Cuenta", "CLASIFICACION", "CATEGORIA"]],
@@ -4846,15 +4859,32 @@ else:
                     how="left",
                 )
 
+                # Estandarizar nombre de descripción
+                if col_desc and col_desc in df_merged.columns:
+                    df_merged = df_merged.rename(columns={col_desc: "Descripción"})
+
                 df_merged["EN_MAPEO"] = df_merged["CLASIFICACION"].notna()
                 df_merged = autoclasificar_resultados(df_merged, col_cuenta)
 
                 no_mapeadas = df_merged[~df_merged["EN_MAPEO"]].copy()
                 if not no_mapeadas.empty:
                     no_mapeadas["EMPRESA"] = empresa
-                    cols_keep = [c for c in [col_cuenta, col_monto, "EMPRESA"] if c in no_mapeadas.columns]
+
+                    cols_keep = [col_cuenta]
+
+                    if "Descripción" in no_mapeadas.columns:
+                        cols_keep.append("Descripción")
+
+                    cols_keep += [col_monto, "EMPRESA"]
+                    cols_keep = [c for c in cols_keep if c in no_mapeadas.columns]
+
                     cuentas_no_mapeadas.append(
-                        no_mapeadas[cols_keep].rename(columns={col_cuenta: "Cuenta", col_monto: "Saldo"})
+                        no_mapeadas[cols_keep].rename(
+                            columns={
+                                col_cuenta: "Cuenta",
+                                col_monto: "Saldo"
+                            }
+                        )
                     )
 
                 df_merged = df_merged[~df_merged["CLASIFICACION"].isna()].copy()
@@ -5078,7 +5108,6 @@ else:
                             "background-color:white; color:black; border:1px solid black;"
                         ] * len(row)
 
-
                     styled_balance = (
                         df_balance_show.style
                         .hide(axis="index")
@@ -5121,7 +5150,6 @@ else:
 
                     if clasif == "CAPITAL" and utilidad_por_empresa:
                         st.markdown("La utilidad del ejercicio fue integrada y mostrada dentro del capital.")
-
 
             totales = {
                 c: df_final[df_final["CLASIFICACION"] == c]["TOTAL ACUMULADO"].sum()
@@ -5215,14 +5243,19 @@ else:
                 df_no_map = pd.concat(cuentas_no_mapeadas, ignore_index=True)
 
                 if "Saldo" in df_no_map.columns:
+                    group_cols_no_map = ["Cuenta"]
+
+                    if "Descripción" in df_no_map.columns:
+                        group_cols_no_map.append("Descripción")
+
                     df_no_map_res = (
-                        df_no_map.groupby("Cuenta", as_index=False)["Saldo"]
+                        df_no_map.groupby(group_cols_no_map, as_index=False)["Saldo"]
                         .sum()
                         .sort_values("Saldo", ascending=False)
                     )
 
                 st.markdown("### Detalle de cuentas no mapeadas")
-                cols_orden = [c for c in ["EMPRESA", "Cuenta", "Descripcion", "Saldo"] if c in df_no_map.columns]
+                cols_orden = [c for c in ["EMPRESA", "Cuenta", "Descripción", "Saldo"] if c in df_no_map.columns]
                 st.dataframe(
                     df_no_map[cols_orden].sort_values(cols_orden[:2]),
                     use_container_width=True,
@@ -5233,10 +5266,18 @@ else:
             with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
                 for empresa, df_emp in balances_detallados.items():
                     df_emp.to_excel(writer, index=False, sheet_name=empresa[:31])
+
                 df_final.to_excel(writer, index=False, sheet_name="Consolidado")
                 resumen_final.to_excel(writer, index=False, sheet_name="Resumen")
+
                 if not df_resultados.empty:
                     df_resultados.to_excel(writer, index=False, sheet_name="Resultados")
+
+                if cuentas_no_mapeadas:
+                    df_no_map[cols_orden].to_excel(writer, index=False, sheet_name="No_mapeadas")
+
+                    if "df_no_map_res" in locals():
+                        df_no_map_res.to_excel(writer, index=False, sheet_name="No_mapeadas_Resumen")
 
             st.download_button(
                 label="💾 Descargar Excel Consolidado",
@@ -5246,6 +5287,8 @@ else:
                 use_container_width=True
             )
             return
+
+
         tabla_balance_por_empresa()
 
     elif selected == "Balance por empresa":
@@ -5457,7 +5500,6 @@ else:
                         "selector": ".blank",
                         "props": [("display", "none")]
                     },
-
                     {
                         "selector": "td",
                         "props": [
@@ -5469,15 +5511,44 @@ else:
             )
 
             st.table(styled_er_empresa)
+
+            # =====================================================
+            # ACTUAL - CONSERVAR DESCRIPCIÓN
+            # =====================================================
+            col_desc = None
+            for c in ["Descripción", "Descripcion", "Cuenta_Nombre_A"]:
+                if c in df_emp.columns:
+                    col_desc = c
+                    break
+
             df_emp[col_cuenta] = df_emp[col_cuenta].apply(limpiar_cuenta)
             df_emp[col_monto] = _to_numeric_money(df_emp[col_monto])
             df_emp = df_emp.dropna(subset=[col_cuenta])
-            df_emp = df_emp.groupby(col_cuenta, as_index=False)[col_monto].sum()
+
+            if col_desc:
+                df_emp[col_desc] = df_emp[col_desc].astype(str).str.strip()
+                df_emp = df_emp.groupby([col_cuenta, col_desc], as_index=False)[col_monto].sum()
+            else:
+                df_emp = df_emp.groupby(col_cuenta, as_index=False)[col_monto].sum()
+
+            # =====================================================
+            # LY - CONSERVAR DESCRIPCIÓN
+            # =====================================================
+            col_desc_ly = None
+            for c in ["Descripción", "Descripcion", "Cuenta_Nombre_A"]:
+                if c in df_emp_ly.columns:
+                    col_desc_ly = c
+                    break
 
             df_emp_ly[col_cuenta_ly] = df_emp_ly[col_cuenta_ly].apply(limpiar_cuenta)
             df_emp_ly[col_monto_ly] = _to_numeric_money(df_emp_ly[col_monto_ly])
             df_emp_ly = df_emp_ly.dropna(subset=[col_cuenta_ly])
-            df_emp_ly = df_emp_ly.groupby(col_cuenta_ly, as_index=False)[col_monto_ly].sum()
+
+            if col_desc_ly:
+                df_emp_ly[col_desc_ly] = df_emp_ly[col_desc_ly].astype(str).str.strip()
+                df_emp_ly = df_emp_ly.groupby([col_cuenta_ly, col_desc_ly], as_index=False)[col_monto_ly].sum()
+            else:
+                df_emp_ly = df_emp_ly.groupby(col_cuenta_ly, as_index=False)[col_monto_ly].sum()
 
             df_merged = df_emp.merge(
                 df_mapeo_local[["Cuenta", "CLASIFICACION", "CATEGORIA"]],
@@ -5492,6 +5563,12 @@ else:
                 right_on="Cuenta",
                 how="left",
             )
+
+            if col_desc and col_desc in df_merged.columns:
+                df_merged = df_merged.rename(columns={col_desc: "Descripción"})
+
+            if col_desc_ly and col_desc_ly in df_merged_ly.columns:
+                df_merged_ly = df_merged_ly.rename(columns={col_desc_ly: "Descripción"})
 
             df_no_mapeadas = df_merged[df_merged["CLASIFICACION"].isna()].copy()
             df_ok = df_merged[~df_merged["CLASIFICACION"].isna()].copy()
@@ -5715,7 +5792,6 @@ else:
                         "selector": ".blank",
                         "props": [("display", "none")]
                     },
-
                     {
                         "selector": "td",
                         "props": [
@@ -5736,13 +5812,25 @@ else:
 
             if not df_no_mapeadas.empty:
                 st.markdown("## ⚠️ Cuentas NO mapeadas")
-                cols_show = [col_cuenta, col_monto]
+
+                cols_show = [col_cuenta]
+
+                if "Descripción" in df_no_mapeadas.columns:
+                    cols_show.append("Descripción")
+
+                cols_show.append(col_monto)
+
                 cols_show = [c for c in cols_show if c in df_no_mapeadas.columns]
+
                 df_nm = (
                     df_no_mapeadas[cols_show]
                     .copy()
-                    .rename(columns={col_cuenta: "Cuenta", col_monto: "Saldo"})
+                    .rename(columns={
+                        col_cuenta: "Cuenta",
+                        col_monto: "Saldo"
+                    })
                 )
+
                 st.dataframe(df_nm, use_container_width=True, hide_index=True)
 
             output = BytesIO()
@@ -5751,8 +5839,9 @@ else:
                 df_grp.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_agrupado")
                 df_ok_ly.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_detalle_LY")
                 df_grp_ly.to_excel(writer, index=False, sheet_name=f"{empresa_sel[:25]}_agrupado_LY")
+
                 if not df_no_mapeadas.empty:
-                    df_no_mapeadas.to_excel(writer, index=False, sheet_name="No_mapeadas")
+                    df_nm.to_excel(writer, index=False, sheet_name="No_mapeadas")
 
             nombre_archivo = (
                 "Balance_Acumulado_TODAS.xlsx"
@@ -5768,7 +5857,6 @@ else:
                 use_container_width=True
             )
             return
-
         tabla_balance_general_acumulado()
 
     elif selected == "E.R por empresa":
@@ -6054,6 +6142,204 @@ else:
             )
 
             st.table(styled_er)
+            st.markdown("### Detalle por Clasificación")
+
+            df_agrid = df_pl.copy()
+
+            df_agrid["CLASIFICACION_A"] = (
+                df_agrid["CLASIFICACION_A"]
+                .astype(str)
+                .str.upper()
+                .str.strip()
+            )
+
+            df_agrid["CATEGORIA_A"] = (
+                df_agrid["CATEGORIA_A"]
+                .astype(str)
+                .str.upper()
+                .str.strip()
+            )
+
+                # Descripción
+            if "Cuenta_Nombre_A" not in df_agrid.columns:
+                df_agrid["Cuenta_Nombre_A"] = df_agrid["Cuenta"].astype(str)
+
+                # Clasificaciones que aparecerán como ventanas
+            tabs_clasif = [
+                "INGRESO",
+                "COSS",
+                "G.ADMN",
+                "GASTOS FINANCIEROS",
+                "INGRESO FINANCIERO",
+            ]
+
+                # Homologar nombres por si vienen con variaciones
+            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_A"]
+
+            df_agrid["CLASIFICACION_TAB"] = df_agrid["CLASIFICACION_TAB"].replace({
+                "GASTO FIN": "GASTOS FINANCIEROS",
+                "GASTO FINANCIERO": "GASTOS FINANCIEROS",
+                "INGRESO FIN": "INGRESO FINANCIERO",
+            })
+
+            df_agrid = df_agrid[
+                df_agrid["CLASIFICACION_TAB"].isin(tabs_clasif)
+            ].copy()
+
+            if not df_agrid.empty:
+
+                df_agrid = (
+                    df_agrid
+                    .groupby(
+                        ["CLASIFICACION_TAB", "CATEGORIA_A", "Cuenta_Nombre_A"],
+                        as_index=False
+                    )[["2026", "2025"]]
+                    .sum()
+                )
+
+                df_agrid["% SOBRE INGRESO"] = np.where(
+                    abs(ing_26) > 1e-9,
+                    df_agrid["2026"] / ing_26,
+                    np.nan
+                )
+
+                df_agrid["% CAMBIO"] = np.where(
+                    df_agrid["2025"].abs() > 1e-9,
+                    (df_agrid["2026"] / df_agrid["2025"]) - 1,
+                    np.nan
+                )
+
+                tabs = st.tabs(tabs_clasif)
+
+                for tab, clasif in zip(tabs, tabs_clasif):
+                    with tab:
+                        st.markdown(f"#### Tabla {clasif}")
+
+                        df_tab = df_agrid[
+                            df_agrid["CLASIFICACION_TAB"] == clasif
+                        ].copy()
+
+                        if df_tab.empty:
+                            st.info(f"No hay datos para {clasif}.")
+                            continue
+
+                        df_tab = df_tab[
+                            [
+                                "CATEGORIA_A",
+                                "Cuenta_Nombre_A",
+                                "2026",
+                                "2025",
+                                "% SOBRE INGRESO",
+                                "% CAMBIO",
+                            ]
+                        ]
+
+                        gb = GridOptionsBuilder.from_dataframe(df_tab)
+
+                        gb.configure_default_column(
+                            sortable=True,
+                            filter=True,
+                            resizable=True,
+                            minWidth=120,
+                        )
+
+                        gb.configure_column(
+                            "CATEGORIA_A",
+                            header_name="Group",
+                            rowGroup=True,
+                            hide=True,
+                        )
+
+                        gb.configure_column(
+                            "Cuenta_Nombre_A",
+                            header_name="Cuenta_Nombre_A",
+                            minWidth=320,
+                        )
+
+                        gb.configure_column(
+                            "2026",
+                            header_name="2026",
+                            type=["numericColumn"],
+                            aggFunc="sum",
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : '$' + Number(value).toLocaleString('es-MX', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                })
+                            """,
+                        )
+
+                        gb.configure_column(
+                            "2025",
+                            header_name="2025",
+                            type=["numericColumn"],
+                            aggFunc="sum",
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : '$' + Number(value).toLocaleString('es-MX', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                })
+                            """,
+                        )
+
+                        gb.configure_column(
+                            "% SOBRE INGRESO",
+                            header_name="% sobre Ingreso",
+                            type=["numericColumn"],
+                            aggFunc="sum",
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : (Number(value) * 100).toLocaleString('es-MX', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                }) + '%'
+                            """,
+                        )
+
+                        gb.configure_column(
+                            "% CAMBIO",
+                            header_name="% Cambio",
+                            type=["numericColumn"],
+                            valueFormatter="""
+                                value == null
+                                ? ''
+                                : (Number(value) * 100).toLocaleString('es-MX', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                }) + '%'
+                            """,
+                        )
+
+                        gb.configure_grid_options(
+                            groupDefaultExpanded=1,
+                            animateRows=True,
+                            suppressAggFuncInHeader=True,
+                            autoGroupColumnDef={
+                                "headerName": "Group",
+                                "minWidth": 260,
+                                "cellRendererParams": {
+                                    "suppressCount": False
+                                },
+                            },
+                        )
+
+                        AgGrid(
+                            df_tab,
+                            gridOptions=gb.build(),
+                            height=520,
+                            theme="alpine-dark",
+                            fit_columns_on_grid_load=True,
+                            enable_enterprise_modules=True,
+                            allow_unsafe_jscode=True,
+                        )
+
+            else:
+                st.info("No hay información para mostrar en el detalle AgGrid.")
 
             st.markdown("### Detalle por Categoría")
 
@@ -6291,7 +6577,7 @@ else:
             )
 
             df_excel_cuentas = df_excel_cuentas[
-                ["Cuenta", "CLASIFICACION_A", "CATEGORIA_A", "2026", "2025"]
+                ["Cuenta", "Descripción", "CLASIFICACION_A", "CATEGORIA_A", "2026", "2025"]
             ].copy()
 
             df_excel_cuentas["% CAMBIO"] = np.where(
@@ -6875,7 +7161,7 @@ else:
 
             if mostrar_acumulado:
                 df_acum = pd.concat(dict_empresas_df.values(), ignore_index=True)
-                df_acum = df_acum.groupby(["Cuenta", "CLASIFICACION_A", "CATEGORIA_A"], as_index=False)[["2026", "2025"]].sum()
+                df_acum = df_acum.groupby(["Cuenta", "Descripción", "CLASIFICACION_A", "CATEGORIA_A"], as_index=False)[["2026", "2025"]].sum()
 
                 tabs_names = ["ACUMULADO"] + list(dict_empresas_df.keys())
                 tabs = st.tabs(tabs_names)
