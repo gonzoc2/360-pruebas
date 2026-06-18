@@ -4569,7 +4569,7 @@ else:
         
     elif selected == "Gastos por Empresa":
         ct("GASTO POR EMPRESA")
-        proyecto_codigo, proyecto_nombre = filtro_pro(st.columns(2)[0], df_2025)
+        proyecto_codigo, proyecto_nombre = filtro_pro
         empresas = [0, 10, 20, 30, 40, 50]
         nombre_empresas = [
             'ESGARI',
