@@ -4591,7 +4591,7 @@ else:
 
         emp, codigo_emp = filtro_emp(col1)
         meses = filtro_meses(col2, df_2025)
-        proyecto = filtro_pro(col3, df_2025)
+        proyecto = filtro_pro(col3)
 
         df_emp = df_2025[
             (df_2025["Mes_A"].isin(meses)) &
