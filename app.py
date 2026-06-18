@@ -4621,11 +4621,15 @@ else:
         # Reordenar columnas
         df_pivot = df_pivot[["Clasificacion_A", "Categoria_A", "Cuenta_Nombre_A"] + columnas_meses]
         # Añadir Total y Promedio al final
-        df_pivot["Total"] = df_pivot[columnas_meses].sum(axis=1)
-        df_pivot["Promedio"] = df_pivot[columnas_meses].mean(axis=1)
-        df_pivot["Total"] = df_pivot[meses].sum(axis=1)
-        df_pivot["Promedio"] = df_pivot[meses].mean(axis=1)
+        if columnas_meses:
+            df_pivot["Total"] = df_pivot[columnas_meses].sum(axis=1)
+            df_pivot["Promedio"] = df_pivot[columnas_meses].mean(axis=1)
+        else:
+            df_pivot["Total"] = 0
+            df_pivot["Promedio"] = 0
+                    
         gb = GridOptionsBuilder.from_dataframe(df_pivot)
+
         gb.configure_column("Clasificacion_A", rowGroup=True, hide=True)
         gb.configure_column("Categoria_A", rowGroup=True, hide=True)
         gb.configure_column("Cuenta_Nombre_A", pinned="left")
