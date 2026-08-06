@@ -4954,13 +4954,37 @@ else:
             horizontal=True,
         )
 
-        sensibilidad = col5.number_input(
-            "Sensibilidad",
-            min_value=0.0,
-            value=200000.0,
-            step=50000.0,
-            format="%.2f",
+        tipo_sensibilidad = col5.selectbox(
+            "Tipo de sensibilidad",
+            options=["Monto", "Porcentaje"],
+            index=0,
+            help=(
+                "Monto: modifica los gastos fijos por una cantidad nominal. "
+                "Porcentaje: modifica los gastos fijos por un porcentaje de su valor base."
+            ),
         )
+
+        if tipo_sensibilidad == "Monto":
+            sensibilidad_capturada = col5.number_input(
+                "Sensibilidad ($)",
+                min_value=0.0,
+                value=200000.0,
+                step=50000.0,
+                format="%.2f",
+                key="sensibilidad_monto_pe",
+            )
+            sensibilidad_porcentaje = 0.0
+        else:
+            sensibilidad_capturada = col5.number_input(
+                "Sensibilidad (%)",
+                min_value=0.0,
+                max_value=100.0,
+                value=5.0,
+                step=1.0,
+                format="%.1f",
+                key="sensibilidad_porcentaje_pe",
+            )
+            sensibilidad_porcentaje = sensibilidad_capturada / 100
 
         rentabilidad_objetivo = (
             col6.number_input(
@@ -5006,25 +5030,27 @@ else:
             margen_objetivo=0.0,
         ):
             """
-            Conserva los signos contables:
-            utilidad = ventas + variables + gastos fijos
-            variables = ventas * porcentaje_variable
+            Fórmula solicitada:
 
-            Para margen objetivo:
-            ventas * (1 + porcentaje_variable - margen_objetivo)
-            + gastos_fijos = 0
+            Ventas requeridas = Gastos fijos /
+            (1 - Variables + Margen objetivo)
+
+            Los signos originales se conservan en los datos, KPIs y
+            comparativas. Para presentar las ventas requeridas como un
+            importe positivo, la fórmula usa la magnitud de gastos fijos
+            y del porcentaje variable.
             """
             denominador = (
                 1
-                + porcentaje_variable_con_signo
-                - margen_objetivo
+                - abs(porcentaje_variable_con_signo)
+                + margen_objetivo
             )
 
-            if denominador == 0:
+            if denominador <= 0:
                 return np.nan
 
             return (
-                -gastos_fijos_con_signo
+                abs(gastos_fijos_con_signo)
                 / denominador
             )
 
@@ -5442,18 +5468,48 @@ else:
             else 0.0
         )
 
+        if tipo_sensibilidad == "Monto":
+            sensibilidad_monto = sensibilidad_capturada
+            etiqueta_incremento = f"+${sensibilidad_monto:,.0f}"
+            etiqueta_reduccion = f"-${sensibilidad_monto:,.0f}"
+            sensibilidad_texto = formato_moneda(sensibilidad_monto)
+        else:
+            sensibilidad_monto = (
+                abs(gastos_fijos_base)
+                * sensibilidad_porcentaje
+            )
+            etiqueta_incremento = f"+{sensibilidad_porcentaje:.1%}"
+            etiqueta_reduccion = f"-{sensibilidad_porcentaje:.1%}"
+            sensibilidad_texto = f"{sensibilidad_porcentaje:.1%}"
+
+        # La sensibilidad respeta el signo original del gasto fijo:
+        # incremento = se aleja de cero; reducción = se acerca a cero.
+        signo_gasto_fijo = (
+            -1.0 if gastos_fijos_base < 0 else 1.0
+        )
+
+        gastos_fijos_incremento = (
+            gastos_fijos_base
+            + signo_gasto_fijo * sensibilidad_monto
+        )
+
+        gastos_fijos_reduccion = (
+            gastos_fijos_base
+            - signo_gasto_fijo * sensibilidad_monto
+        )
+
         escenarios = [
             {
                 "ESCENARIO": "BASE",
                 "GASTOS FIJOS": gastos_fijos_base,
             },
             {
-                "ESCENARIO": f"+${sensibilidad:,.0f}",
-                "GASTOS FIJOS": gastos_fijos_base - sensibilidad,
+                "ESCENARIO": etiqueta_incremento,
+                "GASTOS FIJOS": gastos_fijos_incremento,
             },
             {
-                "ESCENARIO": f"-${sensibilidad:,.0f}",
-                "GASTOS FIJOS": gastos_fijos_base + sensibilidad,
+                "ESCENARIO": etiqueta_reduccion,
+                "GASTOS FIJOS": gastos_fijos_reduccion,
             },
         ]
 
@@ -5983,11 +6039,24 @@ else:
         estilo_fila_variacion_js = JsCode(
             """
             function(params) {
+                // Total general: azul grisáceo ejecutivo.
                 if (params.node.rowPinned) {
                     return {
-                        backgroundColor: '#fff59d',
+                        backgroundColor: '#DCE6F1',
+                        color: '#0F2742',
                         fontWeight: '700',
-                        borderTop: '1px solid #bdbdbd'
+                        borderTop: '2px solid #6B7F93'
+                    };
+                }
+
+                // Filas agrupadoras de Categoria_A.
+                if (params.node.group) {
+                    return {
+                        backgroundColor: '#EAF0F6',
+                        color: '#17324D',
+                        fontWeight: '700',
+                        borderTop: '1px solid #C5D2DF',
+                        borderBottom: '1px solid #C5D2DF'
                     };
                 }
 
@@ -5999,16 +6068,16 @@ else:
 
                 if (variacion > 0) {
                     return {
-                        backgroundColor: 'rgba(198,40,40,0.10)',
-                        color: '#c62828',
+                        backgroundColor: 'rgba(198,40,40,0.08)',
+                        color: '#9F1D1D',
                         fontWeight: '600'
                     };
                 }
 
                 if (variacion < 0) {
                     return {
-                        backgroundColor: 'rgba(7,136,63,0.10)',
-                        color: '#07883f',
+                        backgroundColor: 'rgba(7,136,63,0.08)',
+                        color: '#08783B',
                         fontWeight: '600'
                     };
                 }
@@ -6139,7 +6208,7 @@ else:
             )
 
             gb.configure_grid_options(
-                groupDefaultExpanded=1,
+                groupDefaultExpanded=0,
                 animateRows=True,
                 suppressAggFuncInHeader=True,
                 autoGroupColumnDef={
@@ -6282,7 +6351,7 @@ else:
         </div>
         <div class="pe-resumen-celda">
             <div class="pe-resumen-titulo">SENSIBILIDAD</div>
-            <div class="pe-resumen-valor">{formato_moneda(sensibilidad)}</div>
+            <div class="pe-resumen-valor">{sensibilidad_texto}</div>
         </div>
         <div class="pe-resumen-celda">
             <div class="pe-resumen-titulo">RENTABILIDAD ACTUAL</div>
@@ -6296,7 +6365,6 @@ else:
     """
 
         st.html(resumen_html)
-
 
 
 
