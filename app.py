@@ -5011,7 +5011,7 @@ else:
                     26
                 )
             ),
-            step=1.0,
+            step=1,
             key=f"dias_operativos_pe_{mes_actual}"
         )
 
