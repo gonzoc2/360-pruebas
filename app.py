@@ -6082,17 +6082,14 @@ else:
                         )
                     )
 
-                    # Solo mostrar proyectos con ingresos en el mes
-                    # actual o en al menos un mes comparativo.
-                    tiene_ingresos = (
+                    # Solo mostrar proyectos con ingreso en el mes de análisis.
+                    # Ejemplo: si se selecciona AGO, un proyecto sin ingreso
+                    # en AGO no aparece aunque haya tenido ingreso en meses previos.
+                    tiene_ingreso_mes_actual = (
                         abs(ingreso_p_actual) > 0.000001
-                        or any(
-                            abs(valor) > 0.000001
-                            for valor in ingresos_p.values()
-                        )
                     )
 
-                    if not tiene_ingresos:
+                    if not tiene_ingreso_mes_actual:
                         continue
 
                     oh_manual_actual_p = None
@@ -6650,14 +6647,32 @@ else:
                     - tabla[mes_lm]
                 )
 
-                tabla["VARIACION"] = np.where(
-                    tabla[mes_lm] != 0,
-                    (
-                        tabla[ultimo_mes]
-                        / tabla[mes_lm]
-                    )
-                    - 1,
-                    0.0,
+                denominador_lm = pd.to_numeric(
+                    tabla[mes_lm],
+                    errors="coerce",
+                ).fillna(0.0)
+
+                numerador_actual = pd.to_numeric(
+                    tabla[ultimo_mes],
+                    errors="coerce",
+                ).fillna(0.0)
+
+                tabla["VARIACION"] = 0.0
+                mascara_lm_valido = denominador_lm.abs() > 0.000001
+
+                tabla.loc[
+                    mascara_lm_valido,
+                    "VARIACION",
+                ] = (
+                    numerador_actual.loc[mascara_lm_valido]
+                    / denominador_lm.loc[mascara_lm_valido]
+                    - 1
+                )
+
+                tabla["VARIACION"] = (
+                    tabla["VARIACION"]
+                    .replace([np.inf, -np.inf], np.nan)
+                    .fillna(0.0)
                 )
             else:
                 tabla["DELTA"] = 0.0
@@ -7375,13 +7390,38 @@ else:
                 .copy()
             )
 
-            # Protección para st_aggrid 0.3.3 cuando la tabla no contiene
-            # importes reales (por ejemplo, intereses de WH en cero).
+            # Sanitizar el DataFrame antes de enviarlo a st_aggrid 0.3.3.
+            # Esta versión de AgGrid puede fallar al serializar NaN/inf,
+            # especialmente cuando el último mes tiene información parcial.
+            df_grid["CATEGORIA"] = (
+                df_grid["CATEGORIA"]
+                .fillna("")
+                .astype(str)
+            )
+            df_grid["CUENTA"] = (
+                df_grid["CUENTA"]
+                .fillna("")
+                .astype(str)
+            )
+
             columnas_numericas_grid = (
                 columnas_mes
                 + ["DELTA", "VARIACION"]
             )
 
+            for columna_num in columnas_numericas_grid:
+                df_grid[columna_num] = (
+                    pd.to_numeric(
+                        df_grid[columna_num],
+                        errors="coerce",
+                    )
+                    .replace([np.inf, -np.inf], np.nan)
+                    .fillna(0.0)
+                    .astype(float)
+                )
+
+            # Protección para st_aggrid 0.3.3 cuando la tabla no contiene
+            # importes reales (por ejemplo, intereses de WH en cero).
             tiene_datos_grid = (
                 df_grid[columnas_numericas_grid]
                 .apply(pd.to_numeric, errors="coerce")
@@ -7402,7 +7442,7 @@ else:
             }
 
             for mes in columnas_mes:
-                total_row[mes] = (
+                total_row[mes] = float(
                     df_grid[mes].sum()
                 )
 
@@ -7411,16 +7451,16 @@ else:
             )
 
             if mes_lm is not None and mes_lm in columnas_mes:
-                total_row["DELTA"] = (
+                total_row["DELTA"] = float(
                     total_row[ultimo_mes]
                     - total_row[mes_lm]
                 )
 
-                total_row["VARIACION"] = (
+                total_row["VARIACION"] = float(
                     total_row[ultimo_mes]
                     / total_row[mes_lm]
                     - 1
-                    if total_row[mes_lm] != 0
+                    if abs(total_row[mes_lm]) > 0.000001
                     else 0.0
                 )
             else:
@@ -7681,6 +7721,7 @@ else:
     """
 
         st.html(resumen_html)
+
 
 
 
