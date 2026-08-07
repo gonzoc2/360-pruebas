@@ -5011,7 +5011,7 @@ else:
             denominador = (
                 1
                 - abs(porcentaje_variable_con_signo)
-                + margen_objetivo
+                - margen_objetivo
             )
 
             if denominador <= 0:
@@ -5373,6 +5373,7 @@ else:
         else:
             ingreso_evaluacion = ingreso_periodo
         porcentaje_variable_calculado = (estructura_actual["VARIABLES %"])
+
         if modo_variable_actual == "Manual":
             variable_manual_pct = st.number_input(
                 f"Variables manual ({mes_actual}) %",
@@ -5392,16 +5393,15 @@ else:
 
             porcentaje_variable_total = (variable_manual_pct / 100)
         else:
-            porcentaje_variable_total = (porcentaje_variable_calculado)
 
-        porcentaje_variable_total = (estructura_actual["VARIABLES %"])
+            porcentaje_variable_total = (porcentaje_variable_calculado)
         gastos_fijos_base = (estructura_actual["GASTOS FIJOS"])
         costo_variable_evaluado = (ingreso_evaluacion * porcentaje_variable_total)
-
         utilidad_evaluada = (ingreso_evaluacion * (1 - porcentaje_variable_total) - gastos_fijos_base)
 
         rentabilidad_actual = (
-            utilidad_evaluada / ingreso_evaluacion
+            utilidad_evaluada
+            / ingreso_evaluacion
             if ingreso_evaluacion != 0
             else 0.0
         )
