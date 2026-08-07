@@ -4802,11 +4802,11 @@ else:
 
         st.markdown("## Punto de Equilibrio por Proyecto")
         categorias_variables = ["OTROS COSS", "CASETAS", "COMBUSTIBLE", "FLETES",]
-
         categorias_fijas_coss = ["NOMINA OPERADORES","COSTO OPERADORES","RENTA DE CONTENEDOR","RENTA DE REMOLQUES","AMORT ARRENDAMIENTO",]
-
         categoria_bono_km = "NOMINA OPERADORES"
         cuenta_bono_km = "BONO POR KM"
+        codigo_proyecto_wh = "7901"
+        categoria_variable_wh = "RENTA"
 
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic.",]
 
@@ -4826,26 +4826,9 @@ else:
         }
 
         df_pe = df_2025.copy()
-
-        columna_cuenta = (
-            "Cuenta_Nombre_A"
-            if "Cuenta_Nombre_A" in df_pe.columns
-            else "Cuenta_A"
-        )
-
-        columnas_requeridas = [
-            "Proyecto_A",
-            "Clasificacion_A",
-            "Categoria_A",
-            columna_cuenta,
-            "Mes_A",
-            "Neto_A",
-        ]
-
-        columnas_faltantes = [
-            c for c in columnas_requeridas
-            if c not in df_pe.columns
-        ]
+        columna_cuenta = ("Cuenta_Nombre_A" if "Cuenta_Nombre_A" in df_pe.columns else "Cuenta_A")
+        columnas_requeridas = ["Proyecto_A", "Clasificacion_A", "Categoria_A", columna_cuenta, "Mes_A", "Neto_A",]
+        columnas_faltantes = [c for c in columnas_requeridas if c not in df_pe.columns]
 
         if columnas_faltantes:
             st.error(
@@ -4854,12 +4837,7 @@ else:
             )
             st.stop()
 
-        for columna in [
-            "Proyecto_A",
-            "Clasificacion_A",
-            "Categoria_A",
-            columna_cuenta,
-        ]:
+        for columna in ["Proyecto_A", "Clasificacion_A", "Categoria_A", columna_cuenta,]:
             df_pe[columna] = (
                 df_pe[columna]
                 .fillna("")
@@ -4868,13 +4846,7 @@ else:
                 .str.strip()
             )
 
-        df_pe["Mes_A"] = (
-            df_pe["Mes_A"]
-            .fillna("")
-            .astype(str)
-            .str.lower()
-            .str.strip()
-        )
+        df_pe["Mes_A"] = (df_pe["Mes_A"].fillna("").astype(str).str.lower().str.strip())
 
         df_pe["Neto_A"] = pd.to_numeric(
             df_pe["Neto_A"],
@@ -4892,12 +4864,7 @@ else:
             )
         )
 
-        meses_disponibles = [
-            mes
-            for mes in meses_ordenados
-            if mes in df_pe["Mes_A"].unique()
-        ]
-
+        meses_disponibles = [mes for mes in meses_ordenados if mes in df_pe["Mes_A"].unique()]
         if not meses_disponibles:
             st.warning("No existen meses con información.")
             st.stop()
@@ -4923,10 +4890,7 @@ else:
         ]
 
         proyecto_codigo, proyecto_nombre = filtro_pro(col2)
-        proyecto_codigo = [
-            str(codigo).strip()
-            for codigo in proyecto_codigo
-        ]
+        proyecto_codigo = [str(codigo).strip()for codigo in proyecto_codigo]
 
         tipo_oh = col3.selectbox(
             "Tratamiento del OH",
@@ -5098,38 +5062,11 @@ else:
                 index=df.index,
             )
 
-        def ingreso_objetivo(
-            meses,
-            codigos,
-            nombre,
-        ):
-            return ingreso(
-                df_pe,
-                meses,
-                codigos,
-                nombre,
-            )
-
-        def participacion_objetivo(
-            mes,
-            codigos,
-            nombre,
-        ):
-            return porcentaje_ingresos(
-                df_pe,
-                [mes],
-                nombre,
-                codigos,
-            )
-
-        def importe_coss_tipo(
-            df,
-            meses,
-            codigos,
-            nombre,
-            tipo,
-            lista_proyectos_validos,
-        ):
+        def ingreso_objetivo(meses, codigos, nombre,):
+            return ingreso(df_pe, meses, codigos, nombre,)
+        def participacion_objetivo(mes, codigos, nombre,):
+            return porcentaje_ingresos(df_pe, [mes], nombre, codigos,)
+        def importe_coss_tipo(df, meses, codigos, nombre, tipo, lista_proyectos_validos,):
             total = 0.0
 
             for mes in meses:
@@ -5144,21 +5081,11 @@ else:
                         )
                     ]
 
-                    mascara = mascara_coss_tipo(
-                        df_mes,
-                        tipo,
-                    )
-
-                    importe_mes = df_mes.loc[
-                        mascara,
-                        "Neto_A",
-                    ].sum()
+                    mascara = mascara_coss_tipo(df_mes, tipo,)
+                    importe_mes = df_mes.loc[mascara, "Neto_A",].sum()
 
                 else:
-                    mascara = mascara_coss_tipo(
-                        df_mes,
-                        tipo,
-                    )
+                    mascara = mascara_coss_tipo(df_mes,tipo,)
 
                     importe_directo = df_mes.loc[
                         (
@@ -5196,21 +5123,13 @@ else:
                         * participacion
                     )
 
+
+
                 total += importe_mes
 
             return total
 
-        def importe_detalle_clasificacion(
-            df,
-            mes,
-            codigos,
-            nombre,
-            clasificacion,
-            categoria,
-            cuenta,
-            lista_proyectos_validos,
-            excluir_especiales_esgari=False,
-        ):
+        def importe_detalle_clasificacion(df,mes,codigos,nombre,clasificacion,categoria,cuenta,lista_proyectos_validos,excluir_especiales_esgari=False,):
             """
             Mantiene el signo original y asigna los importes
             sin proyecto dentro de su misma categoría/cuenta.
@@ -5227,16 +5146,9 @@ else:
                         )
                     ]
 
-                mascara = (
-                    df_mes["Clasificacion_A"].eq(
-                        clasificacion
-                    )
-                    & df_mes["Categoria_A"].eq(
-                        categoria
-                    )
-                    & df_mes[columna_cuenta].eq(
-                        cuenta
-                    )
+                mascara = (df_mes["Clasificacion_A"].eq(clasificacion)
+                    & df_mes["Categoria_A"].eq(categoria)
+                    & df_mes[columna_cuenta].eq(cuenta)
                 )
 
                 return df_mes.loc[
@@ -5245,15 +5157,9 @@ else:
                 ].sum()
 
             mascara = (
-                df_mes["Clasificacion_A"].eq(
-                    clasificacion
-                )
-                & df_mes["Categoria_A"].eq(
-                    categoria
-                )
-                & df_mes[columna_cuenta].eq(
-                    cuenta
-                )
+                df_mes["Clasificacion_A"].eq(clasificacion)
+                & df_mes["Categoria_A"].eq(categoria)
+                & df_mes[columna_cuenta].eq(cuenta)
             )
 
             importe_directo = df_mes.loc[
@@ -5290,75 +5196,186 @@ else:
                 * participacion
             )
 
-        def obtener_intereses_mes(
-            mes,
+        def objetivo_incluye_wh(
             codigos,
             nombre,
         ):
+            """
+            True únicamente cuando el análisis debe incluir la excepción WH:
+            - proyecto individual 7901
+            - consolidado ESGARI
+            """
+            codigos_txt = {
+                str(codigo).strip()
+                for codigo in codigos
+            }
+
+            return (
+                nombre == "ESGARI"
+                or codigo_proyecto_wh in codigos_txt
+            )
+
+
+        def importe_renta_wh_detalle_mes(
+            mes,
+            cuenta,
+        ):
+            """
+            Obtiene únicamente la porción de G.ADMN / RENTA atribuible a WH (7901)
+            para una cuenta específica.
+
+            Incluye:
+            - importe registrado directamente en 7901;
+            - participación de WH sobre importes RENTA sin proyecto válido.
+
+            Conserva el signo contable original.
+            """
             df_mes = df_pe[
                 df_pe["Mes_A"] == mes
             ].copy()
 
-            mascara = (
-                df_mes["Clasificacion_A"].eq(
-                    "GASTOS FINANCIEROS"
-                )
+            mascara_renta_cuenta = (
+                df_mes["Clasificacion_A"].eq("G.ADMN")
                 & df_mes["Categoria_A"].eq(
-                    "INTERESES"
+                    categoria_variable_wh
                 )
+                & df_mes[columna_cuenta].eq(cuenta)
             )
 
-            if nombre == "ESGARI":
-                return df_mes.loc[
-                    mascara,
-                    "Neto_A",
-                ].sum()
-
-            intereses_directos = df_mes.loc[
+            importe_directo_wh = df_mes.loc[
                 (
-                    df_mes["Proyecto_A"].isin(
-                        codigos
+                    df_mes["Proyecto_A"].eq(
+                        codigo_proyecto_wh
                     )
-                    & mascara
+                    & mascara_renta_cuenta
                 ),
                 "Neto_A",
             ].sum()
 
-            participacion = participacion_objetivo(
-                mes,
-                codigos,
-                nombre,
+            ingreso_wh_mes = ingreso_objetivo(
+                [mes],
+                [codigo_proyecto_wh],
+                codigo_proyecto_wh,
             )
 
-            intereses_sin_proyecto = (
-                df_mes.loc[
-                    (
-                        ~df_mes["Proyecto_A"].isin(
-                            lista_proyectos
-                        )
-                        & mascara
-                    ),
-                    "Neto_A",
-                ].sum()
+            ingreso_esgari_mes = ingreso_objetivo(
+                [mes],
+                proyecto_codigo,
+                "ESGARI",
             )
 
-            intereses_oh = df_mes.loc[
+            participacion_wh = (
+                ingreso_wh_mes / ingreso_esgari_mes
+                if ingreso_esgari_mes != 0
+                else 0.0
+            )
+
+            importe_sin_proyecto = df_mes.loc[
                 (
-                    df_mes["Proyecto_A"].isin(
-                        ["8002", "8003", "8004"]
+                    ~df_mes["Proyecto_A"].isin(
+                        lista_proyectos
                     )
-                    & mascara
+                    & mascara_renta_cuenta
                 ),
                 "Neto_A",
             ].sum()
 
             return (
-                intereses_directos
-                + intereses_sin_proyecto
-                * participacion
-                + intereses_oh
-                * participacion
+                importe_directo_wh
+                + importe_sin_proyecto
+                * participacion_wh
             )
+
+
+        def obtener_renta_wh_variable_mes(
+            mes,
+            codigos,
+            nombre,
+        ):
+            """
+            Total G.ADMN / RENTA que se reclasifica a VARIABLE únicamente para WH.
+            Para cualquier otro proyecto devuelve 0.
+            """
+            if not objetivo_incluye_wh(
+                codigos,
+                nombre,
+            ):
+                return 0.0
+
+            cuentas_renta = (
+                df_pe[
+                    (df_pe["Mes_A"] == mes)
+                    & df_pe["Clasificacion_A"].eq("G.ADMN")
+                    & df_pe["Categoria_A"].eq(
+                        categoria_variable_wh
+                    )
+                ][columna_cuenta]
+                .dropna()
+                .astype(str)
+                .str.upper()
+                .str.strip()
+                .unique()
+                .tolist()
+            )
+
+            return sum(
+                importe_renta_wh_detalle_mes(
+                    mes,
+                    cuenta,
+                )
+                for cuenta in cuentas_renta
+            )
+
+
+        def obtener_intereses_mes(
+            mes,
+            codigos,
+            nombre,
+        ):
+            """
+            Obtiene los intereses utilizando exactamente
+            la misma lógica que la tabla comparativa de intereses.
+
+            No realiza asignaciones adicionales de OH.
+            """
+
+            cuentas_intereses = (
+                df_pe[
+                    (df_pe["Mes_A"] == mes)
+                    & df_pe["Clasificacion_A"].eq(
+                        "GASTOS FINANCIEROS"
+                    )
+                    & df_pe["Categoria_A"].eq(
+                        "INTERESES"
+                    )
+                ][columna_cuenta]
+                .dropna()
+                .astype(str)
+                .str.upper()
+                .str.strip()
+                .unique()
+                .tolist()
+            )
+
+            total_intereses = 0.0
+
+            for cuenta in cuentas_intereses:
+
+                importe = importe_detalle_clasificacion(
+                    df=df_pe,
+                    mes=mes,
+                    codigos=codigos,
+                    nombre=nombre,
+                    clasificacion="GASTOS FINANCIEROS",
+                    categoria="INTERESES",
+                    cuenta=cuenta,
+                    lista_proyectos_validos=lista_proyectos,
+                    excluir_especiales_esgari=False,
+                )
+
+                total_intereses += importe
+
+            return total_intereses
 
         def obtener_estructura_mes(
             mes,
@@ -5413,6 +5430,18 @@ else:
                 nombre,
                 lista_proyectos,
             )
+            renta_wh_variable_mes = (
+                obtener_renta_wh_variable_mes(
+                    mes,
+                    codigos,
+                    nombre,
+                )
+            )
+
+            gadmn_fijo_mes = (
+                gadmn_mes
+                - renta_wh_variable_mes
+            )
 
             intereses_mes = obtener_intereses_mes(
                 mes,
@@ -5431,6 +5460,7 @@ else:
                 (
                     coss_variables_mes
                     + patio_mes
+                    + renta_wh_variable_mes
                 )
                 / ingreso_mes
                 if ingreso_mes != 0
@@ -5439,7 +5469,7 @@ else:
 
             gastos_fijos_sin_oh = (
                 coss_fijos_mes
-                + gadmn_mes
+                + gadmn_fijo_mes
                 + intereses_mes
             )
 
@@ -5779,10 +5809,6 @@ else:
         fila_promedio = {
             "ESCENARIO": (
                 "PROMEDIO "
-                + " / ".join(
-                    mes.upper()
-                    for mes in meses_seleccionados
-                )
             ),
             "VARIABLES": variable_promedio_periodo,
             "GASTOS FIJOS": fijos_promedio_periodo,
@@ -6371,10 +6397,6 @@ else:
                         .iloc[0]
                     )
 
-                    # ----------------------------------------------
-                    # VENTAS DIARIAS DEL PROYECTO
-                    # ----------------------------------------------
-
                     fila_diaria_p = {
                         "ESCENARIO": (
                             f"VENTAS DIARIAS "
@@ -6419,11 +6441,6 @@ else:
                     fila_promedio_p = {
                         "ESCENARIO": (
                             "PROMEDIO "
-                            + " / ".join(
-                                mes.upper()
-                                for mes
-                                in meses_seleccionados
-                            )
                         ),
                         "VARIABLES": (
                             variable_promedio_p
@@ -6510,17 +6527,12 @@ else:
 
                         nombre_expander = (
                             f"{resultado_p['PROYECTO']} "
-                            f"({resultado_p['CODIGO']})"
                         )
 
                         with st.expander(
                             nombre_expander,
                             expanded=False,
                         ):
-
-                            # --------------------------------------
-                            # RESUMEN DEL PROYECTO
-                            # --------------------------------------
 
                             (
                                 pkpi1,
@@ -6814,6 +6826,51 @@ else:
                     }
                 )
 
+            if objetivo_incluye_wh(
+                proyecto_codigo,
+                proyecto_nombre,
+            ):
+
+                cuentas_renta_wh = (
+                    df_pe[
+                        (df_pe["Mes_A"] == mes)
+                        & df_pe["Clasificacion_A"].eq("G.ADMN")
+                        & df_pe["Categoria_A"].eq(
+                            categoria_variable_wh
+                        )
+                    ][columna_cuenta]
+                    .dropna()
+                    .astype(str)
+                    .str.upper()
+                    .str.strip()
+                    .unique()
+                    .tolist()
+                )
+
+                for cuenta_renta_wh in cuentas_renta_wh:
+
+                    importe_renta_wh = (
+                        importe_renta_wh_detalle_mes(
+                            mes,
+                            cuenta_renta_wh,
+                        )
+                    )
+
+                    porcentaje_renta_wh = (
+                        importe_renta_wh / ingreso_mes
+                        if ingreso_mes != 0
+                        else 0.0
+                    )
+
+                    registros_variables.append(
+                        {
+                            "MES": mes,
+                            "CATEGORIA": categoria_variable_wh,
+                            "CUENTA": cuenta_renta_wh,
+                            "PORCENTAJE": porcentaje_renta_wh,
+                        }
+                    )
+
         df_variables_mensual = pd.DataFrame(
             registros_variables
         )
@@ -6974,6 +7031,29 @@ else:
                     )
                 )
 
+                # Excepción WH 7901:
+                # RENTA deja de ser gasto fijo únicamente para WH.
+                if (
+                    categoria == categoria_variable_wh
+                    and objetivo_incluye_wh(
+                        proyecto_codigo,
+                        proyecto_nombre,
+                    )
+                ):
+                    if proyecto_nombre == "ESGARI":
+                        # En consolidado, conservar RENTA de los demás proyectos
+                        # y retirar únicamente la porción correspondiente a WH.
+                        importe = (
+                            importe
+                            - importe_renta_wh_detalle_mes(
+                                mes,
+                                cuenta,
+                            )
+                        )
+                    else:
+                        # Proyecto individual WH: toda la RENTA pasa a variable.
+                        importe = 0.0
+
                 registros_gadmn.append(
                     {
                         "MES": mes,
@@ -6987,12 +7067,40 @@ else:
             registros_gadmn
         )
 
+        # Evitar mostrar cuentas RENTA totalmente en cero
+        # cuando el proyecto seleccionado es WH 7901.
+        if (
+            not df_gadmn_mensual.empty
+            and proyecto_nombre != "ESGARI"
+            and codigo_proyecto_wh
+            in {
+                str(codigo).strip()
+                for codigo in proyecto_codigo
+            }
+        ):
+            df_gadmn_mensual = (
+                df_gadmn_mensual[
+                    ~(
+                        df_gadmn_mensual[
+                            "CATEGORIA"
+                        ].eq(
+                            categoria_variable_wh
+                        )
+                        & df_gadmn_mensual[
+                            "IMPORTE"
+                        ].abs().lt(0.000001)
+                    )
+                ]
+                .copy()
+            )
+
         df_comparativa_gadmn = (
             construir_tabla_mes_a_mes(
                 df_gadmn_mensual,
                 "IMPORTE",
             )
         )
+
 
         catalogo_intereses = (
             df_pe[
@@ -7607,6 +7715,7 @@ else:
         </div>
     </div>
     """
+
         st.html(resumen_html)
 
 
