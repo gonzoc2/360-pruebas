@@ -4869,25 +4869,33 @@ else:
             st.warning("No existen meses con información.")
             st.stop()
 
-        mes_actual = meses_disponibles[-1]
+        ultimo_mes_disponible = meses_disponibles[-1]
         col1, col2, col3 = st.columns(3)
 
-        meses_seleccionados = col1.multiselect(
-            "Meses comparativos",
+        mes_actual = col1.selectbox(
+            "Mes de análisis",
             options=meses_disponibles,
-            default=[mes_actual],
+            index=len(meses_disponibles) - 1,
         )
 
-        if not meses_seleccionados:
-            st.warning("Selecciona al menos un mes.")
-            st.stop()
-
-        # Asegurar orden cronológico independientemente del orden de selección.
+        # Comparativas acumuladas: enero hasta el mes seleccionado.
+        indice_mes_actual = meses_ordenados.index(mes_actual)
         meses_seleccionados = [
             mes
-            for mes in meses_ordenados
-            if mes in meses_seleccionados
+            for mes in meses_ordenados[:indice_mes_actual + 1]
+            if mes in meses_disponibles
         ]
+
+        # Last Month (LM): mes calendario inmediatamente anterior.
+        if indice_mes_actual > 0:
+            mes_lm_teorico = meses_ordenados[indice_mes_actual - 1]
+            mes_lm = (
+                mes_lm_teorico
+                if mes_lm_teorico in meses_disponibles
+                else None
+            )
+        else:
+            mes_lm = None
 
         proyecto_codigo, proyecto_nombre = filtro_pro(col2)
         proyecto_codigo = [str(codigo).strip()for codigo in proyecto_codigo]
@@ -5333,12 +5341,10 @@ else:
             nombre,
         ):
             """
-            Obtiene los intereses utilizando exactamente
-            la misma lógica que la tabla comparativa de intereses.
-
-            No realiza asignaciones adicionales de OH.
+            Obtiene los intereses con exactamente la misma lógica de
+            asignación utilizada en la tabla comparativa de intereses.
+            No agrega una asignación adicional de OH.
             """
-
             cuentas_intereses = (
                 df_pe[
                     (df_pe["Mes_A"] == mes)
@@ -5360,8 +5366,7 @@ else:
             total_intereses = 0.0
 
             for cuenta in cuentas_intereses:
-
-                importe = importe_detalle_clasificacion(
+                total_intereses += importe_detalle_clasificacion(
                     df=df_pe,
                     mes=mes,
                     codigos=codigos,
@@ -5372,8 +5377,6 @@ else:
                     lista_proyectos_validos=lista_proyectos,
                     excluir_especiales_esgari=False,
                 )
-
-                total_intereses += importe
 
             return total_intereses
 
@@ -5511,6 +5514,7 @@ else:
                 "INGRESO": ingreso_mes,
                 "COSS VARIABLES": coss_variables_mes,
                 "PATIO": patio_mes,
+                "RENTA WH VARIABLE": renta_wh_variable_mes,
                 "COSS FIJOS": coss_fijos_mes,
                 "G.ADMN": gadmn_mes,
                 "INTERESES": intereses_mes,
@@ -5622,28 +5626,15 @@ else:
             else 0.0
         )
 
-        estructuras_periodo = [
-            obtener_estructura_mes(mes)
-            for mes in meses_seleccionados
-        ]
-
-        estructura_promedio_comparativo = (
-            promedio_estructuras(
-                estructuras_periodo
-            )
-        )
-
-        variable_promedio_periodo = (
-            estructura_promedio_comparativo[
-                "VARIABLES %"
-            ]
-        )
-
-        fijos_promedio_periodo = (
-            estructura_promedio_comparativo[
-                "GASTOS FIJOS"
-            ]
-        )
+        # Last Month para la tabla de sensibilidad.
+        if mes_lm is not None:
+            estructura_lm = obtener_estructura_mes(mes_lm)
+            variable_lm = estructura_lm["VARIABLES %"]
+            fijos_lm = estructura_lm["GASTOS FIJOS"]
+        else:
+            estructura_lm = None
+            variable_lm = np.nan
+            fijos_lm = np.nan
 
         if tipo_sensibilidad == "Monto":
             sensibilidad_monto = (
@@ -5804,49 +5795,45 @@ else:
             ignore_index=True,
         )
 
-        # La fila PROMEDIO MESES siempre refleja el filtro,
-        # aun cuando se seleccione un solo mes.
-        fila_promedio = {
-            "ESCENARIO": (
-                "PROMEDIO "
-            ),
-            "VARIABLES": variable_promedio_periodo,
-            "GASTOS FIJOS": fijos_promedio_periodo,
-            "VENTAS PE": calcular_ventas_requeridas(
-                fijos_promedio_periodo,
-                variable_promedio_periodo,
-                0.0,
-            ),
-            "VENTAS UT 5%": calcular_ventas_requeridas(
-                fijos_promedio_periodo,
-                variable_promedio_periodo,
-                0.05,
-            ),
-            "VENTAS UT 10%": calcular_ventas_requeridas(
-                fijos_promedio_periodo,
-                variable_promedio_periodo,
-                0.10,
-            ),
-        }
-
-        if columna_objetivo in df_resultados.columns:
-            fila_promedio[columna_objetivo] = (
-                calcular_ventas_requeridas(
-                    fijos_promedio_periodo,
-                    variable_promedio_periodo,
-                    rentabilidad_objetivo,
-                )
-            )
-
-        df_resultados = pd.concat(
-            [
-                df_resultados,
-                pd.DataFrame(
-                    [fila_promedio]
+        # Fila Last Month (LM) en la sensibilidad.
+        if mes_lm is not None:
+            fila_lm = {
+                "ESCENARIO": f"LM ({mes_lm.upper()})",
+                "VARIABLES": variable_lm,
+                "GASTOS FIJOS": fijos_lm,
+                "VENTAS PE": calcular_ventas_requeridas(
+                    fijos_lm,
+                    variable_lm,
+                    0.0,
                 ),
-            ],
-            ignore_index=True,
-        )
+                "VENTAS UT 5%": calcular_ventas_requeridas(
+                    fijos_lm,
+                    variable_lm,
+                    0.05,
+                ),
+                "VENTAS UT 10%": calcular_ventas_requeridas(
+                    fijos_lm,
+                    variable_lm,
+                    0.10,
+                ),
+            }
+
+            if columna_objetivo in df_resultados.columns:
+                fila_lm[columna_objetivo] = (
+                    calcular_ventas_requeridas(
+                        fijos_lm,
+                        variable_lm,
+                        rentabilidad_objetivo,
+                    )
+                )
+
+            df_resultados = pd.concat(
+                [
+                    df_resultados,
+                    pd.DataFrame([fila_lm]),
+                ],
+                ignore_index=True,
+            )
 
         punto_equilibrio_base = (
             fila_base["VENTAS PE"]
@@ -6169,70 +6156,48 @@ else:
                         else 0.0
                     )
 
-                    estructuras_p_periodo = []
-
-                    for mes in meses_seleccionados:
-
-                        ingreso_p_mes = (
-                            ingresos_p.get(
-                                mes,
-                                0.0,
-                            )
+                    # Last Month del proyecto para su tabla de sensibilidad.
+                    if mes_lm is not None:
+                        ingreso_p_lm = ingreso_objetivo(
+                            [mes_lm],
+                            codigos_p,
+                            nombre_p,
                         )
 
-                        oh_manual_mes_p = None
+                        oh_manual_lm_p = None
 
                         if tipo_oh == "OH manual":
-
-                            ingreso_total = (
-                                ingreso_total_mes.get(
-                                    mes,
-                                    0.0,
-                                )
+                            ingreso_total_lm = ingreso_total_mes.get(
+                                mes_lm,
+                                0.0,
                             )
 
-                            participacion_mes_p = (
-                                ingreso_p_mes
-                                / ingreso_total
-                                if ingreso_total != 0
+                            participacion_lm_p = (
+                                ingreso_p_lm / ingreso_total_lm
+                                if ingreso_total_lm != 0
                                 else 0.0
                             )
 
-                            oh_manual_mes_p = (
-                                oh_manual
-                                * participacion_mes_p
+                            oh_manual_lm_p = (
+                                oh_manual * participacion_lm_p
                             )
 
-                        estructura_p_mes = (
-                            obtener_estructura_mes(
-                                mes,
-                                codigos=codigos_p,
-                                nombre=nombre_p,
-                                oh_manual_asignado=(
-                                    oh_manual_mes_p
-                                ),
-                            )
+                        estructura_p_lm = obtener_estructura_mes(
+                            mes_lm,
+                            codigos=codigos_p,
+                            nombre=nombre_p,
+                            oh_manual_asignado=oh_manual_lm_p,
                         )
 
-                        estructuras_p_periodo.append(
-                            estructura_p_mes
-                        )
-
-                    prom_p = promedio_estructuras(
-                        estructuras_p_periodo
-                    )
-
-                    variable_promedio_p = (
-                        prom_p[
+                        variable_lm_p = estructura_p_lm[
                             "VARIABLES %"
                         ]
-                    )
-
-                    fijo_promedio_p = (
-                        prom_p[
+                        fijo_lm_p = estructura_p_lm[
                             "GASTOS FIJOS"
                         ]
-                    )
+                    else:
+                        variable_lm_p = np.nan
+                        fijo_lm_p = np.nan
 
                     if tipo_sensibilidad == "Monto":
 
@@ -6438,60 +6403,51 @@ else:
                             / dias_operativos_actual
                         )
 
-                    fila_promedio_p = {
-                        "ESCENARIO": (
-                            "PROMEDIO "
-                        ),
-                        "VARIABLES": (
-                            variable_promedio_p
-                        ),
-                        "GASTOS FIJOS": (
-                            fijo_promedio_p
-                        ),
-                        "VENTAS PE": (
-                            calcular_ventas_requeridas(
-                                fijo_promedio_p,
-                                variable_promedio_p,
+                    fila_lm_p = None
+
+                    if mes_lm is not None:
+                        fila_lm_p = {
+                            "ESCENARIO": f"LM ({mes_lm.upper()})",
+                            "VARIABLES": variable_lm_p,
+                            "GASTOS FIJOS": fijo_lm_p,
+                            "VENTAS PE": calcular_ventas_requeridas(
+                                fijo_lm_p,
+                                variable_lm_p,
                                 0.0,
-                            )
-                        ),
-                        "VENTAS UT 5%": (
-                            calcular_ventas_requeridas(
-                                fijo_promedio_p,
-                                variable_promedio_p,
+                            ),
+                            "VENTAS UT 5%": calcular_ventas_requeridas(
+                                fijo_lm_p,
+                                variable_lm_p,
                                 0.05,
-                            )
-                        ),
-                        "VENTAS UT 10%": (
-                            calcular_ventas_requeridas(
-                                fijo_promedio_p,
-                                variable_promedio_p,
+                            ),
+                            "VENTAS UT 10%": calcular_ventas_requeridas(
+                                fijo_lm_p,
+                                variable_lm_p,
                                 0.10,
-                            )
-                        ),
-                    }
+                            ),
+                        }
 
-                    if (columna_objetivo_p in df_sensibilidad_p.columns):
-
-                        fila_promedio_p[
+                        if (
                             columna_objetivo_p
-                        ] = (
-                            calcular_ventas_requeridas(
-                                fijo_promedio_p,
-                                variable_promedio_p,
-                                rentabilidad_objetivo,
+                            in df_sensibilidad_p.columns
+                        ):
+                            fila_lm_p[columna_objetivo_p] = (
+                                calcular_ventas_requeridas(
+                                    fijo_lm_p,
+                                    variable_lm_p,
+                                    rentabilidad_objetivo,
+                                )
                             )
-                        )
+
+                    filas_adicionales_p = [fila_diaria_p]
+
+                    if fila_lm_p is not None:
+                        filas_adicionales_p.append(fila_lm_p)
 
                     df_sensibilidad_p = pd.concat(
                         [
                             df_sensibilidad_p,
-                            pd.DataFrame(
-                                [
-                                    fila_diaria_p,
-                                    fila_promedio_p,
-                                ]
-                            ),
+                            pd.DataFrame(filas_adicionales_p),
                         ],
                         ignore_index=True,
                     )
@@ -6649,11 +6605,12 @@ else:
         ):
             """
             Devuelve:
-            CATEGORIA | CUENTA | ene. | feb. | ... | PROMEDIO
+            CATEGORIA | CUENTA | ene. | feb. | ... | mes seleccionado
             | DELTA | VARIACION
 
-            DELTA/VARIACION comparan el último mes seleccionado
-            contra el promedio de los meses seleccionados.
+            Las comparativas muestran el acumulado visual desde enero
+            hasta el mes seleccionado. DELTA y VARIACION comparan el
+            mes seleccionado contra su Last Month (LM).
             """
             if df_mensual.empty:
                 return pd.DataFrame()
@@ -6677,34 +6634,34 @@ else:
                 if mes in tabla.columns
             ]
 
+            if not meses_columnas:
+                return pd.DataFrame()
+
             tabla = tabla.reindex(
                 columns=meses_columnas,
                 fill_value=0.0,
             )
 
-            tabla["PROMEDIO"] = (
-                tabla[meses_columnas]
-                .mean(axis=1)
-            )
+            ultimo_mes = meses_columnas[-1]
 
-            ultimo_mes = (
-                meses_columnas[-1]
-            )
-
-            tabla["DELTA"] = (
-                tabla[ultimo_mes]
-                - tabla["PROMEDIO"]
-            )
-
-            tabla["VARIACION"] = np.where(
-                tabla["PROMEDIO"] != 0,
-                (
+            if mes_lm is not None and mes_lm in meses_columnas:
+                tabla["DELTA"] = (
                     tabla[ultimo_mes]
-                    / tabla["PROMEDIO"]
+                    - tabla[mes_lm]
                 )
-                - 1,
-                0.0,
-            )
+
+                tabla["VARIACION"] = np.where(
+                    tabla[mes_lm] != 0,
+                    (
+                        tabla[ultimo_mes]
+                        / tabla[mes_lm]
+                    )
+                    - 1,
+                    0.0,
+                )
+            else:
+                tabla["DELTA"] = 0.0
+                tabla["VARIACION"] = 0.0
 
             return tabla.reset_index()
 
@@ -7281,50 +7238,45 @@ else:
                     };
                 }
 
-                let promedio = null;
+                const meses = params.context.meses;
+                const mesLM = params.context.mes_lm;
+
+                if (!meses || meses.length === 0 || !mesLM) {
+                    if (params.node.group) {
+                        return {
+                            backgroundColor: '#f3f4f6',
+                            color: '#343a40',
+                            fontWeight: '700'
+                        };
+                    }
+                    return {};
+                }
+
+                const ultimoMes = meses[meses.length - 1];
                 let ultimo = null;
+                let anterior = null;
 
-                if (
-                    params.node.group &&
-                    params.node.aggData
-                ) {
-                    promedio =
-                        params.node.aggData.PROMEDIO;
-
-                    const meses = params.context.meses;
-                    const ultimoMes =
-                        meses[meses.length - 1];
-
-                    ultimo =
-                        params.node.aggData[ultimoMes];
-                }
-
-                else if (params.data) {
-                    promedio =
-                        params.data.PROMEDIO;
-
-                    const meses = params.context.meses;
-                    const ultimoMes =
-                        meses[meses.length - 1];
-
-                    ultimo =
-                        params.data[ultimoMes];
+                if (params.node.group && params.node.aggData) {
+                    ultimo = params.node.aggData[ultimoMes];
+                    anterior = params.node.aggData[mesLM];
+                } else if (params.data) {
+                    ultimo = params.data[ultimoMes];
+                    anterior = params.data[mesLM];
                 }
 
                 if (
-                    promedio === null ||
-                    promedio === undefined ||
+                    anterior === null ||
+                    anterior === undefined ||
                     ultimo === null ||
                     ultimo === undefined ||
-                    isNaN(promedio) ||
+                    isNaN(anterior) ||
                     isNaN(ultimo)
                 ) {
                     return {};
                 }
 
                 const diferenciaCosto =
-                    Math.abs(ultimo)
-                    - Math.abs(promedio);
+                    Math.abs(ultimo) - Math.abs(anterior);
 
                 if (diferenciaCosto > 0.000001) {
                     return {
@@ -7396,11 +7348,8 @@ else:
                 if mes in df_grid.columns
             ]
 
-            # Evitar mandar a AgGrid tablas sin meses
             if not columnas_mes:
-                st.info(
-                    "No hay información para mostrar."
-                )
+                st.info("No hay información para mostrar.")
                 return
 
             columnas_grid = (
@@ -7410,7 +7359,6 @@ else:
                 ]
                 + columnas_mes
                 + [
-                    "PROMEDIO",
                     "DELTA",
                     "VARIACION",
                 ]
@@ -7427,19 +7375,15 @@ else:
                 .copy()
             )
 
-            # NUEVO:
-            # evitar error de AgGrid cuando toda la tabla está en cero
-            columnas_numericas = (
+            # Protección para st_aggrid 0.3.3 cuando la tabla no contiene
+            # importes reales (por ejemplo, intereses de WH en cero).
+            columnas_numericas_grid = (
                 columnas_mes
-                + [
-                    "PROMEDIO",
-                    "DELTA",
-                    "VARIACION",
-                ]
+                + ["DELTA", "VARIACION"]
             )
 
-            tiene_datos = (
-                df_grid[columnas_numericas]
+            tiene_datos_grid = (
+                df_grid[columnas_numericas_grid]
                 .apply(pd.to_numeric, errors="coerce")
                 .fillna(0.0)
                 .abs()
@@ -7448,10 +7392,8 @@ else:
                 > 0.000001
             )
 
-            if not tiene_datos:
-                st.info(
-                    "No hay información para mostrar."
-                )
+            if not tiene_datos_grid:
+                st.info("No hay información para mostrar.")
                 return
 
             total_row = {
@@ -7459,32 +7401,31 @@ else:
                 "CUENTA": "TOTAL",
             }
 
-            # ... resto de tu código igual
             for mes in columnas_mes:
                 total_row[mes] = (
                     df_grid[mes].sum()
                 )
 
-            total_row["PROMEDIO"] = (
-                df_grid["PROMEDIO"].sum()
-            )
-
             ultimo_mes = (
                 columnas_mes[-1]
             )
 
-            total_row["DELTA"] = (
-                total_row[ultimo_mes]
-                - total_row["PROMEDIO"]
-            )
+            if mes_lm is not None and mes_lm in columnas_mes:
+                total_row["DELTA"] = (
+                    total_row[ultimo_mes]
+                    - total_row[mes_lm]
+                )
 
-            total_row["VARIACION"] = (
-                total_row[ultimo_mes]
-                / total_row["PROMEDIO"]
-                - 1
-                if total_row["PROMEDIO"] != 0
-                else 0.0
-            )
+                total_row["VARIACION"] = (
+                    total_row[ultimo_mes]
+                    / total_row[mes_lm]
+                    - 1
+                    if total_row[mes_lm] != 0
+                    else 0.0
+                )
+            else:
+                total_row["DELTA"] = 0.0
+                total_row["VARIACION"] = 0.0
 
             gb = (
                 GridOptionsBuilder
@@ -7527,23 +7468,10 @@ else:
                 )
 
             gb.configure_column(
-                "PROMEDIO",
-                header_name="Promedio",
-                valueFormatter=(
-                    formato_porcentaje_js
-                    if formato == "porcentaje"
-                    else formato_moneda_js
-                ),
-                aggFunc="sum",
-                type=["numericColumn"],
-                minWidth=150,
-            )
-
-            gb.configure_column(
                 "DELTA",
                 header_name=(
                     f"Δ {ultimo_mes.upper()} "
-                    "vs Prom."
+                    "vs LM"
                 ),
                 valueFormatter=(
                     formato_delta_pp_js
@@ -7557,7 +7485,7 @@ else:
 
             gb.configure_column(
                 "VARIACION",
-                header_name="Variación %",
+                header_name="Variación vs LM",
                 valueFormatter=formato_porcentaje_js,
                 type=["numericColumn"],
                 minWidth=145,
@@ -7568,7 +7496,8 @@ else:
                 animateRows=True,
                 suppressAggFuncInHeader=True,
                 context={
-                    "meses": columnas_mes
+                    "meses": columnas_mes,
+                    "mes_lm": mes_lm,
                 },
                 autoGroupColumnDef={
                     "headerName": "Categoría",
@@ -7752,6 +7681,7 @@ else:
     """
 
         st.html(resumen_html)
+
 
 
 
