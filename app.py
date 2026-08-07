@@ -4802,21 +4802,28 @@ else:
 
         st.markdown("## Punto de Equilibrio por Proyecto")
 
-        categorias_variables = [
-            "OTROS COSS",
-            "CASETAS",
-            "COMBUSTIBLE",
-            "FLETES",
-            "BONO POR KM",
-        ]
+        categorias_variables = ["OTROS COSS","CASETAS","COMBUSTIBLE","FLETES",]
+        categorias_fijas_coss = ["NOMINA OPERADORES","COSTO OPERADORES","RENTA DE CONTENEDOR","RENTA DE REMOLQUES","AMORT ARRENDAMIENTO",]
+        categoria_bono_km = "NOMINA OPERADORES"
+        cuenta_bono_km = "BONO POR KM"
 
-        categorias_fijas_coss = [
-            "NOMINA OPERADORES",
-            "COSTO OPERADORES",
-            "RENTA DE CONTENEDOR",
-            "RENTA DE REMOLQUES",
-            "AMORT ARRENDAMIENTO",
-        ]
+        def mascara_coss_tipo(df, tipo):
+            """
+            Separa COSS variable y fijo.
+            BONO POR KM:
+            Categoria_A = NOMINA OPERADORES
+            Cuenta = BONO POR KM
+            pero se considera VARIABLE.
+            """
+            mascara_coss = (df["Clasificacion_A"].eq("COSS"))
+            mascara_bono_km = (df["Categoria_A"].eq(categoria_bono_km) & df[columna_cuenta].eq(cuenta_bono_km))
+
+            if tipo == "VARIABLE":
+                return (mascara_coss & (df["Categoria_A"].isin(categorias_variables) | mascara_bono_km))
+
+            elif tipo == "FIJO":
+                return (mascara_coss & df["Categoria_A"].isin(categorias_fijas_coss) & ~mascara_bono_km)
+            return pd.Series(False,index=df.index)
 
         meses_ordenados = ["ene.", "feb.", "mar.", "abr.", "may.", "jun.", "jul.", "ago.", "sep.", "oct.", "nov.", "dic.",]
 
@@ -4836,23 +4843,9 @@ else:
         }
 
         df_pe = df_2025.copy()
-
         columna_cuenta = ("Cuenta_Nombre_A" if "Cuenta_Nombre_A" in df_pe.columns else "Cuenta_A")
-
-        columnas_requeridas = [
-            "Proyecto_A",
-            "Clasificacion_A",
-            "Categoria_A",
-            columna_cuenta,
-            "Mes_A",
-            "Neto_A",
-        ]
-
-        columnas_faltantes = [
-            columna
-            for columna in columnas_requeridas
-            if columna not in df_pe.columns
-        ]
+        columnas_requeridas = ["Proyecto_A","Clasificacion_A","Categoria_A",columna_cuenta,"Mes_A","Neto_A",]
+        columnas_faltantes = [columna for columna in columnas_requeridas if columna not in df_pe.columns]
 
         if columnas_faltantes:
             st.error(
@@ -4861,12 +4854,7 @@ else:
             )
             st.stop()
 
-        for columna in [
-            "Proyecto_A",
-            "Clasificacion_A",
-            "Categoria_A",
-            columna_cuenta,
-        ]:
+        for columna in ["Proyecto_A","Clasificacion_A","Categoria_A",columna_cuenta,]:
             df_pe[columna] = (
                 df_pe[columna]
                 .fillna("")
@@ -4875,29 +4863,10 @@ else:
                 .str.strip()
             )
 
-        df_pe["Mes_A"] = (
-            df_pe["Mes_A"]
-            .fillna("")
-            .astype(str)
-            .str.lower()
-            .str.strip()
-        )
+        df_pe["Mes_A"] = (df_pe["Mes_A"].fillna("").astype(str).str.lower().str.strip())
+        df_pe["Neto_A"] = pd.to_numeric(df_pe["Neto_A"],errors="coerce",).fillna(0.0)
 
-        df_pe["Neto_A"] = pd.to_numeric(
-            df_pe["Neto_A"],
-            errors="coerce",
-        ).fillna(0.0)
-
-        lista_proyectos = list(
-            set(
-                proyectos["proyectos"]
-                .dropna()
-                .astype(str)
-                .str.strip()
-                .tolist()
-                + ["8002", "8003", "8004"]
-            )
-        )
+        lista_proyectos = list(set(proyectos["proyectos"].dropna().astype(str).str.strip().tolist() + ["8002", "8003", "8004"]))
 
         meses_disponibles = [
             mes
@@ -4916,13 +4885,7 @@ else:
         meses_historicos = meses_disponibles[:-1]
 
         col1, col2, col3 = st.columns(3)
-
-        periodo_seleccionado = col1.selectbox(
-            "Periodo comparativo",
-            options=["LM", "Tres Meses", "YTD"],
-            index=0,
-        )
-
+        periodo_seleccionado = col1.selectbox("Periodo comparativo", options=["LM", "Tres Meses", "YTD"], index=0,)
         proyecto_codigo, proyecto_nombre = filtro_pro(col2)
         proyecto_codigo = [
             str(codigo).strip()
@@ -4946,7 +4909,7 @@ else:
             st.warning("No existen meses anteriores para el periodo elegido.")
             st.stop()
 
-        col4, col5, col6, col7 = st.columns(4)
+        col4, col5, col6, col7, col8 = st.columns(5)
 
         fuente_ingreso = col4.radio(
             "Ingreso para evaluación",
@@ -5008,6 +4971,15 @@ else:
             key=f"dias_operativos_pe_{mes_actual}",
         )
 
+        modo_variable_actual = col8.selectbox(
+            "Variables actual",
+            options=[
+                "Calculado",
+                "Manual"
+            ],
+            index=0,
+        )
+
         if tipo_oh == "OH manual":
             oh_manual = st.number_input(
                 f"OH manual ({mes_actual})",
@@ -5024,11 +4996,7 @@ else:
                 return "-"
             return f"${valor:,.2f}"
 
-        def calcular_ventas_requeridas(
-            gastos_fijos_con_signo,
-            porcentaje_variable_con_signo,
-            margen_objetivo=0.0,
-        ):
+        def calcular_ventas_requeridas(gastos_fijos_con_signo, porcentaje_variable_con_signo, margen_objetivo=0.0,):
             """
             Fórmula solicitada:
 
@@ -5049,45 +5017,20 @@ else:
             if denominador <= 0:
                 return np.nan
 
-            return (
-                abs(gastos_fijos_con_signo)
-                / denominador
-            )
+            return (abs(gastos_fijos_con_signo) / denominador)
 
         def obtener_ingreso(meses):
-            # Conserva el signo original.
-            return ingreso(
-                df_pe,
-                meses,
-                proyecto_codigo,
-                proyecto_nombre,
-            )
+            return ingreso(df_pe,meses,proyecto_codigo,proyecto_nombre,)
 
         def participacion_ingreso_mes(mes):
-            return porcentaje_ingresos(
-                df_pe,
-                [mes],
-                proyecto_nombre,
-                proyecto_codigo,
-            )
+            return porcentaje_ingresos(df_pe,[mes],proyecto_nombre,proyecto_codigo,)
 
-        def importe_coss_por_categoria(
-            df,
-            meses,
-            codigos_proyecto,
-            nombre_proyecto,
-            categorias,
-            lista_proyectos_validos,
-        ):
-            """
-            Conserva el signo original.
-            Los importes sin proyecto válido se distribuyen dentro
-            de su misma Categoria_A.
-            """
+        def importe_coss_tipo(df,meses,codigos_proyecto,nombre_proyecto,tipo,lista_proyectos_validos,):
             total = 0.0
-
             for mes in meses:
-                df_mes = df[df["Mes_A"] == mes].copy()
+                df_mes = df[
+                    df["Mes_A"] == mes
+                ].copy()
 
                 if nombre_proyecto == "ESGARI":
                     df_mes = df_mes[
@@ -5095,48 +5038,38 @@ else:
                             ["8002", "8003", "8004"]
                         )
                     ]
-
-                    importe_mes = df_mes.loc[
-                        (
-                            df_mes["Clasificacion_A"].eq("COSS")
-                            & df_mes["Categoria_A"].isin(categorias)
-                        ),
-                        "Neto_A",
-                    ].sum()
-
+                    mascara = mascara_coss_tipo(df_mes, tipo)
+                    importe_mes = df_mes.loc[mascara,"Neto_A"].sum()
                 else:
-                    mascara = (
-                        df_mes["Clasificacion_A"].eq("COSS")
-                        & df_mes["Categoria_A"].isin(categorias)
-                    )
-
+                    mascara = mascara_coss_tipo(df_mes, tipo)
                     importe_directo = df_mes.loc[
                         (
-                            df_mes["Proyecto_A"].isin(codigos_proyecto)
+                            df_mes["Proyecto_A"]
+                            .isin(codigos_proyecto)
                             & mascara
                         ),
-                        "Neto_A",
+                        "Neto_A"
                     ].sum()
 
-                    participacion = participacion_ingreso_mes(mes)
-
+                    participacion = (participacion_ingreso_mes(mes))
                     importe_sin_proyecto = df_mes.loc[
                         (
-                            ~df_mes["Proyecto_A"].isin(
-                                lista_proyectos_validos
-                            )
+                            ~df_mes["Proyecto_A"]
+                            .isin(lista_proyectos_validos)
                             & mascara
                         ),
-                        "Neto_A",
+                        "Neto_A"
                     ].sum()
 
                     importe_mes = (
                         importe_directo
-                        + importe_sin_proyecto * participacion
+                        + importe_sin_proyecto
+                        * participacion
                     )
 
                 total += importe_mes
 
+            # Mantiene signo original
             return total
 
         def importe_detalle_clasificacion(
@@ -5267,12 +5200,12 @@ else:
         def obtener_estructura_mes(mes):
             ingreso_mes = obtener_ingreso([mes])
 
-            coss_variables_mes = importe_coss_por_categoria(
+            coss_variables_mes = importe_coss_tipo(
                 df=df_pe,
                 meses=[mes],
                 codigos_proyecto=proyecto_codigo,
                 nombre_proyecto=proyecto_nombre,
-                categorias=categorias_variables,
+                tipo="VARIABLE",
                 lista_proyectos_validos=lista_proyectos,
             )
 
@@ -5284,12 +5217,12 @@ else:
                 proyecto_nombre,
             )
 
-            coss_fijos_mes = importe_coss_por_categoria(
+            coss_fijos_mes = importe_coss_tipo(
                 df=df_pe,
                 meses=[mes],
                 codigos_proyecto=proyecto_codigo,
                 nombre_proyecto=proyecto_nombre,
-                categorias=categorias_fijas_coss,
+                tipo="FIJO",
                 lista_proyectos_validos=lista_proyectos,
             )
 
@@ -5370,10 +5303,7 @@ else:
                 "GASTOS FIJOS": gastos_fijos,
             }
 
-        def construir_comparativa(
-            df_mensual,
-            columna_valor,
-        ):
+        def construir_comparativa(df_mensual, columna_valor,):
             promedio = (
                 df_mensual[
                     df_mensual["MES"].isin(meses_promedio)
@@ -5442,25 +5372,33 @@ else:
             )
         else:
             ingreso_evaluacion = ingreso_periodo
+        porcentaje_variable_calculado = (estructura_actual["VARIABLES %"])
+        if modo_variable_actual == "Manual":
+            variable_manual_pct = st.number_input(
+                f"Variables manual ({mes_actual}) %",
+                min_value=-100.0,
+                max_value=100.0,
+                value=float(
+                    porcentaje_variable_calculado * 100
+                ),
+                step=0.5,
+                format="%.2f",
+                key=(
+                    f"variable_manual_pe_"
+                    f"{proyecto_nombre}_"
+                    f"{mes_actual}"
+                ),
+            )
 
-        porcentaje_variable_total = (
-            estructura_actual["VARIABLES %"]
-        )
+            porcentaje_variable_total = (variable_manual_pct / 100)
+        else:
+            porcentaje_variable_total = (porcentaje_variable_calculado)
 
-        gastos_fijos_base = (
-            estructura_actual["GASTOS FIJOS"]
-        )
+        porcentaje_variable_total = (estructura_actual["VARIABLES %"])
+        gastos_fijos_base = (estructura_actual["GASTOS FIJOS"])
+        costo_variable_evaluado = (ingreso_evaluacion * porcentaje_variable_total)
 
-        costo_variable_evaluado = (
-            ingreso_evaluacion
-            * porcentaje_variable_total
-        )
-
-        utilidad_evaluada = (
-            ingreso_evaluacion
-            + costo_variable_evaluado
-            + gastos_fijos_base
-        )
+        utilidad_evaluada = (ingreso_evaluacion * (1 - porcentaje_variable_total) - gastos_fijos_base)
 
         rentabilidad_actual = (
             utilidad_evaluada / ingreso_evaluacion
@@ -5484,19 +5422,9 @@ else:
 
         # La sensibilidad respeta el signo original del gasto fijo:
         # incremento = se aleja de cero; reducción = se acerca a cero.
-        signo_gasto_fijo = (
-            -1.0 if gastos_fijos_base < 0 else 1.0
-        )
-
-        gastos_fijos_incremento = (
-            gastos_fijos_base
-            + signo_gasto_fijo * sensibilidad_monto
-        )
-
-        gastos_fijos_reduccion = (
-            gastos_fijos_base
-            - signo_gasto_fijo * sensibilidad_monto
-        )
+        signo_gasto_fijo = (-1.0 if gastos_fijos_base < 0 else 1.0)
+        gastos_fijos_incremento = (gastos_fijos_base + signo_gasto_fijo * sensibilidad_monto)
+        gastos_fijos_reduccion = (gastos_fijos_base - signo_gasto_fijo * sensibilidad_monto)
 
         escenarios = [
             {
@@ -5579,7 +5507,7 @@ else:
                 fila_base["VENTAS UT 10%"]
                 / dias_operativos_actual
             ),
-        }
+        } 
 
         columna_objetivo = (
             f"VENTAS UT {rentabilidad_objetivo:.0%}"
@@ -5599,54 +5527,125 @@ else:
             ignore_index=True,
         )
 
+        estructuras_periodo = [
+            obtener_estructura_mes(mes)
+            for mes in meses_promedio
+        ]
+
+        if estructuras_periodo:
+            variable_promedio_periodo = np.mean(
+                [
+                    estructura["VARIABLES %"]
+                    for estructura in estructuras_periodo
+                ]
+            )
+
+            fijos_promedio_periodo = np.mean(
+                [
+                    estructura["GASTOS FIJOS"]
+                    for estructura in estructuras_periodo
+                ]
+            )
+
+        else:
+
+            variable_promedio_periodo = np.nan
+            fijos_promedio_periodo = np.nan
+
+        nombre_periodo = {
+            "LM": "LM",
+            "Tres Meses": "TRES MESES",
+            "YTD": "YTD",
+        }.get(
+            periodo_seleccionado,
+            periodo_seleccionado
+        )
+
+        fila_periodo = {
+            "ESCENARIO": nombre_periodo,
+            "VARIABLES": variable_promedio_periodo,
+            "GASTOS FIJOS": fijos_promedio_periodo,
+            "VENTAS PE":
+                calcular_ventas_requeridas(
+                    fijos_promedio_periodo,
+                    variable_promedio_periodo,
+                    0.0,
+                ),
+
+            "VENTAS UT 5%":
+                calcular_ventas_requeridas(
+                    fijos_promedio_periodo,
+                    variable_promedio_periodo,
+                    0.05,
+                ),
+
+            "VENTAS UT 10%":
+                calcular_ventas_requeridas(
+                    fijos_promedio_periodo,
+                    variable_promedio_periodo,
+                    0.10,
+                ),
+        }
+
+        columna_objetivo = (
+            f"VENTAS UT {rentabilidad_objetivo:.0%}"
+        )
+
+        if columna_objetivo in df_resultados.columns:
+
+            fila_periodo[
+                columna_objetivo
+            ] = calcular_ventas_requeridas(
+                fijos_promedio_periodo,
+                variable_promedio_periodo,
+                rentabilidad_objetivo,
+            )
+
+        df_resultados = pd.concat(
+            [
+                df_resultados,
+                pd.DataFrame(
+                    [fila_periodo]
+                ),
+            ],
+            ignore_index=True,
+        )
+
         punto_equilibrio_base = fila_base["VENTAS PE"]
-
-        diferencia_pe = (
-            ingreso_evaluacion
-            - punto_equilibrio_base
-        )
-
-        margen_seguridad = (
-            diferencia_pe / ingreso_evaluacion
-            if ingreso_evaluacion != 0
-            else 0.0
-        )
+        diferencia_pe = (ingreso_evaluacion - punto_equilibrio_base)
+        margen_seguridad = (diferencia_pe / ingreso_evaluacion if ingreso_evaluacion != 0 else 0.0)
 
         st.markdown("### Resumen del análisis")
 
         kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = st.columns(6)
+        kpi1.metric(f"Ingreso evaluado ({mes_actual})", formato_moneda(ingreso_evaluacion),)
+        if modo_variable_actual == "Manual":
+            delta_variable_manual = (porcentaje_variable_total - porcentaje_variable_calculado)
+            kpi2.metric(
+                "Costos variables",
+                f"{porcentaje_variable_total:.1%}",
+                delta=(
+                    f"{delta_variable_manual:+.1%} "
+                    f"vs calculado"
+                ),
+                help=(
+                    f"Calculado: "
+                    f"{porcentaje_variable_calculado:.2%}"
+                ),
+            )
 
-        kpi1.metric(
-            f"Ingreso evaluado ({mes_actual})",
-            formato_moneda(ingreso_evaluacion),
-        )
-
-        kpi2.metric(
-            "Costos variables",
-            f"{porcentaje_variable_total:.1%}",
-            help=formato_moneda(costo_variable_evaluado),
-        )
-
-        kpi3.metric(
-            "Gastos fijos",
-            formato_moneda(gastos_fijos_base),
-        )
-
-        kpi4.metric(
-            "OH utilizado",
-            formato_moneda(estructura_actual["OH"]),
-            help=tipo_oh,
-        )
-
-        kpi5.metric(
-            "Punto de equilibrio",
-            formato_moneda(punto_equilibrio_base),
-        )
-
-        kpi6.metric(
-            "Rentabilidad",
-            f"{rentabilidad_actual:.1%}",
-        )
+        else:
+            kpi2.metric(
+                "Costos variables",
+                f"{porcentaje_variable_total:.1%}",
+                help=formato_moneda(
+                    costo_variable_evaluado
+                ),
+            )
+        kpi3.metric("Gastos fijos", formato_moneda(gastos_fijos_base),)
+        kpi4.metric("OH utilizado", formato_moneda(estructura_actual["OH"]), help=tipo_oh,)
+        kpi5.metric("Punto de equilibrio", formato_moneda(punto_equilibrio_base),)
+        kpi6.metric("Rentabilidad", f"{rentabilidad_actual:.1%}",)
 
         if diferencia_pe >= 0:
             st.success(
@@ -5702,21 +5701,37 @@ else:
         }
 
 
-        catalogo_variables = (
-            df_pe[
-                df_pe["Mes_A"].isin(meses_comparativa)
-                & df_pe["Clasificacion_A"].eq("COSS")
-                & df_pe["Categoria_A"].isin(
+        mascara_variables_catalogo = (
+            df_pe["Clasificacion_A"].eq("COSS")
+            & (
+                df_pe["Categoria_A"].isin(
                     categorias_variables
                 )
+                |
+                (
+                    df_pe["Categoria_A"]
+                    .eq(categoria_bono_km)
+                    & df_pe[columna_cuenta]
+                    .eq(cuenta_bono_km)
+                )
+            )
+        )
+
+        catalogo_variables = (
+            df_pe[
+                df_pe["Mes_A"].isin(
+                    meses_comparativa
+                )
+                & mascara_variables_catalogo
             ][
-                ["Categoria_A", columna_cuenta]
+                [
+                    "Categoria_A",
+                    columna_cuenta
+                ]
             ]
             .drop_duplicates()
         )
-
         registros_variables = []
-
         for mes in meses_comparativa:
             ingreso_mes = estructuras_mensuales[mes]["INGRESO"]
 
@@ -5778,24 +5793,45 @@ else:
                     }
                 )
 
-        df_variables_mensual = pd.DataFrame(
-            registros_variables
-        )
+        if (
+            modo_variable_actual == "Manual"
+            and abs(
+                porcentaje_variable_total
+                - porcentaje_variable_calculado
+            ) > 0.000001
+        ):
 
-        df_comparativa_variables = construir_comparativa(
-            df_variables_mensual,
-            "PORCENTAJE",
-        )
+            registros_variables.append(
+                {
+                    "MES": mes_actual,
+                    "CATEGORIA": "AJUSTE MANUAL",
+                    "CUENTA": "AJUSTE VARIABLES ACTUAL",
+                    "PORCENTAJE": (
+                        porcentaje_variable_total
+                        - porcentaje_variable_calculado
+                    ),
+                }
+            )
+
+        df_variables_mensual = pd.DataFrame(registros_variables)
+        df_comparativa_variables = construir_comparativa(df_variables_mensual, "PORCENTAJE",)
+        mascara_bono_km_catalogo = (df_pe["Categoria_A"].eq(categoria_bono_km) & df_pe[columna_cuenta].eq(cuenta_bono_km))
 
         catalogo_coss_fijos = (
             df_pe[
-                df_pe["Mes_A"].isin(meses_comparativa)
-                & df_pe["Clasificacion_A"].eq("COSS")
-                & df_pe["Categoria_A"].isin(
-                    categorias_fijas_coss
+                df_pe["Mes_A"].isin(
+                    meses_comparativa
                 )
+                & df_pe["Clasificacion_A"]
+                .eq("COSS")
+                & df_pe["Categoria_A"]
+                .isin(categorias_fijas_coss)
+                & ~mascara_bono_km_catalogo
             ][
-                ["Categoria_A", columna_cuenta]
+                [
+                    "Categoria_A",
+                    columna_cuenta
+                ]
             ]
             .drop_duplicates()
         )
@@ -5844,14 +5880,8 @@ else:
                     }
                 )
 
-        df_coss_fijos_mensual = pd.DataFrame(
-            registros_coss_fijos
-        )
-
-        df_comparativa_coss_fijos = construir_comparativa(
-            df_coss_fijos_mensual,
-            "IMPORTE",
-        )
+        df_coss_fijos_mensual = pd.DataFrame(registros_coss_fijos)
+        df_comparativa_coss_fijos = construir_comparativa(df_coss_fijos_mensual,"IMPORTE",)
 
         catalogo_gadmn = (
             df_pe[
@@ -5891,14 +5921,8 @@ else:
                     }
                 )
 
-        df_gadmn_mensual = pd.DataFrame(
-            registros_gadmn
-        )
-
-        df_comparativa_gadmn = construir_comparativa(
-            df_gadmn_mensual,
-            "IMPORTE",
-        )
+        df_gadmn_mensual = pd.DataFrame(registros_gadmn)
+        df_comparativa_gadmn = construir_comparativa(df_gadmn_mensual,"IMPORTE",)
 
         catalogo_intereses = (
             df_pe[
@@ -5941,16 +5965,8 @@ else:
                     }
                 )
 
-        df_intereses_mensual = pd.DataFrame(
-            registros_intereses
-        )
-
-        df_comparativa_intereses = construir_comparativa(
-            df_intereses_mensual,
-            "IMPORTE",
-        )
-
-
+        df_intereses_mensual = pd.DataFrame(registros_intereses)
+        df_comparativa_intereses = construir_comparativa(df_intereses_mensual, "IMPORTE",)
         formato_porcentaje_js = JsCode(
             """
             function(params) {
@@ -6039,46 +6055,123 @@ else:
         estilo_fila_variacion_js = JsCode(
             """
             function(params) {
-                // Total general: azul grisáceo ejecutivo.
                 if (params.node.rowPinned) {
+
                     return {
-                        backgroundColor: '#DCE6F1',
-                        color: '#0F2742',
+                        backgroundColor: '#e9ecef',
+                        color: '#212529',
                         fontWeight: '700',
-                        borderTop: '2px solid #6B7F93'
+                        borderTop: '2px solid #6c757d'
                     };
                 }
+                let promedio = null;
+                let actual = null;
 
-                // Filas agrupadoras de Categoria_A.
-                if (params.node.group) {
-                    return {
-                        backgroundColor: '#EAF0F6',
-                        color: '#17324D',
-                        fontWeight: '700',
-                        borderTop: '1px solid #C5D2DF',
-                        borderBottom: '1px solid #C5D2DF'
-                    };
+                if (
+                    params.node.group &&
+                    params.node.aggData
+                ) {
+
+                    promedio =
+                        params.node.aggData.PROMEDIO;
+
+                    actual =
+                        params.node.aggData.ACTUAL;
                 }
 
-                if (!params.data) {
+                else if (params.data) {
+
+                    promedio =
+                        params.data.PROMEDIO;
+
+                    actual =
+                        params.data.ACTUAL;
+                }
+
+
+                if (
+                    promedio === null ||
+                    promedio === undefined ||
+                    actual === null ||
+                    actual === undefined ||
+                    isNaN(promedio) ||
+                    isNaN(actual)
+                ) {
+
                     return {};
                 }
 
-                const variacion = params.data.VARIACION;
+                const diferenciaCosto =
+                    Math.abs(actual)
+                    - Math.abs(promedio);
 
-                if (variacion > 0) {
+                if (diferenciaCosto > 0.000001) {
+
+                    if (params.node.group) {
+
+                        return {
+                            backgroundColor:
+                                'rgba(198,40,40,0.16)',
+
+                            color:
+                                '#8b1e1e',
+
+                            fontWeight:
+                                '700',
+
+                            borderLeft:
+                                '4px solid #c62828'
+                        };
+                    }
+
                     return {
-                        backgroundColor: 'rgba(198,40,40,0.08)',
-                        color: '#9F1D1D',
-                        fontWeight: '600'
+                        backgroundColor:
+                            'rgba(198,40,40,0.07)',
+
+                        color:
+                            '#9b2525'
                     };
                 }
 
-                if (variacion < 0) {
+                if (diferenciaCosto < -0.000001) {
+
+                    if (params.node.group) {
+
+                        return {
+                            backgroundColor:
+                                'rgba(20,120,70,0.16)',
+
+                            color:
+                                '#146b3a',
+
+                            fontWeight:
+                                '700',
+
+                            borderLeft:
+                                '4px solid #198754'
+                        };
+                    }
+
                     return {
-                        backgroundColor: 'rgba(7,136,63,0.08)',
-                        color: '#08783B',
-                        fontWeight: '600'
+                        backgroundColor:
+                            'rgba(20,120,70,0.07)',
+
+                        color:
+                            '#146b3a'
+                    };
+                }
+
+                if (params.node.group) {
+
+                    return {
+                        backgroundColor:
+                            '#f3f4f6',
+
+                        color:
+                            '#343a40',
+
+                        fontWeight:
+                            '700'
                     };
                 }
 
@@ -6365,7 +6458,6 @@ else:
     """
 
         st.html(resumen_html)
-
 
 
 
