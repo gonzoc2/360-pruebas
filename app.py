@@ -7396,6 +7396,13 @@ else:
                 if mes in df_grid.columns
             ]
 
+            # Evitar mandar a AgGrid tablas sin meses
+            if not columnas_mes:
+                st.info(
+                    "No hay información para mostrar."
+                )
+                return
+
             columnas_grid = (
                 [
                     "CATEGORIA",
@@ -7420,11 +7427,39 @@ else:
                 .copy()
             )
 
+            # NUEVO:
+            # evitar error de AgGrid cuando toda la tabla está en cero
+            columnas_numericas = (
+                columnas_mes
+                + [
+                    "PROMEDIO",
+                    "DELTA",
+                    "VARIACION",
+                ]
+            )
+
+            tiene_datos = (
+                df_grid[columnas_numericas]
+                .apply(pd.to_numeric, errors="coerce")
+                .fillna(0.0)
+                .abs()
+                .sum()
+                .sum()
+                > 0.000001
+            )
+
+            if not tiene_datos:
+                st.info(
+                    "No hay información para mostrar."
+                )
+                return
+
             total_row = {
                 "CATEGORIA": "",
                 "CUENTA": "TOTAL",
             }
 
+            # ... resto de tu código igual
             for mes in columnas_mes:
                 total_row[mes] = (
                     df_grid[mes].sum()
