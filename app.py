@@ -1422,7 +1422,7 @@ else:
                 "easel",                # PPT
                 "calendar",             # Meses
                 "clock-history",             # Mes Corregido
-                "bullseye",
+                "calculator",
                 "person-gear",          # CeCo -> "Centro de Costos"
                 "percent",              # Ratios
                 "speedometer" ,         # Dashboard
@@ -1436,7 +1436,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY", "PE Proyectos", "CeCo", "Ratios", "OH", "Comentarios"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "graph-up", "bullseye", "person-gear", "percent", "house-door", "flag"],
+        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "graph-up", "calculator", "person-gear", "percent", "house-door", "flag"],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "gerente":
@@ -6597,7 +6597,7 @@ else:
 
                         with st.expander(
                             nombre_expander,
-                            expanded=False,
+                            expanded=True,
                         ):
 
                             (
