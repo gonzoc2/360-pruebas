@@ -1422,7 +1422,7 @@ else:
                 "easel",                # PPT
                 "calendar",             # Meses
                 "clock-history",             # Mes Corregido
-                "balance-scale",
+                "bullseye",
                 "person-gear",          # CeCo -> "Centro de Costos"
                 "percent",              # Ratios
                 "speedometer" ,         # Dashboard
@@ -1436,7 +1436,7 @@ else:
         selected = option_menu(
         menu_title=None,
         options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses", "Meses LY", "PE Proyectos", "CeCo", "Ratios", "OH", "Comentarios"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "graph-up", "balance-scale", "person-gear", "percent", "house-door", "flag"],
+        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "easel", "calendar", "graph-up", "bullseye", "person-gear", "percent", "house-door", "flag"],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "gerente":
@@ -4921,16 +4921,91 @@ else:
             horizontal=True,
         )
 
+        # ---------------------------------------------------------
+        # SENSIBILIDAD FIJA POR PROYECTO
+        # Se conserva además la captura manual por Monto o Porcentaje.
+        # ---------------------------------------------------------
+        sensibilidades_fijas = {
+            "CENTRAL OTROS": {"tipo": "Monto", "valor": 500000.0},
+            "CONTINENTAL": {"tipo": "Monto", "valor": 300000.0},
+            "MANZANILLO": {"tipo": "Monto", "valor": 400000.0},
+            "INTERNACIONAL FWD": {"tipo": "Monto", "valor": 150000.0},
+            "WH": {"tipo": "Monto", "valor": 100000.0},
+            "ESGARI WH": {"tipo": "Monto", "valor": 100000.0},
+            "7901": {"tipo": "Monto", "valor": 100000.0},
+            "OPERACIONES 1": {"tipo": "Monto", "valor": 200000.0},
+            "CHALCO": {"tipo": "Monto", "valor": 500000.0},
+            "ARRAYANES": {"tipo": "Monto", "valor": 300000.0},
+            "ESGARI": {"tipo": "Porcentaje", "valor": 0.03},
+        }
+
+        def obtener_sensibilidad_fija(nombre, codigo=None):
+            nombre_txt = str(nombre).upper().strip()
+            codigo_txt = str(codigo).strip() if codigo is not None else ""
+
+            if nombre_txt in sensibilidades_fijas:
+                return sensibilidades_fijas[nombre_txt]
+
+            if codigo_txt in sensibilidades_fijas:
+                return sensibilidades_fijas[codigo_txt]
+
+            # Alias para WH si el nombre del catálogo contiene WH.
+            if "WH" in nombre_txt:
+                return sensibilidades_fijas["WH"]
+
+            return {"tipo": "Monto", "valor": 0.0}
+
         tipo_sensibilidad = col5.selectbox(
             "Tipo de sensibilidad",
             options=[
+                "Fija por proyecto",
                 "Monto",
                 "Porcentaje",
             ],
             index=0,
         )
 
-        if tipo_sensibilidad == "Monto":
+        if tipo_sensibilidad == "Fija por proyecto":
+            codigo_sensibilidad = (
+                proyecto_codigo[0]
+                if len(proyecto_codigo) == 1
+                else None
+            )
+
+            config_sensibilidad_fija = obtener_sensibilidad_fija(
+                proyecto_nombre,
+                codigo_sensibilidad,
+            )
+
+            tipo_sensibilidad_aplicada = (
+                config_sensibilidad_fija["tipo"]
+            )
+
+            if tipo_sensibilidad_aplicada == "Monto":
+                sensibilidad_capturada = float(
+                    config_sensibilidad_fija["valor"]
+                )
+                sensibilidad_porcentaje = 0.0
+
+                col5.metric(
+                    "Sensibilidad aplicada",
+                    f"${sensibilidad_capturada:,.0f}",
+                )
+            else:
+                sensibilidad_porcentaje = float(
+                    config_sensibilidad_fija["valor"]
+                )
+                sensibilidad_capturada = (
+                    sensibilidad_porcentaje * 100
+                )
+
+                col5.metric(
+                    "Sensibilidad aplicada",
+                    f"{sensibilidad_porcentaje:.1%}",
+                )
+
+        elif tipo_sensibilidad == "Monto":
+            tipo_sensibilidad_aplicada = "Monto"
             sensibilidad_capturada = col5.number_input(
                 "Sensibilidad ($)",
                 min_value=0.0,
@@ -4940,7 +5015,9 @@ else:
                 key="sensibilidad_monto_pe",
             )
             sensibilidad_porcentaje = 0.0
+
         else:
+            tipo_sensibilidad_aplicada = "Porcentaje"
             sensibilidad_capturada = col5.number_input(
                 "Sensibilidad (%)",
                 min_value=0.0,
@@ -5636,7 +5713,7 @@ else:
             variable_lm = np.nan
             fijos_lm = np.nan
 
-        if tipo_sensibilidad == "Monto":
+        if tipo_sensibilidad_aplicada == "Monto":
             sensibilidad_monto = (
                 sensibilidad_capturada
             )
@@ -6196,8 +6273,45 @@ else:
                         variable_lm_p = np.nan
                         fijo_lm_p = np.nan
 
-                    if tipo_sensibilidad == "Monto":
+                    # Sensibilidad de cada expander de ESGARI.
+                    # En modo fijo, cada proyecto usa su propia sensibilidad.
+                    if tipo_sensibilidad == "Fija por proyecto":
+                        config_sensibilidad_p = obtener_sensibilidad_fija(
+                            nombre_p,
+                            codigo,
+                        )
+                        tipo_sensibilidad_p = (
+                            config_sensibilidad_p["tipo"]
+                        )
 
+                        if tipo_sensibilidad_p == "Monto":
+                            sensibilidad_monto_p = float(
+                                config_sensibilidad_p["valor"]
+                            )
+                            sensibilidad_porcentaje_p = 0.0
+
+                            etiqueta_incremento_p = (
+                                f"+${sensibilidad_monto_p:,.0f}"
+                            )
+                            etiqueta_reduccion_p = (
+                                f"-${sensibilidad_monto_p:,.0f}"
+                            )
+                        else:
+                            sensibilidad_porcentaje_p = float(
+                                config_sensibilidad_p["valor"]
+                            )
+                            sensibilidad_monto_p = (
+                                abs(fijo_p_actual)
+                                * sensibilidad_porcentaje_p
+                            )
+                            etiqueta_incremento_p = (
+                                f"+{sensibilidad_porcentaje_p:.1%}"
+                            )
+                            etiqueta_reduccion_p = (
+                                f"-{sensibilidad_porcentaje_p:.1%}"
+                            )
+
+                    elif tipo_sensibilidad == "Monto":
                         sensibilidad_monto_p = (
                             sensibilidad_capturada
                         )
@@ -6211,7 +6325,6 @@ else:
                         )
 
                     else:
-
                         sensibilidad_monto_p = (
                             abs(
                                 fijo_p_actual
@@ -7719,8 +7832,8 @@ else:
         </div>
     </div>
     """
-
         st.html(resumen_html)
+
 
 
 
