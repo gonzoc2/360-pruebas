@@ -7035,8 +7035,8 @@ else:
                                 delta=formato_moneda(delta_fijo_total),
                             )
                             ek4.metric(
-                                "Punto de equilibrio",
-                                formato_moneda(pe_esgari_ajustado),
+                                "Utilidad ajustada",
+                                formato_moneda(utilidad_esgari_ajustada),
                             )
                             ek5.metric(
                                 "Rentabilidad ajustada",
