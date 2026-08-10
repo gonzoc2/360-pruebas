@@ -1442,8 +1442,8 @@ else:
     elif st.session_state["rol"] == "gerente":
         selected = option_menu(
         menu_title=None,
-        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses","Meses LY", "CeCo", "Dashboard", "Comentarios"],
-        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "graph-up", "easel", "calendar", "person-gear", "speedometer", "flag"],
+        options=["Estado de Resultado", "Comparativa", "Análisis", "Proyeccion", "LY", "PPT", "Meses","Meses LY", "PE Proyectos", "CeCo", "Dashboard", "Comentarios"],
+        icons=["clipboard-data", "file-earmark-bar-graph", "bar-chart", "building", "clock-history", "graph-up", "easel", "calendar", "calculator", "person-gear", "speedometer", "flag"],
         default_index=0,
         orientation="horizontal",)
     elif st.session_state["rol"] == "ceco":
@@ -4817,7 +4817,7 @@ else:
             "abr.": 25,
             "may.": 26,
             "jun.": 25,
-            "jul.": 27,
+            "jul.": 26,
             "ago.": 26,
             "sep.": 25,
             "oct.": 27,
@@ -4900,31 +4900,33 @@ else:
         proyecto_codigo, proyecto_nombre = filtro_pro(col2)
         proyecto_codigo = [str(codigo).strip()for codigo in proyecto_codigo]
 
-        tipo_oh = col3.selectbox(
-            "Tratamiento del OH",
-            options=[
-                "OH fijo",
-                "OH variable",
-                "OH manual",
-            ],
-            index=0,
-        )
+### OH POR ROL
+        rol_actual_pe = str(
+            st.session_state.get("rol", "")
+        ).strip().lower()
+
+        puede_ver_oh = rol_actual_pe in {"admin","director",}
+
+        if puede_ver_oh:
+            tipo_oh = col3.selectbox(
+                "Tratamiento del OH",
+                options=[
+                    "OH fijo",
+                    "OH variable",
+                    "OH manual",
+                ],
+                index=0,
+            )
+        else:
+            tipo_oh = "OH fijo"
 
         col4, col5, col6, col7, col8 = st.columns(5)
 
         fuente_ingreso = col4.radio(
             "Ingreso para evaluación",
-            options=[
-                "Ingreso actual",
-                "Ingreso manual",
-            ],
-            horizontal=True,
-        )
+            options=["Ingreso actual", "Ingreso manual",], horizontal=True,)
 
-        # ---------------------------------------------------------
-        # SENSIBILIDAD FIJA POR PROYECTO
-        # Se conserva además la captura manual por Monto o Porcentaje.
-        # ---------------------------------------------------------
+        ### SENSIBILIDAD FIJA POR PROYECTO
         sensibilidades_fijas = {
             "CENTRAL OTROS": {"tipo": "Monto", "valor": 500000.0},
             "CONTINENTAL": {"tipo": "Monto", "valor": 300000.0},
@@ -4948,8 +4950,7 @@ else:
 
             if codigo_txt in sensibilidades_fijas:
                 return sensibilidades_fijas[codigo_txt]
-
-            # Alias para WH si el nombre del catálogo contiene WH.
+            
             if "WH" in nombre_txt:
                 return sensibilidades_fijas["WH"]
 
@@ -4972,14 +4973,8 @@ else:
                 else None
             )
 
-            config_sensibilidad_fija = obtener_sensibilidad_fija(
-                proyecto_nombre,
-                codigo_sensibilidad,
-            )
-
-            tipo_sensibilidad_aplicada = (
-                config_sensibilidad_fija["tipo"]
-            )
+            config_sensibilidad_fija = obtener_sensibilidad_fija(proyecto_nombre, codigo_sensibilidad,)
+            tipo_sensibilidad_aplicada = (config_sensibilidad_fija["tipo"])
 
             if tipo_sensibilidad_aplicada == "Monto":
                 sensibilidad_capturada = float(
@@ -4987,18 +4982,12 @@ else:
                 )
                 sensibilidad_porcentaje = 0.0
 
-                col5.metric(
-                    "Sensibilidad aplicada",
+                col5.metric("Sensibilidad aplicada",
                     f"${sensibilidad_capturada:,.0f}",
                 )
             else:
-                sensibilidad_porcentaje = float(
-                    config_sensibilidad_fija["valor"]
-                )
-                sensibilidad_capturada = (
-                    sensibilidad_porcentaje * 100
-                )
-
+                sensibilidad_porcentaje = float(config_sensibilidad_fija["valor"])
+                sensibilidad_capturada = (sensibilidad_porcentaje * 100)
                 col5.metric(
                     "Sensibilidad aplicada",
                     f"{sensibilidad_porcentaje:.1%}",
@@ -5027,9 +5016,7 @@ else:
                 format="%.1f",
                 key="sensibilidad_porcentaje_pe",
             )
-            sensibilidad_porcentaje = (
-                sensibilidad_capturada / 100
-            )
+            sensibilidad_porcentaje = (sensibilidad_capturada / 100)
 
         rentabilidad_objetivo = (
             col6.number_input(
@@ -5082,11 +5069,7 @@ else:
                 return "-"
             return f"${valor:,.2f}"
 
-        def calcular_ventas_requeridas(
-            gastos_fijos_con_signo,
-            porcentaje_variable_con_signo,
-            margen_objetivo=0.0,
-        ):
+        def calcular_ventas_requeridas(gastos_fijos_con_signo, porcentaje_variable_con_signo, margen_objetivo=0.0,):
             """
             Fórmula:
             GF / (1 - Variables + Margen objetivo)
@@ -5207,9 +5190,6 @@ else:
                         + importe_sin_proyecto
                         * participacion
                     )
-
-
-
                 total += importe_mes
 
             return total
@@ -5231,21 +5211,10 @@ else:
                         )
                     ]
 
-                mascara = (df_mes["Clasificacion_A"].eq(clasificacion)
-                    & df_mes["Categoria_A"].eq(categoria)
-                    & df_mes[columna_cuenta].eq(cuenta)
-                )
+                mascara = (df_mes["Clasificacion_A"].eq(clasificacion) & df_mes["Categoria_A"].eq(categoria) & df_mes[columna_cuenta].eq(cuenta))
+                return df_mes.loc[mascara, "Neto_A",].sum()
 
-                return df_mes.loc[
-                    mascara,
-                    "Neto_A",
-                ].sum()
-
-            mascara = (
-                df_mes["Clasificacion_A"].eq(clasificacion)
-                & df_mes["Categoria_A"].eq(categoria)
-                & df_mes[columna_cuenta].eq(cuenta)
-            )
+            mascara = (df_mes["Clasificacion_A"].eq(clasificacion) & df_mes["Categoria_A"].eq(categoria) & df_mes[columna_cuenta].eq(cuenta))
 
             importe_directo = df_mes.loc[
                 (
@@ -5257,11 +5226,7 @@ else:
                 "Neto_A",
             ].sum()
 
-            participacion = participacion_objetivo(
-                mes,
-                codigos,
-                nombre,
-            )
+            participacion = participacion_objetivo(mes, codigos, nombre,)
 
             importe_sin_proyecto = (
                 df_mes.loc[
@@ -5629,25 +5594,11 @@ else:
                 ),
             }
 
-        estructura_actual = obtener_estructura_mes(
-            mes_actual
-        )
-
-        ingreso_actual = (
-            estructura_actual["INGRESO"]
-        )
-
-        porcentaje_variable_calculado = (
-            estructura_actual["VARIABLES %"]
-        )
-
-        gastos_fijos_base = (
-            estructura_actual["GASTOS FIJOS"]
-        )
-
-        oh_actual = (
-            estructura_actual["OH"]
-        )
+        estructura_actual = obtener_estructura_mes(mes_actual)
+        ingreso_actual = (estructura_actual["INGRESO"])
+        porcentaje_variable_calculado = (estructura_actual["VARIABLES %"])
+        gastos_fijos_base = (estructura_actual["GASTOS FIJOS"])
+        oh_actual = (estructura_actual["OH"])
 
         if fuente_ingreso == "Ingreso manual":
             ingreso_evaluacion = st.number_input(
@@ -5681,13 +5632,9 @@ else:
                 ),
             )
 
-            porcentaje_variable_total = (
-                variable_manual_pct / 100
-            )
+            porcentaje_variable_total = (variable_manual_pct / 100)
         else:
-            porcentaje_variable_total = (
-                porcentaje_variable_calculado
-            )
+            porcentaje_variable_total = (porcentaje_variable_calculado)
 
         costo_variable_evaluado = (
             ingreso_evaluacion
@@ -5929,9 +5876,14 @@ else:
 
         st.markdown("### Resumen del análisis")
 
-        kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = (
-            st.columns(6)
-        )
+        if puede_ver_oh:
+            kpi1, kpi2, kpi3, kpi4, kpi5, kpi6 = (
+                st.columns(6)
+            )
+        else:
+            # Para otros roles el OH está incluido en gastos fijos,
+            # pero no aparece como indicador independiente.
+            kpi1, kpi2, kpi3, kpi5, kpi6 = st.columns(5)
 
         etiqueta_ingreso = (
             f"Ingreso ({mes_actual})"
@@ -5978,13 +5930,14 @@ else:
             ),
         )
 
-        kpi4.metric(
-            f"OH ({mes_actual})",
-            formato_moneda(
-                oh_actual
-            ),
-            help=tipo_oh,
-        )
+        if puede_ver_oh:
+            kpi4.metric(
+                f"OH ({mes_actual})",
+                formato_moneda(
+                    oh_actual
+                ),
+                help=tipo_oh,
+            )
 
         kpi5.metric(
             "Punto de equilibrio",
@@ -6572,6 +6525,32 @@ else:
                             "OH ASIGNADO": oh_p_actual,
                             "UTILIDAD ACTUAL": utilidad_p_actual,
                             "RENTABILIDAD ACTUAL": rentabilidad_p_actual,
+                            "VARIABLE LM": variable_lm_p,
+                            "FIJO LM": fijo_lm_p,
+                            "TIPO SENSIBILIDAD": (
+                                "Monto"
+                                if tipo_sensibilidad == "Monto"
+                                else (
+                                    "Porcentaje"
+                                    if tipo_sensibilidad == "Porcentaje"
+                                    else tipo_sensibilidad_p
+                                )
+                            ),
+                            "VALOR SENSIBILIDAD": (
+                                sensibilidad_monto_p
+                                if (
+                                    tipo_sensibilidad == "Monto"
+                                    or (
+                                        tipo_sensibilidad == "Fija por proyecto"
+                                        and tipo_sensibilidad_p == "Monto"
+                                    )
+                                )
+                                else (
+                                    sensibilidad_porcentaje_p
+                                    if tipo_sensibilidad == "Fija por proyecto"
+                                    else sensibilidad_porcentaje
+                                )
+                            ),
                             "TABLA": df_sensibilidad_p,
                         }
                     )
@@ -6580,19 +6559,192 @@ else:
 
                     resultados_proyectos = sorted(
                         resultados_proyectos,
-                        key=lambda x: (
-                            str(
-                                x["PROYECTO"]
-                            )
-                        )
+                        key=lambda x: str(x["PROYECTO"]),
                     )
 
-                    for resultado_p in (
-                        resultados_proyectos
+                    # Guarda los valores ajustados de cada proyecto.
+                    # Streamlit ejecuta el contenido de todos los expanders,
+                    # por lo que al final se puede reconstruir ESGARI completo.
+                    movimientos_proyectos = []
+
+                    def construir_sensibilidad_ajustada_proyecto(
+                        variable_base,
+                        fijo_base,
+                        tipo_sens,
+                        valor_sens,
+                        variable_lm_base=np.nan,
+                        fijo_lm_base=np.nan,
                     ):
+                        if tipo_sens == "Porcentaje":
+                            sensibilidad_pct_local = float(valor_sens)
+                            sensibilidad_monto_local = (
+                                abs(fijo_base)
+                                * sensibilidad_pct_local
+                            )
+                            etiqueta_inc_local = (
+                                f"+{sensibilidad_pct_local:.1%}"
+                            )
+                            etiqueta_red_local = (
+                                f"-{sensibilidad_pct_local:.1%}"
+                            )
+                        else:
+                            sensibilidad_monto_local = float(valor_sens)
+                            etiqueta_inc_local = (
+                                f"+${sensibilidad_monto_local:,.0f}"
+                            )
+                            etiqueta_red_local = (
+                                f"-${sensibilidad_monto_local:,.0f}"
+                            )
+
+                        signo_fijo_local = (
+                            -1.0 if fijo_base < 0 else 1.0
+                        )
+
+                        escenarios_locales = [
+                            {
+                                "ESCENARIO": "BASE AJUSTADA",
+                                "VARIABLES": variable_base,
+                                "GASTOS FIJOS": fijo_base,
+                            },
+                            {
+                                "ESCENARIO": etiqueta_inc_local,
+                                "VARIABLES": variable_base,
+                                "GASTOS FIJOS": (
+                                    fijo_base
+                                    + signo_fijo_local
+                                    * sensibilidad_monto_local
+                                ),
+                            },
+                            {
+                                "ESCENARIO": etiqueta_red_local,
+                                "VARIABLES": variable_base,
+                                "GASTOS FIJOS": (
+                                    fijo_base
+                                    - signo_fijo_local
+                                    * sensibilidad_monto_local
+                                ),
+                            },
+                        ]
+
+                        filas_locales = []
+                        columna_obj_local = (
+                            f"VENTAS UT {rentabilidad_objetivo:.0%}"
+                        )
+
+                        for escenario_local in escenarios_locales:
+                            fila_local = {
+                                "ESCENARIO": escenario_local["ESCENARIO"],
+                                "VARIABLES": escenario_local["VARIABLES"],
+                                "GASTOS FIJOS": escenario_local["GASTOS FIJOS"],
+                                "VENTAS PE": calcular_ventas_requeridas(
+                                    escenario_local["GASTOS FIJOS"],
+                                    escenario_local["VARIABLES"],
+                                    0.0,
+                                ),
+                                "VENTAS UT 5%": calcular_ventas_requeridas(
+                                    escenario_local["GASTOS FIJOS"],
+                                    escenario_local["VARIABLES"],
+                                    0.05,
+                                ),
+                                "VENTAS UT 10%": calcular_ventas_requeridas(
+                                    escenario_local["GASTOS FIJOS"],
+                                    escenario_local["VARIABLES"],
+                                    0.10,
+                                ),
+                            }
+
+                            if rentabilidad_objetivo not in [0.05, 0.10]:
+                                fila_local[columna_obj_local] = (
+                                    calcular_ventas_requeridas(
+                                        escenario_local["GASTOS FIJOS"],
+                                        escenario_local["VARIABLES"],
+                                        rentabilidad_objetivo,
+                                    )
+                                )
+
+                            filas_locales.append(fila_local)
+
+                        df_local = pd.DataFrame(filas_locales)
+                        fila_base_local = df_local.iloc[0]
+
+                        fila_diaria_local = {
+                            "ESCENARIO": (
+                                f"VENTAS DIARIAS "
+                                f"({int(dias_operativos_actual)} DÍAS)"
+                            ),
+                            "VARIABLES": np.nan,
+                            "GASTOS FIJOS": np.nan,
+                            "VENTAS PE": (
+                                fila_base_local["VENTAS PE"]
+                                / dias_operativos_actual
+                            ),
+                            "VENTAS UT 5%": (
+                                fila_base_local["VENTAS UT 5%"]
+                                / dias_operativos_actual
+                            ),
+                            "VENTAS UT 10%": (
+                                fila_base_local["VENTAS UT 10%"]
+                                / dias_operativos_actual
+                            ),
+                        }
+
+                        if columna_obj_local in df_local.columns:
+                            fila_diaria_local[columna_obj_local] = (
+                                fila_base_local[columna_obj_local]
+                                / dias_operativos_actual
+                            )
+
+                        filas_extra_local = [fila_diaria_local]
+
+                        if (
+                            mes_lm is not None
+                            and pd.notna(variable_lm_base)
+                            and pd.notna(fijo_lm_base)
+                        ):
+                            fila_lm_local = {
+                                "ESCENARIO": f"LM ({mes_lm.upper()})",
+                                "VARIABLES": variable_lm_base,
+                                "GASTOS FIJOS": fijo_lm_base,
+                                "VENTAS PE": calcular_ventas_requeridas(
+                                    fijo_lm_base,
+                                    variable_lm_base,
+                                    0.0,
+                                ),
+                                "VENTAS UT 5%": calcular_ventas_requeridas(
+                                    fijo_lm_base,
+                                    variable_lm_base,
+                                    0.05,
+                                ),
+                                "VENTAS UT 10%": calcular_ventas_requeridas(
+                                    fijo_lm_base,
+                                    variable_lm_base,
+                                    0.10,
+                                ),
+                            }
+
+                            if columna_obj_local in df_local.columns:
+                                fila_lm_local[columna_obj_local] = (
+                                    calcular_ventas_requeridas(
+                                        fijo_lm_base,
+                                        variable_lm_base,
+                                        rentabilidad_objetivo,
+                                    )
+                                )
+
+                            filas_extra_local.append(fila_lm_local)
+
+                        return pd.concat(
+                            [
+                                df_local,
+                                pd.DataFrame(filas_extra_local),
+                            ],
+                            ignore_index=True,
+                        )
+
+                    for resultado_p in resultados_proyectos:
 
                         nombre_expander = (
-                            f"{resultado_p['PROYECTO']} "
+                            f"{resultado_p['PROYECTO']}"
                         )
 
                         with st.expander(
@@ -6600,95 +6752,167 @@ else:
                             expanded=True,
                         ):
 
-                            (
-                                pkpi1,
-                                pkpi2,
-                                pkpi3,
-                                pkpi4,
-                                pkpi5,
-                                pkpi6,
-                            ) = st.columns(6)
+                            st.markdown(
+                                "##### Ajustes del proyecto"
+                            )
+
+                            ajuste_col1, ajuste_col2 = st.columns(2)
+
+                            variable_ajustada_pct = ajuste_col1.number_input(
+                                "Variable ajustado (%)",
+                                min_value=-100.0,
+                                max_value=100.0,
+                                value=float(
+                                    resultado_p["VARIABLES"] * 100
+                                ),
+                                step=0.5,
+                                format="%.2f",
+                                key=(
+                                    f"pe_var_ajustada_"
+                                    f"{resultado_p['CODIGO']}_"
+                                    f"{mes_actual}"
+                                ),
+                            )
+
+                            fijo_ajustado = ajuste_col2.number_input(
+                                "fijos ajustados ($)",
+                                value=float(
+                                    resultado_p["GASTOS FIJOS"]
+                                ),
+                                step=50000.0,
+                                format="%.2f",
+                                key=(
+                                    f"pe_fijo_ajustado_"
+                                    f"{resultado_p['CODIGO']}_"
+                                    f"{mes_actual}"
+                                ),
+                            )
+
+                            variable_ajustada = (
+                                variable_ajustada_pct / 100
+                            )
+
+                            costo_variable_ajustado_p = (
+                                resultado_p["INGRESO ACTUAL"]
+                                * variable_ajustada
+                            )
+
+                            utilidad_ajustada_p = (
+                                resultado_p["INGRESO ACTUAL"]
+                                * (1 - variable_ajustada)
+                                - fijo_ajustado
+                            )
+
+                            rentabilidad_ajustada_p = (
+                                utilidad_ajustada_p
+                                / resultado_p["INGRESO ACTUAL"]
+                                if resultado_p["INGRESO ACTUAL"] != 0
+                                else 0.0
+                            )
+
+                            pe_ajustado_p = calcular_ventas_requeridas(
+                                fijo_ajustado,
+                                variable_ajustada,
+                                0.0,
+                            )
+
+                            if puede_ver_oh:
+                                (
+                                    pkpi1, pkpi2, pkpi3,
+                                    pkpi4, pkpi5, pkpi6,
+                                ) = st.columns(6)
+                            else:
+                                (
+                                    pkpi1, pkpi2, pkpi3,
+                                    pkpi5, pkpi6,
+                                ) = st.columns(5)
 
                             pkpi1.metric(
                                 "Ingreso actual",
                                 formato_moneda(
-                                    resultado_p[
-                                        "INGRESO ACTUAL"
-                                    ]
+                                    resultado_p["INGRESO ACTUAL"]
                                 ),
                             )
 
                             pkpi2.metric(
-                                "Variables",
-                                (
-                                    f"{resultado_p['VARIABLES']:.1%}"
+                                "Variables ajustadas",
+                                f"{variable_ajustada:.1%}",
+                                delta=(
+                                    f"{variable_ajustada - resultado_p['VARIABLES']:+.1%}"
                                 ),
                             )
 
                             pkpi3.metric(
-                                "Gastos fijos",
-                                formato_moneda(
-                                    resultado_p[
-                                        "GASTOS FIJOS"
-                                    ]
+                                "fijos ajustados",
+                                formato_moneda(fijo_ajustado),
+                                delta=formato_moneda(
+                                    fijo_ajustado
+                                    - resultado_p["GASTOS FIJOS"]
                                 ),
                             )
 
-                            pkpi4.metric(
-                                "OH asignado",
-                                formato_moneda(
-                                    resultado_p[
-                                        "OH ASIGNADO"
-                                    ]
-                                ),
-                                help=tipo_oh,
-                            )
+                            if puede_ver_oh:
+                                pkpi4.metric(
+                                    "OH asignado",
+                                    formato_moneda(
+                                        resultado_p["OH ASIGNADO"]
+                                    ),
+                                    help=tipo_oh,
+                                )
 
                             pkpi5.metric(
-                                "Utilidad actual",
-                                formato_moneda(
-                                    resultado_p[
-                                        "UTILIDAD ACTUAL"
-                                    ]
-                                ),
+                                "Utilidad ajustada",
+                                formato_moneda(utilidad_ajustada_p),
                             )
 
                             pkpi6.metric(
-                                "Rentabilidad actual",
-                                (
-                                    f"{resultado_p['RENTABILIDAD ACTUAL']:.1%}"
-                                ),
+                                "Rentabilidad ajustada",
+                                f"{rentabilidad_ajustada_p:.1%}",
+                            )
+
+                            st.caption(
+                                "Punto de equilibrio ajustado: "
+                                f"{formato_moneda(pe_ajustado_p)}"
                             )
 
                             st.markdown(
                                 "##### Sensibilidad del proyecto"
                             )
 
-                            df_tabla_p = (
-                                resultado_p[
-                                    "TABLA"
-                                ]
+                            df_tabla_p_ajustada = (
+                                construir_sensibilidad_ajustada_proyecto(
+                                    variable_base=variable_ajustada,
+                                    fijo_base=fijo_ajustado,
+                                    tipo_sens=resultado_p[
+                                        "TIPO SENSIBILIDAD"
+                                    ],
+                                    valor_sens=resultado_p[
+                                        "VALOR SENSIBILIDAD"
+                                    ],
+                                    variable_lm_base=resultado_p[
+                                        "VARIABLE LM"
+                                    ],
+                                    fijo_lm_base=resultado_p[
+                                        "FIJO LM"
+                                    ],
+                                )
                             )
 
                             formato_tabla_p = {
                                 "VARIABLES": "{:.1%}",
                             }
 
-                            for columna_p in (
-                                df_tabla_p.columns
-                            ):
-
+                            for columna_p in df_tabla_p_ajustada.columns:
                                 if columna_p not in [
                                     "ESCENARIO",
                                     "VARIABLES",
                                 ]:
-
-                                    formato_tabla_p[
-                                        columna_p
-                                    ] = "${:,.2f}"
+                                    formato_tabla_p[columna_p] = (
+                                        "${:,.2f}"
+                                    )
 
                             st.dataframe(
-                                df_tabla_p.style.format(
+                                df_tabla_p_ajustada.style.format(
                                     formato_tabla_p,
                                     na_rep="-",
                                 ),
@@ -6696,12 +6920,158 @@ else:
                                 hide_index=True,
                             )
 
-                else:
+                            movimientos_proyectos.append(
+                                {
+                                    "PROYECTO": resultado_p["PROYECTO"],
+                                    "CODIGO": resultado_p["CODIGO"],
+                                    "INGRESO": resultado_p["INGRESO ACTUAL"],
+                                    "VARIABLE BASE": resultado_p["VARIABLES"],
+                                    "VARIABLE AJUSTADA": variable_ajustada,
+                                    "FIJO BASE": resultado_p["GASTOS FIJOS"],
+                                    "FIJO AJUSTADO": fijo_ajustado,
+                                    "DELTA VARIABLE $": (
+                                        resultado_p["INGRESO ACTUAL"]
+                                        * (
+                                            variable_ajustada
+                                            - resultado_p["VARIABLES"]
+                                        )
+                                    ),
+                                    "DELTA FIJO $": (
+                                        fijo_ajustado
+                                        - resultado_p["GASTOS FIJOS"]
+                                    ),
+                                }
+                            )
+                    # ESGARI AJUSTADO CON TODOS LOS MOVIMIENTOS
+                    if movimientos_proyectos:
+                        delta_variable_total = sum(
+                            mov["DELTA VARIABLE $"]
+                            for mov in movimientos_proyectos
+                        )
+                        delta_fijo_total = sum(
+                            mov["DELTA FIJO $"]
+                            for mov in movimientos_proyectos
+                        )
 
+                        costo_variable_esgari_base = (
+                            ingreso_evaluacion
+                            * porcentaje_variable_total
+                        )
+
+                        costo_variable_esgari_ajustado = (
+                            costo_variable_esgari_base
+                            + delta_variable_total
+                        )
+
+                        variable_esgari_ajustada = (
+                            costo_variable_esgari_ajustado
+                            / ingreso_evaluacion
+                            if ingreso_evaluacion != 0
+                            else 0.0
+                        )
+
+                        fijo_esgari_ajustado = (
+                            gastos_fijos_base
+                            + delta_fijo_total
+                        )
+
+                        utilidad_esgari_ajustada = (
+                            ingreso_evaluacion
+                            * (1 - variable_esgari_ajustada)
+                            - fijo_esgari_ajustado
+                        )
+
+                        rentabilidad_esgari_ajustada = (
+                            utilidad_esgari_ajustada
+                            / ingreso_evaluacion
+                            if ingreso_evaluacion != 0
+                            else 0.0
+                        )
+
+                        pe_esgari_ajustado = calcular_ventas_requeridas(
+                            fijo_esgari_ajustado,
+                            variable_esgari_ajustada,
+                            0.0,
+                        )
+
+                        if tipo_sensibilidad_aplicada == "Porcentaje":
+                            tipo_sens_esgari_aj = "Porcentaje"
+                            valor_sens_esgari_aj = sensibilidad_porcentaje
+                        else:
+                            tipo_sens_esgari_aj = "Monto"
+                            valor_sens_esgari_aj = sensibilidad_monto
+
+                        df_esgari_ajustado = (
+                            construir_sensibilidad_ajustada_proyecto(
+                                variable_base=variable_esgari_ajustada,
+                                fijo_base=fijo_esgari_ajustado,
+                                tipo_sens=tipo_sens_esgari_aj,
+                                valor_sens=valor_sens_esgari_aj,
+                                variable_lm_base=variable_lm,
+                                fijo_lm_base=fijos_lm,
+                            )
+                        )
+
+                        with st.expander(
+                            "ESGARI AJUSTADO",
+                            expanded=True,
+                        ):
+                            ek1, ek2, ek3, ek4, ek5 = st.columns(5)
+
+                            ek1.metric(
+                                "Ingreso ESGARI",
+                                formato_moneda(ingreso_evaluacion),
+                            )
+                            ek2.metric(
+                                "Variables ajustadas",
+                                f"{variable_esgari_ajustada:.1%}",
+                                delta=(
+                                    f"{variable_esgari_ajustada - porcentaje_variable_total:+.1%}"
+                                ),
+                            )
+                            ek3.metric(
+                                "fijos ajustados",
+                                formato_moneda(fijo_esgari_ajustado),
+                                delta=formato_moneda(delta_fijo_total),
+                            )
+                            ek4.metric(
+                                "Punto de equilibrio",
+                                formato_moneda(pe_esgari_ajustado),
+                            )
+                            ek5.metric(
+                                "Rentabilidad ajustada",
+                                f"{rentabilidad_esgari_ajustada:.1%}",
+                            )
+
+                            st.markdown(
+                                "##### Sensibilidad ESGARI ajustada"
+                            )
+
+                            formato_esgari_aj = {
+                                "VARIABLES": "{:.1%}",
+                            }
+                            for col_aj in df_esgari_ajustado.columns:
+                                if col_aj not in [
+                                    "ESCENARIO",
+                                    "VARIABLES",
+                                ]:
+                                    formato_esgari_aj[col_aj] = (
+                                        "${:,.2f}"
+                                    )
+
+                            st.dataframe(
+                                df_esgari_ajustado.style.format(
+                                    formato_esgari_aj,
+                                    na_rep="-",
+                                ),
+                                use_container_width=True,
+                                hide_index=True,
+                            )
+
+                else:
                     st.info(
-                        "No se encontraron proyectos con "
-                        "ingresos en el mes actual o en "
-                        "los meses comparativos seleccionados."
+                        "No se encontraron proyectos con ingreso "
+                        "en el mes de análisis seleccionado."
                     )
 
         estructuras_mensuales = {
@@ -7035,10 +7405,13 @@ else:
                     }
                 )
 
-            if tipo_oh in [
-                "OH fijo",
-                "OH manual",
-            ]:
+            if (
+                puede_ver_oh
+                and tipo_oh in [
+                    "OH fijo",
+                    "OH manual",
+                ]
+            ):
                 registros_coss_fijos.append(
                     {
                         "MES": mes,
@@ -7832,7 +8205,9 @@ else:
         </div>
     </div>
     """
+
         st.html(resumen_html)
+
 
 
 
