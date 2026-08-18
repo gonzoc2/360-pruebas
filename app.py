@@ -1362,12 +1362,13 @@ else:
     )
 
 #### MAPEO BALANCE GENERAL
-    df_mapeo_local = cargar_datos(mapeo_url)
-    df_mapeo_local= (
-        df_mapeo_local
-        .groupby([
-            "Cuenta", "Descripción", "CATEGORIA", "CLASIFICACION", "CATEGORIA_A", "CLASIFICACION_A"
-        ]))
+    df_mapeo_local = cargar_datos(mapeo_url).copy()
+    columnas_mapeo = ["Cuenta", "Descripción", "CATEGORIA", "CLASIFICACION", "CATEGORIA_A", "CLASIFICACION_A"]
+    df_mapeo_local = (
+        df_mapeo_local[columnas_mapeo]
+        .drop_duplicates()
+        .reset_index(drop=True)
+    )
     
     df_base = cargar_datos (balance_url)
     df_base = (
@@ -7400,6 +7401,7 @@ else:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
+            return tabla_balance_por_empresa ()
 
     elif selected == "Balance por empresa":
         def tabla_balance_general_acumulado():
