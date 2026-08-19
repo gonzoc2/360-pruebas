@@ -7401,7 +7401,8 @@ else:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
-            return tabla_balance_por_empresa ()
+            return 
+          tabla_balance_por_empresa ()
 
     elif selected == "Balance por empresa":
         def tabla_balance_general_acumulado():
